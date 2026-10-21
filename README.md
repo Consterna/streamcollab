@@ -17,6 +17,7 @@ StreamCollab allows competitive gaming squads, content creator groups, and espor
     - `3` 🏆 **Clutch Play** (Yellow marker)
     - `4` 😂 **Funny Moment** (Cyan marker)
     - `5` 📝 **Timeline Note** (Blue marker)
+  - **Global hotkeys while gaming** via the bundled OBS Lua script (`obs-scripts/streamcollab-hotkeys.lua`), bindable in OBS *Settings → Hotkeys*.
   - Inline custom label / comment text input.
   - Live reverse-chronological marker history with SMPTE timecode.
 
@@ -37,7 +38,8 @@ StreamCollab allows competitive gaming squads, content creator groups, and espor
   - 🎞️ **Adobe Premiere Pro FCP 7 XML (`xmeml` v4)**: Valid Final Cut Pro 7 XML with complete `<format><samplecharacteristics>` video format blocks and track-level `<marker>` tags prefixed with category identifiers.
   - 📊 **Universal CSV**: RFC 4180 compliant CSV compatible with Google Sheets, Microsoft Excel, and Markerbox.
   - 📺 **YouTube Video Chapters**: Clean description chapter format (`00:00 Intro\n01:23 First Blood`) adhering to YouTube's 10-second minimum interval guidelines.
-  - 🛰️ **Multicam Sync Matrix JSON**: Calculates clock calibration offsets, frame alignments, and session start deltas across all squad creator feeds.
+  - 🛰️ **Multicam Sync Matrix JSON**: Where each creator's OBS file starts relative to the session (ms and frames), from SNTP-calibrated recording anchors.
+  - 🎥 **Per-POV timelines**: Any format can be exported re-timed to one creator's own recording file (`?memberId=`), so markers land on the right frame of that clip.
 
 - **High-Concurrency Fastify Backend & SQLite WAL**:
   - Fastify v5 with `@fastify/websocket` v11 and `@fastify/cors`.
@@ -77,6 +79,9 @@ streamcollab/
 │       │       └── DashboardView.tsx # Tournament Director command center
 │       └── tailwind.config.js
 │
+├── obs-scripts/
+│   └── streamcollab-hotkeys.lua  # OBS global hotkeys → Dock (via obs-websocket)
+│
 ├── .env.example           # Environment template (PORT, HOST, DATABASE_PATH)
 ├── package.json           # npm workspaces monorepo configuration
 ├── tsconfig.base.json
@@ -110,7 +115,7 @@ npm.cmd run build
 ```powershell
 npm.cmd test
 ```
-All 46 unit and integration tests verify SMPTE drop frame boundaries, NLE XML/EDL formatting, CSV escaping, and Fastify SQLite WAL routes.
+All 61 unit and integration tests verify SMPTE drop frame boundaries, NLE XML/EDL formatting, CSV escaping, and Fastify SQLite WAL routes.
 
 ### 4. Start Development Servers
 In two terminal windows:
@@ -153,7 +158,15 @@ npm.cmd start
 6. Click **OBS Disconnected** -> verify `ws://127.0.0.1:4455` -> click **Connect**.
 7. The status turns to a green **OBS Linked** dot, displaying your live canvas resolution, framerate, and recording status.
 
-### 3. Add the OBS Browser Source (HUD Overlay)
+### 3. Global Hotkeys While Gaming (Recommended)
+The Dock's `1`..`5` keys only work while the Dock has focus. To mark from inside your game:
+1. In OBS Studio, open **Tools** -> **Scripts** -> **+** and select `obs-scripts/streamcollab-hotkeys.lua` from this repository.
+2. Open **Settings** -> **Hotkeys**, search for `StreamCollab` and bind *Kill*, *Squad Wipe*, *Clutch Play*, *Funny Moment* and *Timeline Note*.
+3. Keep the StreamCollab Dock open and linked to OBS. Each hotkey press updates the hidden `StreamCollab Signal` input; the Dock receives it through obs-websocket and creates the marker.
+
+The script creates the `StreamCollab Signal` input automatically. It is never added to a scene, so nothing is rendered.
+
+### 4. Add the OBS Browser Source (HUD Overlay)
 1. In your active OBS Scene, click **Add Source (+)** -> **Browser**.
 2. Name it `StreamCollab HUD`.
 3. Configure settings:
@@ -165,7 +178,7 @@ npm.cmd start
 4. Click **OK**.
 5. When any squadmate presses a hotkey (`1`..`5`) or marks an event, a glowing alert badge will animate on-stream with sound cues, creator credit, and SMPTE timecode.
 
-### 4. Tournament Director Panel
+### 5. Tournament Director Panel
 - Access via any browser: `http://localhost:5173/?view=dashboard`
 - Start master recording sessions, customize base timecodes and framerates (60, 59.94 DF, 50, 30, 24 fps), monitor all squad members' recording duration and clock calibration, and export NLE timelines in 1 click.
 
@@ -189,6 +202,14 @@ npm.cmd start
    - Select the `.xml` sequence.
    - Premiere Pro opens a sequence with all squad markers placed on the video track with category headers and author comments.
 
+### Per-Creator (POV) Timelines
+Every creator's Dock reports when their OBS recording file started (on the server-calibrated clock). In the **Export NLE** dialog, pick a creator in the **Timeline** selector to get markers re-timed to that creator's own recording:
+- Markers made by that creator use the exact in-file position reported by OBS.
+- Squadmates' markers are placed using the SNTP-calibrated wall clock.
+- REST: `GET /api/rooms/:roomId/export/:format?sessionId=…&memberId=…`
+
+Known limitation: if a creator pauses their recording, squadmates' markers made *before* the pause may shift in that creator's POV export (their own markers stay exact).
+
 ### YouTube Chapters
 1. Click **Export NLE** -> select **YouTube Chapters**.
 2. Click **Copy Code**.
@@ -205,7 +226,9 @@ npm.cmd test
 - `packages/shared/test/timecode.test.ts`: SMPTE arithmetic, 60 fps NDF, 29.97 DF, 59.94 DF, 24 fps, minute-mark frame skipping.
 - `packages/shared/test/exporters.test.ts`: DaVinci CMX 3600 EDL formatting, FCP 7 XML, RFC 4180 CSV, YouTube chapters, and Multicam Sync Matrix.
 - `packages/shared/test/edge-cases.test.ts`: Zero markers, XML/CSV escaping, YouTube 10s chapter clustering, >24h timecode rollover.
+- `packages/shared/test/perMember.test.ts`: Per-POV timeline rebasing and EDL locators on the creator's own file.
 - `packages/server/test/server.test.ts`: Fastify routes, Node 24 native `node:sqlite` WAL mode, SNTP 4-timestamp clock offset and RTT engine.
+- `packages/server/test/ws.test.ts`: Real-socket WebSocket rooms (Dock + HUD with the same member id), heartbeat, calibrated marker timestamps, recording anchors, per-POV exports, and in-place migration of v1.0.0 databases.
 
 ---
 

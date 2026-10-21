@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-20
+
+### Added
+- **Global OBS hotkeys** (`obs-scripts/streamcollab-hotkeys.lua`): five frontend hotkeys (Kill, Squad Wipe, Clutch, Funny, Note) bindable in OBS *Settings → Hotkeys* that work while the game has focus. The script signals the Dock through the `StreamCollab Signal` input and obs-websocket `InputSettingsChanged`.
+- **Per-POV exports**: `GET /api/rooms/:id/export/:format?memberId=…` re-times every marker against that streamer's own OBS recording file (new shared `rebaseSessionForMember`). The Export modal has a *Timeline* selector for it.
+- **Recording anchors**: the Dock reports `recordStartedAt` (calibrated server time when its OBS file began; re-anchored after pause) and exact `fpsNumerator/fpsDenominator`, stored per session in the new `session_members` table.
+- **WebSocket heartbeat**: server pings every 15 s and terminates sockets that don't answer, so crashed or dropped clients are marked disconnected.
+- `clientKind` (`dock` | `hud` | `dashboard`) in `JOIN_ROOM`; HUD overlays and dashboards join as read-only observers.
+- `socketClient.on(event, handler)` multi-listener subscriptions in the client.
+- SQLite schema migrations via `PRAGMA user_version` (v1.0.0 databases upgrade in place) and cached prepared statements.
+- 15 new tests (61 total): real-socket WebSocket integration, heartbeat, timestamp clamping, per-POV EDL, sync matrix anchors, legacy DB migration, Content-Disposition.
+
+### Changed
+- Markers are stamped with the client's SNTP-calibrated keypress time (`clientTimestamp`, clamped to −10 s/+1 s of arrival) instead of server receipt time, and carry `obsRecordMs` (exact position in the marker author's own file).
+- **Multicam Sync Matrix**: `sessionOffsetMs` is now the real offset `recordStartedAt − session.startedAt` (previously it echoed the SNTP clock offset). New fields `aligned`, `recordStartedAt`, `clockOffsetMs`. The Export modal loads the matrix from the server so anchors are included.
+- Nav bar name / room inputs apply on blur or Enter instead of reconnecting on every keystroke.
+- Export filenames use an ASCII `filename` plus RFC 5987 `filename*`, stripping quotes, slashes and Windows-invalid characters.
+
+### Fixed
+- Joining a room that doesn't exist (e.g. the default `squad-1` on a fresh database) failed on the members foreign key and the client never received `ROOM_STATE`. Rooms are now created on first join.
+- The Dock and the HUD Browser Source of the same streamer (same member id) replaced each other on the server, so one of them stopped receiving events; the HUD also appeared as a squad player.
+- HUD toasts never appeared because `App` overwrote the HUD's `onMarkerAdded` callback.
+- The Dock reconnected to OBS every time the video settings arrived.
+- Intentionally closing the client socket scheduled a ghost reconnect.
+
 ## [1.0.0] - 2026-10-20
 
 ### Added
@@ -77,6 +102,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed exporter access after session stop to allow post-broadcast timeline generation.
 - Fixed route navigation handling for both query string (`?view=dock`) and hash routing (`#/dock`).
 
-[Unreleased]: https://github.com/Consterna/streamcollab/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/Consterna/streamcollab/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/Consterna/streamcollab/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Consterna/streamcollab/releases/tag/v1.0.0
 
