@@ -1,0 +1,254 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  SquadMember,
+  Room,
+  RecordingSession,
+  SquadMarker,
+} from '@streamcollab/shared';
+import { ObsService } from './services/obs';
+import { StreamCollabSocketClient } from './services/socket';
+import { DockView } from './views/DockView';
+import { HudView } from './views/HudView';
+import { DashboardView } from './views/DashboardView';
+import { Monitor, Tv, LayoutDashboard, Link as LinkIcon } from 'lucide-react';
+
+export function App() {
+  // Parse query parameters
+  const params = useMemo(() => new URLSearchParams(window.location.search), []);
+  const initialView = params.get('view') || window.location.hash.replace('#/', '') || 'dock';
+  const initialRoom = params.get('room') || 'squad-1';
+
+  const [currentView, setCurrentView] = useState<string>(initialView);
+  const [roomId, setRoomId] = useState<string>(initialRoom);
+  const [userName, setUserName] = useState<string>(() => {
+    return localStorage.getItem('streamcollab_username') || `Player_${Math.floor(100 + Math.random() * 900)}`;
+  });
+
+  const memberId = useMemo(() => {
+    let id = localStorage.getItem('streamcollab_member_id');
+    if (!id) {
+      id = 'mem_' + Math.random().toString(36).substring(2, 9);
+      localStorage.setItem('streamcollab_member_id', id);
+    }
+    return id;
+  }, []);
+
+  const member: SquadMember = useMemo(() => ({
+    id: memberId,
+    name: userName,
+    role: 'player',
+    obsStatus: 'disconnected',
+    fps: 60,
+    outputDurationMs: 0,
+    clockOffsetMs: 0,
+    rttMs: 0,
+    lastHeartbeat: Date.now(),
+  }), [memberId, userName]);
+
+  // Services singletons
+  const obsService = useMemo(() => new ObsService(), []);
+  const socketClient = useMemo(() => new StreamCollabSocketClient(), []);
+
+  // Shared state from server
+  const [room, setRoom] = useState<Room | null>(null);
+  const [activeSession, setActiveSession] = useState<RecordingSession | null>(null);
+  const [markers, setMarkers] = useState<SquadMarker[]>([]);
+
+  // Initialize socket and listeners
+  useEffect(() => {
+    socketClient.callbacks.onRoomState = (state) => {
+      setRoom(state.room);
+      setActiveSession(state.activeSession);
+      setMarkers(state.markers);
+    };
+
+    socketClient.callbacks.onMemberJoined = (newMember) => {
+      setRoom((prev) => {
+        if (!prev) return null;
+        const exists = prev.members.some((m) => m.id === newMember.id);
+        const members = exists
+          ? prev.members.map((m) => (m.id === newMember.id ? newMember : m))
+          : [...prev.members, newMember];
+        return { ...prev, members };
+      });
+    };
+
+    socketClient.callbacks.onMemberLeft = (leftMemberId) => {
+      setRoom((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          members: prev.members.map((m) =>
+            m.id === leftMemberId ? { ...m, obsStatus: 'disconnected' } : m
+          ),
+        };
+      });
+    };
+
+    socketClient.callbacks.onMemberUpdated = (updatedMember) => {
+      setRoom((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          members: prev.members.map((m) =>
+            m.id === updatedMember.id ? updatedMember : m
+          ),
+        };
+      });
+    };
+
+    socketClient.callbacks.onMarkerAdded = (marker) => {
+      setMarkers((prev) => {
+        if (prev.some((m) => m.id === marker.id)) return prev;
+        return [...prev, marker];
+      });
+    };
+
+    socketClient.callbacks.onSessionStarted = (session) => {
+      setActiveSession(session);
+      setMarkers([]);
+    };
+
+    socketClient.callbacks.onSessionStopped = (session) => {
+      setActiveSession(null);
+    };
+
+    socketClient.connect();
+    socketClient.joinRoom(roomId, member);
+
+    return () => {
+      socketClient.disconnect();
+    };
+  }, [socketClient, roomId, member]);
+
+  // Handle URL hash changes
+  useEffect(() => {
+    const handleHash = () => {
+      const h = window.location.hash.replace('#/', '');
+      if (['dock', 'hud', 'dashboard'].includes(h)) {
+        setCurrentView(h);
+      }
+    };
+    window.addEventListener('hashchange', handleHash);
+    return () => window.removeEventListener('hashchange', handleHash);
+  }, []);
+
+  // For HUD view in OBS Browser Source, render transparent without wrapper navigation
+  if (currentView === 'hud') {
+    return (
+      <HudView
+        socketClient={socketClient}
+        roomId={roomId}
+        members={room?.members || []}
+        activeSession={activeSession}
+      />
+    );
+  }
+
+  return (
+    <div className="flex min-h-screen flex-col bg-zinc-950 text-zinc-100">
+      {/* View Switcher Bar (Hidden if loaded as an embedded dock or explicit view) */}
+      <nav className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900/90 px-4 py-2 text-xs">
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => {
+              setCurrentView('dock');
+              window.location.hash = '/dock';
+            }}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1 font-semibold transition ${
+              currentView === 'dock'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
+            }`}
+          >
+            <Tv className="h-3.5 w-3.5" />
+            OBS Dock
+          </button>
+
+          <button
+            onClick={() => {
+              setCurrentView('hud');
+              window.location.hash = '/hud';
+            }}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1 font-semibold transition ${
+              currentView === 'hud'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
+            }`}
+          >
+            <Monitor className="h-3.5 w-3.5" />
+            OBS Overlay HUD
+          </button>
+
+          <button
+            onClick={() => {
+              setCurrentView('dashboard');
+              window.location.hash = '/dashboard';
+            }}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1 font-semibold transition ${
+              currentView === 'dashboard'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
+            }`}
+          >
+            <LayoutDashboard className="h-3.5 w-3.5" />
+            Director Panel
+          </button>
+        </div>
+
+        {/* Room & User Setting */}
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={userName}
+            onChange={(e) => {
+              setUserName(e.target.value);
+              localStorage.setItem('streamcollab_username', e.target.value);
+            }}
+            placeholder="Your streamer name"
+            className="w-28 rounded border border-zinc-700 bg-zinc-950 px-2 py-0.5 text-xs text-zinc-200 focus:border-indigo-500 focus:outline-none"
+            title="Streamer Display Name"
+          />
+
+          <input
+            type="text"
+            value={roomId}
+            onChange={(e) => {
+              setRoomId(e.target.value);
+            }}
+            placeholder="Room ID"
+            className="w-24 rounded border border-zinc-700 bg-zinc-950 px-2 py-0.5 text-xs font-mono text-zinc-200 focus:border-indigo-500 focus:outline-none"
+            title="Active Room Code"
+          />
+        </div>
+      </nav>
+
+      {/* Active View */}
+      <main className="flex-1 flex flex-col">
+        {currentView === 'dock' && (
+          <DockView
+            socketClient={socketClient}
+            obsService={obsService}
+            roomId={roomId}
+            member={member}
+            room={room}
+            activeSession={activeSession}
+            markers={markers}
+          />
+        )}
+
+        {currentView === 'dashboard' && (
+          <DashboardView
+            socketClient={socketClient}
+            roomId={roomId}
+            room={room}
+            activeSession={activeSession}
+            markers={markers}
+            onRoomChange={(newRoom) => setRoomId(newRoom)}
+          />
+        )}
+      </main>
+    </div>
+  );
+}
+export default App;
