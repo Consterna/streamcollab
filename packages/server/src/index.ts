@@ -29,7 +29,7 @@ async function start() {
   const port = parseInt(process.env.PORT || '3000', 10);
   const host = process.env.HOST || '0.0.0.0';
 
-  const { fastify } = await createServer();
+  const { fastify } = await createServer({ dbPath: process.env.DATABASE_PATH });
 
   try {
     const address = await fastify.listen({ port, host });

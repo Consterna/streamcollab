@@ -13,7 +13,8 @@
     "test": "vitest run",
     "dev:server": "npm run dev --workspace=packages/server",
     "dev:client": "npm run dev --workspace=packages/client",
-    "dev": "npm run dev:server"
+    "dev": "npm run dev:server",
+    "start": "npm run start --workspace=packages/server"
   },
   "devDependencies": {
     "typescript": "^5.8.2",
