@@ -181,6 +181,18 @@ export function App() {
     );
 
     subscriptions.push(
+      socketClient.on('onMarkerUpdated', (marker) => {
+        setMarkers((prev) => prev.map((m) => (m.id === marker.id ? marker : m)));
+      })
+    );
+
+    subscriptions.push(
+      socketClient.on('onMarkerDeleted', ({ markerId }) => {
+        setMarkers((prev) => prev.filter((m) => m.id !== markerId));
+      })
+    );
+
+    subscriptions.push(
       socketClient.on('onSessionStarted', (session) => {
         setActiveSession(session);
         setLastSession(session);

@@ -11,6 +11,8 @@ import {
   SMPTETimecode,
   CATEGORY_TO_DAVINCI_COLOR,
   MarkerCategory,
+  MarkerChanges,
+  SessionSummary,
   resolveMemberFramerate,
 } from '@streamcollab/shared';
 import { DatabaseService } from '../db/database.js';
@@ -407,6 +409,71 @@ export class RoomManager {
     });
 
     return marker;
+  }
+
+  listSessions(roomId: string): SessionSummary[] {
+    return this.db.listSessions(roomId);
+  }
+
+  // Marker editing: only the author (from their own dock) or the room host
+  private requireEditableMarker(
+    actor: { roomId: string; memberId: string | null; isHost: boolean },
+    markerId: string
+  ): SquadMarker {
+    const marker = this.db.getMarker(markerId);
+    if (!marker || marker.roomId !== actor.roomId) {
+      throw new RoomError('NOT_FOUND', `Marker ${markerId} not found in this room`);
+    }
+    if (!actor.isHost && marker.memberId !== actor.memberId) {
+      throw new RoomError('FORBIDDEN', 'Only the marker author or the room host can change it');
+    }
+    return marker;
+  }
+
+  updateMarker(
+    actor: { roomId: string; memberId: string | null; isHost: boolean },
+    markerId: string,
+    changes: MarkerChanges
+  ): SquadMarker {
+    const marker = this.requireEditableMarker(actor, markerId);
+    const category = changes.category ?? marker.category;
+    // A new category brings its own NLE color unless one was chosen explicitly
+    const color =
+      changes.color ??
+      (changes.category && changes.category !== marker.category
+        ? (CATEGORY_TO_DAVINCI_COLOR[category] as SquadMarker['color']) || marker.color
+        : marker.color);
+
+    const updated: SquadMarker = {
+      ...marker,
+      category,
+      color,
+      label: changes.label ?? marker.label,
+      comment: changes.comment === null ? undefined : (changes.comment ?? marker.comment),
+    };
+    this.db.updateMarker(updated);
+    this.broadcastToRoom(marker.roomId, { type: 'MARKER_UPDATED', payload: updated });
+    return updated;
+  }
+
+  deleteMarker(actor: { roomId: string; memberId: string | null; isHost: boolean }, markerId: string): SquadMarker {
+    const marker = this.requireEditableMarker(actor, markerId);
+    this.db.deleteMarker(marker.id);
+    this.broadcastToRoom(marker.roomId, {
+      type: 'MARKER_DELETED',
+      payload: { markerId: marker.id, sessionId: marker.sessionId },
+    });
+    return marker;
+  }
+
+  /** Delete a member's most recent marker in the active session (the "oops" button) */
+  undoLastMarker(roomId: string, memberId: string): SquadMarker {
+    const session = this.db.getActiveSession(roomId) ?? this.db.getLatestSession(roomId);
+    const marker = session ? this.db.getLatestMemberMarker(session.id, memberId) : null;
+    if (!marker) {
+      throw new RoomError('NOT_FOUND', 'No marker of yours to undo in this session');
+    }
+    return this.deleteMarker({ roomId, memberId, isHost: false }, marker.id);
   }
 
   // Messaging helpers

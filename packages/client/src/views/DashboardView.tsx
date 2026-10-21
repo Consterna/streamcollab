@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import { Room, RecordingSession, SquadMarker } from '@streamcollab/shared';
+import React, { useEffect, useState } from 'react';
+import { MarkerChanges, Room, RecordingSession, SessionSummary, SquadMarker } from '@streamcollab/shared';
 import { StreamCollabSocketClient } from '../services/socket';
 import { ExportModal } from '../components/ExportModal';
 import { RoomSetupPanel } from '../components/RoomSetupPanel';
+import { MarkerRow } from '../components/MarkerRow';
+import { SessionHistory } from '../components/SessionHistory';
 import { apiUrl } from '../services/serverUrl';
 import { Play, Square, Users, Film, Download, Radio, Search, Layers } from 'lucide-react';
 
@@ -27,7 +29,77 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   isHost,
   onRoomChange,
 }) => {
-  const sessionForExport = activeSession || lastSession || null;
+  const liveSession = activeSession || lastSession || null;
+
+  // Session history: null = follow the current session; otherwise browse a past one
+  const [sessions, setSessions] = useState<SessionSummary[]>([]);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [history, setHistory] = useState<{ sessionId: string; markers: SquadMarker[] } | null>(null);
+  const viewingHistory = Boolean(selectedSessionId && selectedSessionId !== liveSession?.id);
+
+  // Refresh the list when sessions start / stop or marker counts change
+  const sessionsKey = `${room?.id}|${activeSession?.id}|${lastSession?.stoppedAt}|${markers.length}`;
+  useEffect(() => {
+    if (!room?.id) return;
+    const controller = new AbortController();
+    fetch(apiUrl(`/api/rooms/${encodeURIComponent(room.id)}/sessions`), { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((list: SessionSummary[]) => setSessions(list))
+      .catch(() => {
+        // keep the previous list (network hiccup or aborted)
+      });
+    return () => controller.abort();
+  }, [sessionsKey, room?.id]);
+
+  // Markers of a past session come from the REST API, then follow live edits / deletions
+  useEffect(() => {
+    if (!viewingHistory || !selectedSessionId) return;
+    const controller = new AbortController();
+    const params = new URLSearchParams({ sessionId: selectedSessionId });
+    fetch(apiUrl(`/api/rooms/${encodeURIComponent(roomId)}/markers?${params}`), { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((list: SquadMarker[]) => setHistory({ sessionId: selectedSessionId, markers: list }))
+      .catch(() => {
+        // aborted or offline: keep what is shown
+      });
+    return () => controller.abort();
+  }, [viewingHistory, selectedSessionId, roomId]);
+
+  useEffect(() => {
+    const offUpdated = socketClient.on('onMarkerUpdated', (marker) =>
+      setHistory((prev) =>
+        prev && prev.sessionId === marker.sessionId
+          ? { ...prev, markers: prev.markers.map((m) => (m.id === marker.id ? marker : m)) }
+          : prev
+      )
+    );
+    const offDeleted = socketClient.on('onMarkerDeleted', ({ markerId, sessionId }) =>
+      setHistory((prev) =>
+        prev && prev.sessionId === sessionId
+          ? { ...prev, markers: prev.markers.filter((m) => m.id !== markerId) }
+          : prev
+      )
+    );
+    return () => {
+      offUpdated();
+      offDeleted();
+    };
+  }, [socketClient]);
+
+  const viewedSession: RecordingSession | null = viewingHistory
+    ? (sessions.find((session) => session.id === selectedSessionId) ?? null)
+    : liveSession;
+  const viewedMarkers = viewingHistory ? (history?.sessionId === selectedSessionId ? history.markers : []) : markers;
+
+  const handleSaveMarker = (markerId: string, changes: MarkerChanges) => {
+    socketClient.updateMarker(markerId, changes);
+  };
+
+  const handleDeleteMarker = (marker: SquadMarker) => {
+    if (window.confirm(`Delete marker "${marker.label}" (${marker.timecode}) by ${marker.memberName}?`)) {
+      socketClient.deleteMarker(marker.id);
+    }
+  };
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -71,7 +143,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   };
 
   // Filter markers
-  const filteredMarkers = markers.filter((m) => {
+  const filteredMarkers = viewedMarkers.filter((m) => {
     const matchCat = filterCategory === 'all' || m.category === filterCategory;
     const matchSearch =
       searchQuery === '' ||
@@ -138,7 +210,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
           <button
             onClick={() => setIsExportOpen(true)}
-            disabled={!sessionForExport}
+            disabled={!viewedSession}
             className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-40 transition shadow-lg shadow-indigo-600/20"
           >
             <Download className="h-4 w-4" />
@@ -251,9 +323,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-zinc-800 pb-3 mb-4 gap-3">
               <div className="flex items-center gap-2">
                 <Film className="h-5 w-5 text-indigo-400" />
-                <h2 className="text-sm font-bold text-white">Live Event Timeline</h2>
+                <h2 className="text-sm font-bold text-white">
+                  {viewingHistory ? `Session Timeline: ${viewedSession?.name ?? ''}` : 'Live Event Timeline'}
+                </h2>
                 <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-xs font-semibold text-zinc-300">
-                  {filteredMarkers.length} of {markers.length}
+                  {filteredMarkers.length} of {viewedMarkers.length}
                 </span>
               </div>
 
@@ -292,30 +366,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             ) : (
               <div className="divide-y divide-zinc-800/80 max-h-96 overflow-y-auto">
                 {filteredMarkers.map((m) => (
-                  <div
+                  <MarkerRow
                     key={m.id}
-                    className="py-2.5 flex items-center justify-between hover:bg-zinc-800/30 px-2 rounded-sm"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono text-xs font-bold text-indigo-300 bg-indigo-950/60 px-2 py-0.5 rounded-sm border border-indigo-800/40">
-                        {m.timecode}
-                      </span>
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm bg-zinc-800 text-zinc-300">
-                        {m.category}
-                      </span>
-                      <div>
-                        <span className="text-xs font-bold text-white">{m.label}</span>
-                        {m.comment && <p className="text-[11px] text-zinc-400">{m.comment}</p>}
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      <span className="text-xs font-medium text-zinc-300">{m.memberName}</span>
-                      <p className="text-[10px] font-mono text-zinc-500">
-                        {new Date(m.timestamp).toLocaleTimeString()}
-                      </p>
-                    </div>
-                  </div>
+                    marker={m}
+                    canEdit={isHost}
+                    onSave={handleSaveMarker}
+                    onDelete={handleDeleteMarker}
+                  />
                 ))}
               </div>
             )}
@@ -324,6 +381,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         {/* Right Col: Session Information & Direct Export Suite */}
         <div className="space-y-6">
+          <SessionHistory
+            sessions={sessions}
+            viewedSessionId={selectedSessionId}
+            liveSessionId={liveSession?.id ?? null}
+            onSelect={setSelectedSessionId}
+          />
+
           {/* Session Overview Card */}
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 p-5 shadow-xl">
             <h2 className="text-sm font-bold text-white flex items-center justify-between border-b border-zinc-800 pb-3 mb-3">
@@ -331,46 +395,46 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <Layers className="h-4 w-4 text-indigo-400" />
                 <span>Recording Session Details</span>
               </div>
-              {sessionForExport && (
+              {viewedSession && (
                 <span
                   className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                    activeSession
+                    !viewedSession.stoppedAt
                       ? 'bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse'
                       : 'bg-zinc-800 text-zinc-300 border border-zinc-700'
                   }`}
                 >
-                  {activeSession ? 'LIVE RECORDING' : 'COMPLETED'}
+                  {!viewedSession.stoppedAt ? 'LIVE RECORDING' : 'COMPLETED'}
                 </span>
               )}
             </h2>
 
-            {sessionForExport ? (
+            {viewedSession ? (
               <div className="space-y-3 text-xs">
                 <div>
                   <span className="text-zinc-500 block text-[11px]">Session Name:</span>
-                  <span className="font-semibold text-white">{sessionForExport.name}</span>
+                  <span className="font-semibold text-white">{viewedSession.name}</span>
                 </div>
                 <div>
                   <span className="text-zinc-500 block text-[11px]">Framerate & Standard:</span>
                   <span className="font-mono text-zinc-200">
-                    {sessionForExport.framerateNumerator}/{sessionForExport.framerateDenominator} fps
-                    {sessionForExport.dropFrame ? ' (SMPTE Drop Frame)' : ' (Non-Drop Frame)'}
+                    {viewedSession.framerateNumerator}/{viewedSession.framerateDenominator} fps
+                    {viewedSession.dropFrame ? ' (SMPTE Drop Frame)' : ' (Non-Drop Frame)'}
                   </span>
                 </div>
                 <div>
                   <span className="text-zinc-500 block text-[11px]">Base Timecode Offset:</span>
-                  <span className="font-mono text-zinc-200">{sessionForExport.baseTimecode}</span>
+                  <span className="font-mono text-zinc-200">{viewedSession.baseTimecode}</span>
                 </div>
                 <div>
                   <span className="text-zinc-500 block text-[11px]">Started At:</span>
-                  <span className="text-zinc-300">{new Date(sessionForExport.startedAt).toLocaleString()}</span>
+                  <span className="text-zinc-300">{new Date(viewedSession.startedAt).toLocaleString()}</span>
                 </div>
-                {sessionForExport.stoppedAt && (
+                {viewedSession.stoppedAt && (
                   <div>
                     <span className="text-zinc-500 block text-[11px]">Duration:</span>
                     <span className="text-zinc-300 font-mono">
-                      {Math.floor((sessionForExport.stoppedAt - sessionForExport.startedAt) / 60000)}m{' '}
-                      {Math.floor(((sessionForExport.stoppedAt - sessionForExport.startedAt) % 60000) / 1000)}s
+                      {Math.floor((viewedSession.stoppedAt - viewedSession.startedAt) / 60000)}m{' '}
+                      {Math.floor(((viewedSession.stoppedAt - viewedSession.startedAt) % 60000) / 1000)}s
                     </span>
                   </div>
                 )}
@@ -391,12 +455,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </h2>
             <div className="space-y-2">
               <a
-                href={
-                  sessionForExport ? apiUrl(`/api/rooms/${roomId}/export/edl?sessionId=${sessionForExport.id}`) : '#'
-                }
+                href={viewedSession ? apiUrl(`/api/rooms/${roomId}/export/edl?sessionId=${viewedSession.id}`) : '#'}
                 download
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
-                  !sessionForExport ? 'pointer-events-none opacity-40' : ''
+                  !viewedSession ? 'pointer-events-none opacity-40' : ''
                 }`}
               >
                 <span className="font-medium text-zinc-200">DaVinci Resolve EDL</span>
@@ -404,12 +466,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </a>
 
               <a
-                href={
-                  sessionForExport ? apiUrl(`/api/rooms/${roomId}/export/xml?sessionId=${sessionForExport.id}`) : '#'
-                }
+                href={viewedSession ? apiUrl(`/api/rooms/${roomId}/export/xml?sessionId=${viewedSession.id}`) : '#'}
                 download
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
-                  !sessionForExport ? 'pointer-events-none opacity-40' : ''
+                  !viewedSession ? 'pointer-events-none opacity-40' : ''
                 }`}
               >
                 <span className="font-medium text-zinc-200">Adobe Premiere Pro XML</span>
@@ -417,12 +477,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </a>
 
               <a
-                href={
-                  sessionForExport ? apiUrl(`/api/rooms/${roomId}/export/csv?sessionId=${sessionForExport.id}`) : '#'
-                }
+                href={viewedSession ? apiUrl(`/api/rooms/${roomId}/export/csv?sessionId=${viewedSession.id}`) : '#'}
                 download
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
-                  !sessionForExport ? 'pointer-events-none opacity-40' : ''
+                  !viewedSession ? 'pointer-events-none opacity-40' : ''
                 }`}
               >
                 <span className="font-medium text-zinc-200">Universal CSV (Sheets/Excel)</span>
@@ -430,14 +488,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </a>
 
               <a
-                href={
-                  sessionForExport
-                    ? apiUrl(`/api/rooms/${roomId}/export/youtube?sessionId=${sessionForExport.id}`)
-                    : '#'
-                }
+                href={viewedSession ? apiUrl(`/api/rooms/${roomId}/export/youtube?sessionId=${viewedSession.id}`) : '#'}
                 download
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
-                  !sessionForExport ? 'pointer-events-none opacity-40' : ''
+                  !viewedSession ? 'pointer-events-none opacity-40' : ''
                 }`}
               >
                 <span className="font-medium text-zinc-200">YouTube Chapters</span>
@@ -445,12 +499,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </a>
 
               <a
-                href={
-                  sessionForExport ? apiUrl(`/api/rooms/${roomId}/export/matrix?sessionId=${sessionForExport.id}`) : '#'
-                }
+                href={viewedSession ? apiUrl(`/api/rooms/${roomId}/export/matrix?sessionId=${viewedSession.id}`) : '#'}
                 download
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
-                  !sessionForExport ? 'pointer-events-none opacity-40' : ''
+                  !viewedSession ? 'pointer-events-none opacity-40' : ''
                 }`}
               >
                 <span className="font-medium text-zinc-200">Multicam Sync Matrix JSON</span>
@@ -560,8 +612,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <ExportModal
         isOpen={isExportOpen}
         onClose={() => setIsExportOpen(false)}
-        session={sessionForExport}
-        markers={markers}
+        session={viewedSession}
+        markers={viewedMarkers}
         members={members}
         roomId={roomId}
       />

@@ -150,7 +150,25 @@ export type ClientMessage =
       type: 'START_SESSION';
       payload: { roomId: string; session: Omit<RecordingSession, 'id' | 'startedAt' | 'stoppedAt'> };
     }
-  | { type: 'STOP_SESSION'; payload: { roomId: string; sessionId: string } };
+  | { type: 'STOP_SESSION'; payload: { roomId: string; sessionId: string } }
+  // Edit / delete: the marker's author (from their dock) or the room host
+  | { type: 'UPDATE_MARKER'; payload: { markerId: string; changes: MarkerChanges } }
+  | { type: 'DELETE_MARKER'; payload: { markerId: string } }
+  // Removes this dock's most recent marker in the active session (resolved server-side)
+  | { type: 'UNDO_LAST_MARKER'; payload?: Record<string, never> };
+
+/** Editable marker fields. `comment: null` clears the comment. */
+export interface MarkerChanges {
+  label?: string;
+  comment?: string | null;
+  category?: MarkerCategory;
+  color?: DaVinciMarkerColor;
+}
+
+/** A recording session with its marker count, for the session history */
+export interface SessionSummary extends RecordingSession {
+  markerCount: number;
+}
 
 export type ServerMessage =
   | { type: 'SNTP_PONG'; payload: SntpPongPayload }
@@ -159,6 +177,8 @@ export type ServerMessage =
   | { type: 'MEMBER_LEFT'; payload: { memberId: string } }
   | { type: 'MEMBER_UPDATED'; payload: SquadMember }
   | { type: 'MARKER_ADDED'; payload: SquadMarker }
+  | { type: 'MARKER_UPDATED'; payload: SquadMarker }
+  | { type: 'MARKER_DELETED'; payload: { markerId: string; sessionId: string } }
   | { type: 'SESSION_STARTED'; payload: RecordingSession }
   | { type: 'SESSION_STOPPED'; payload: RecordingSession }
   | {
@@ -179,6 +199,7 @@ export type ErrorCode =
   | 'FORBIDDEN'
   | 'HOST_TOKEN_INVALID'
   | 'MEMBER_TOKEN_INVALID'
+  | 'NOT_FOUND'
   | 'RATE_LIMITED';
 
 // Response of POST /api/rooms. The host token is shown once and only its hash is stored.

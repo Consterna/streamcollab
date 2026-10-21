@@ -8,6 +8,7 @@ import {
   MarkerCategory,
   ClientKind,
   ErrorCode,
+  MarkerChanges,
 } from '@streamcollab/shared';
 import { getHostToken, getMemberToken, saveMemberToken } from './credentials';
 import { wsUrl } from './serverUrl';
@@ -26,6 +27,8 @@ export interface SocketClientCallbacks {
   onMemberLeft?: (memberId: string) => void;
   onMemberUpdated?: (member: SquadMember) => void;
   onMarkerAdded?: (marker: SquadMarker) => void;
+  onMarkerUpdated?: (marker: SquadMarker) => void;
+  onMarkerDeleted?: (deleted: { markerId: string; sessionId: string }) => void;
   onSessionStarted?: (session: RecordingSession) => void;
   onSessionStopped?: (session: RecordingSession) => void;
   onClockSync?: (offsetMs: number, rttMs: number) => void;
@@ -193,6 +196,14 @@ export class StreamCollabSocketClient {
         this.emit('onMarkerAdded', msg.payload);
         break;
 
+      case 'MARKER_UPDATED':
+        this.emit('onMarkerUpdated', msg.payload);
+        break;
+
+      case 'MARKER_DELETED':
+        this.emit('onMarkerDeleted', msg.payload);
+        break;
+
       case 'SESSION_STARTED':
         this.emit('onSessionStarted', msg.payload);
         break;
@@ -330,6 +341,20 @@ export class StreamCollabSocketClient {
         },
       },
     });
+  }
+
+  /** Edit a marker (author dock or host only; the server enforces it) */
+  updateMarker(markerId: string, changes: MarkerChanges) {
+    this.send({ type: 'UPDATE_MARKER', payload: { markerId, changes } });
+  }
+
+  deleteMarker(markerId: string) {
+    this.send({ type: 'DELETE_MARKER', payload: { markerId } });
+  }
+
+  /** Remove this dock's most recent marker in the current session */
+  undoLastMarker() {
+    this.send({ type: 'UNDO_LAST_MARKER' });
   }
 
   startSession(

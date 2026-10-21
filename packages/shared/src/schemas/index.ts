@@ -100,6 +100,19 @@ export const markerInputSchema = z.object({
   obsRecordMs: epochMs.optional(),
 });
 
+export const markerIdSchema = z.string().min(1).max(64);
+
+export const markerChangesSchema = z
+  .object({
+    label: text(LIMITS.label).min(1).optional(),
+    comment: text(LIMITS.comment).nullable().optional(),
+    category: markerCategorySchema.optional(),
+    color: markerColorSchema.optional(),
+  })
+  .refine((changes) => Object.values(changes).some((value) => value !== undefined), {
+    message: 'Provide at least one field to change',
+  });
+
 export const sessionSettingsSchema = z.object({
   name: text(LIMITS.sessionName).optional(),
   baseTimecode: timecodeSchema.optional(),
@@ -142,6 +155,12 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
     type: z.literal('STOP_SESSION'),
     payload: z.object({ roomId: roomIdSchema.optional(), sessionId: z.string().max(64).optional() }),
   }),
+  z.object({
+    type: z.literal('UPDATE_MARKER'),
+    payload: z.object({ markerId: markerIdSchema, changes: markerChangesSchema }),
+  }),
+  z.object({ type: z.literal('DELETE_MARKER'), payload: z.object({ markerId: markerIdSchema }) }),
+  z.object({ type: z.literal('UNDO_LAST_MARKER'), payload: z.object({}).optional() }),
 ]);
 
 // REST bodies
@@ -155,6 +174,8 @@ export const createRoomBodySchema = z
 export const quickMarkBodySchema = markerInputSchema.extend({
   memberId: idSchema,
 });
+
+export const undoMarkerBodySchema = z.object({ memberId: idSchema });
 
 export const stopSessionBodySchema = z.object({ sessionId: z.string().max(64).optional() }).default({});
 

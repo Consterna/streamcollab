@@ -156,6 +156,24 @@ export function registerWebSocketHandler(
             }
             break;
           }
+
+          case 'UPDATE_MARKER': {
+            roomManager.updateMarker(client, message.payload.markerId, message.payload.changes);
+            break;
+          }
+
+          case 'DELETE_MARKER': {
+            roomManager.deleteMarker(client, message.payload.markerId);
+            break;
+          }
+
+          case 'UNDO_LAST_MARKER': {
+            if (client.kind !== 'dock' || !client.memberId) {
+              throw new RoomError('FORBIDDEN', 'Only a streamer dock can undo its markers');
+            }
+            roomManager.undoLastMarker(client.roomId, client.memberId);
+            break;
+          }
         }
       } catch (err: any) {
         if (err instanceof RoomError) {

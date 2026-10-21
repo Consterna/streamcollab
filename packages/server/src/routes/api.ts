@@ -16,6 +16,7 @@ import {
   sessionSettingsSchema,
   stopSessionBodySchema,
   quickMarkBodySchema,
+  undoMarkerBodySchema,
   formatValidationError,
 } from '@streamcollab/shared';
 
@@ -184,6 +185,45 @@ export function registerApiRoutes(
       });
 
       return reply.status(201).send(marker);
+    }
+  );
+
+  // Undo a member's last marker over HTTP (Stream Deck "oops" button)
+  fastify.post(
+    '/api/rooms/:id/markers/undo',
+    { config: { rateLimit: QUICK_MARK_RATE_LIMIT } },
+    async (req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+      const { id } = req.params;
+      if (!requireRoom(id, reply)) return reply;
+
+      const body = undoMarkerBodySchema.safeParse(req.body ?? {});
+      if (!body.success) return badRequest(reply, body.error);
+
+      const { memberId } = body.data;
+      const member = db.getRoomMembers(id).find((m) => m.id === memberId);
+      if (!member || !roomManager.isMemberToken(memberId, bearerToken(req.headers.authorization))) {
+        return reply.status(403).send({ error: 'Member token required (Authorization: Bearer <memberToken>)' });
+      }
+
+      try {
+        const removed = roomManager.undoLastMarker(id, memberId);
+        return { removed };
+      } catch (err) {
+        if (err instanceof RoomError && err.code === 'NOT_FOUND') {
+          return reply.status(404).send({ error: err.message });
+        }
+        throw err;
+      }
+    }
+  );
+
+  // Session history (newest first) with marker counts
+  fastify.get(
+    '/api/rooms/:id/sessions',
+    async (req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+      const { id } = req.params;
+      if (!requireRoom(id, reply)) return reply;
+      return roomManager.listSessions(id);
     }
   );
 

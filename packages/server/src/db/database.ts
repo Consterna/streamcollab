@@ -7,6 +7,7 @@ import {
   RecordingSession,
   SquadMarker,
   SessionMemberAnchor,
+  SessionSummary,
   MarkerCategory,
   DaVinciMarkerColor,
   ObsRecordingStatus,
@@ -355,6 +356,15 @@ export class DatabaseService {
     return row ? this.mapSession(row) : null;
   }
 
+  /** Every session of a room, newest first, with how many markers it holds */
+  listSessions(roomId: string): SessionSummary[] {
+    const rows = this.stmt(
+      `SELECT s.*, (SELECT COUNT(*) FROM markers m WHERE m.session_id = s.id) AS marker_count
+       FROM recording_sessions s WHERE s.room_id = ? ORDER BY s.started_at DESC`
+    ).all(roomId) as any[];
+    return rows.map((row) => ({ ...this.mapSession(row), markerCount: Number(row.marker_count) }));
+  }
+
   // Recording anchors (where each member's file starts within a session)
   upsertSessionAnchor(anchor: SessionMemberAnchor) {
     this.stmt(
@@ -447,6 +457,35 @@ export class DatabaseService {
       sessionId
     ) as any[];
     return rows.map((r) => this.mapMarker(r));
+  }
+
+  getMarker(markerId: string): SquadMarker | null {
+    const row = this.stmt('SELECT * FROM markers WHERE id = ?').get(markerId) as any;
+    return row ? this.mapMarker(row) : null;
+  }
+
+  /** Persist the editable fields of a marker (timing is immutable) */
+  updateMarker(marker: SquadMarker): SquadMarker {
+    this.stmt('UPDATE markers SET category = ?, label = ?, comment = ?, color = ? WHERE id = ?').run(
+      marker.category,
+      marker.label,
+      marker.comment ?? null,
+      marker.color,
+      marker.id
+    );
+    return marker;
+  }
+
+  deleteMarker(markerId: string): boolean {
+    const result = this.stmt('DELETE FROM markers WHERE id = ?').run(markerId);
+    return Number(result.changes) > 0;
+  }
+
+  getLatestMemberMarker(sessionId: string, memberId: string): SquadMarker | null {
+    const row = this.stmt(
+      'SELECT * FROM markers WHERE session_id = ? AND member_id = ? ORDER BY timestamp DESC LIMIT 1'
+    ).get(sessionId, memberId) as any;
+    return row ? this.mapMarker(row) : null;
   }
 
   getRoomMarkers(roomId: string): SquadMarker[] {
