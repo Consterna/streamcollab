@@ -77,6 +77,7 @@ streamcollab/
 │       │       └── DashboardView.tsx # Tournament Director command center
 │       └── tailwind.config.js
 │
+├── .env.example           # Environment template (PORT, HOST, DATABASE_PATH)
 ├── package.json           # npm workspaces monorepo configuration
 ├── tsconfig.base.json
 └── vitest.config.ts
@@ -91,10 +92,13 @@ streamcollab/
 - **npm**: v11+
 - **OBS Studio**: v28+ (WebSocket v5 is built into OBS Studio by default)
 
-### 1. Install Dependencies
+### 1. Install Dependencies & Setup Environment
 ```powershell
 # From the repository root (c:\dev\proyectos\streamcollab)
 npm.cmd install
+
+# Optional: customize server port, host, or SQLite database path
+Copy-Item .env.example .env
 ```
 
 ### 2. Build All Workspaces
@@ -106,7 +110,7 @@ npm.cmd run build
 ```powershell
 npm.cmd test
 ```
-All 38 unit and integration tests verify SMPTE drop frame boundaries, NLE XML/EDL formatting, CSV escaping, and Fastify SQLite WAL routes.
+All 46 unit and integration tests verify SMPTE drop frame boundaries, NLE XML/EDL formatting, CSV escaping, and Fastify SQLite WAL routes.
 
 ### 4. Start Development Servers
 In two terminal windows:
@@ -121,6 +125,12 @@ npm.cmd run dev:server
 ```powershell
 npm.cmd run dev:client
 # Vite client starts on http://localhost:5173
+```
+
+### 5. Production Server (Optional)
+```powershell
+# Run compiled backend server in production mode
+npm.cmd start
 ```
 
 ---

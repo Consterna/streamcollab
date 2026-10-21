@@ -65,8 +65,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **NLE Export Modal**:
   - Intuitive dialog to preview and download DaVinci Resolve EDL, Premiere Pro XML, Universal CSV, Multicam Sync Matrix, or copy YouTube Chapters directly to clipboard.
 
+#### Configuration & Developer Experience
+- **Environment & Build Configuration**:
+  - Added `.env.example` template for server port, host, database path, and OBS credentials.
+  - Added dedicated `vitest.config.ts` with V8 coverage reporters and workspace glob patterns.
+  - Added root `npm start` script for running the compiled Fastify production server.
+
 ### Fixed
 - Fixed SMPTE integer truncation on sub-frame rational calculations.
 - Fixed FCP 7 XML sequence duration calculation and DTD compliance with sequence-level markers.
 - Fixed exporter access after session stop to allow post-broadcast timeline generation.
 - Fixed route navigation handling for both query string (`?view=dock`) and hash routing (`#/dock`).
+
+[Unreleased]: https://github.com/Consterna/streamcollab/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/Consterna/streamcollab/releases/tag/v1.0.0
+
