@@ -1,12 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useEffectEvent } from 'react';
-import {
-  SquadMarker,
-  SquadMember,
-  RecordingSession,
-  Room,
-  MarkerCategory,
-  SMPTETimecode,
-} from '@streamcollab/shared';
+import { SquadMarker, SquadMember, RecordingSession, Room, MarkerCategory, SMPTETimecode } from '@streamcollab/shared';
 import { ObsService, ObsRecordStatus, ObsVideoSettings, ObsHotkeySignal } from '../services/obs';
 import { StreamCollabSocketClient } from '../services/socket';
 import { getMemberToken } from '../services/credentials';
@@ -239,7 +232,7 @@ export const DockView: React.FC<DockViewProps> = ({
   });
 
   const displayTimecode = tc.relativeMsToTimecode(
-    recordStatus?.outputActive ? elapsedDurationMs : (activeSession ? Math.max(0, now - activeSession.startedAt) : 0),
+    recordStatus?.outputActive ? elapsedDurationMs : activeSession ? Math.max(0, now - activeSession.startedAt) : 0,
     activeSession?.baseTimecode || '01:00:00:00'
   );
 
@@ -328,8 +321,8 @@ export const DockView: React.FC<DockViewProps> = ({
           <div className="flex items-center gap-2">
             <span className="w-20 text-zinc-400 font-medium">HTTP token:</span>
             <span className="flex-1 text-[11px] text-zinc-500">
-              For Stream Deck / Streamer.bot: POST /api/rooms/{roomId}/quick-mark with
-              Authorization: Bearer &lt;token&gt; and memberId <span className="font-mono">{member.id}</span>
+              For Stream Deck / Streamer.bot: POST /api/rooms/{roomId}/quick-mark with Authorization: Bearer
+              &lt;token&gt; and memberId <span className="font-mono">{member.id}</span>
             </span>
             <button
               onClick={async () => {
@@ -397,7 +390,9 @@ export const DockView: React.FC<DockViewProps> = ({
           >
             <div className="flex items-center gap-1 mb-1">
               <Crosshair className="h-4 w-4 text-red-400" />
-              <span className="rounded-sm bg-red-950 px-1 text-[9px] font-mono text-red-200 border border-red-800/60">1</span>
+              <span className="rounded-sm bg-red-950 px-1 text-[9px] font-mono text-red-200 border border-red-800/60">
+                1
+              </span>
             </div>
             <span className="text-xs font-bold">Kill</span>
           </button>
@@ -410,7 +405,9 @@ export const DockView: React.FC<DockViewProps> = ({
           >
             <div className="flex items-center gap-1 mb-1">
               <Skull className="h-4 w-4 text-fuchsia-400" />
-              <span className="rounded-sm bg-fuchsia-950 px-1 text-[9px] font-mono text-fuchsia-200 border border-fuchsia-800/60">2</span>
+              <span className="rounded-sm bg-fuchsia-950 px-1 text-[9px] font-mono text-fuchsia-200 border border-fuchsia-800/60">
+                2
+              </span>
             </div>
             <span className="text-xs font-bold">Wipe</span>
           </button>
@@ -423,7 +420,9 @@ export const DockView: React.FC<DockViewProps> = ({
           >
             <div className="flex items-center gap-1 mb-1">
               <Trophy className="h-4 w-4 text-amber-400" />
-              <span className="rounded-sm bg-amber-950 px-1 text-[9px] font-mono text-amber-200 border border-amber-800/60">3</span>
+              <span className="rounded-sm bg-amber-950 px-1 text-[9px] font-mono text-amber-200 border border-amber-800/60">
+                3
+              </span>
             </div>
             <span className="text-xs font-bold">Clutch</span>
           </button>
@@ -436,7 +435,9 @@ export const DockView: React.FC<DockViewProps> = ({
           >
             <div className="flex items-center gap-1 mb-1">
               <Smile className="h-4 w-4 text-cyan-400" />
-              <span className="rounded-sm bg-cyan-950 px-1 text-[9px] font-mono text-cyan-200 border border-cyan-800/60">4</span>
+              <span className="rounded-sm bg-cyan-950 px-1 text-[9px] font-mono text-cyan-200 border border-cyan-800/60">
+                4
+              </span>
             </div>
             <span className="text-xs font-bold">Funny</span>
           </button>
@@ -449,7 +450,9 @@ export const DockView: React.FC<DockViewProps> = ({
           >
             <div className="flex items-center gap-1 mb-1">
               <FileEdit className="h-4 w-4 text-blue-400" />
-              <span className="rounded-sm bg-blue-950 px-1 text-[9px] font-mono text-blue-200 border border-blue-800/60">5</span>
+              <span className="rounded-sm bg-blue-950 px-1 text-[9px] font-mono text-blue-200 border border-blue-800/60">
+                5
+              </span>
             </div>
             <span className="text-xs font-bold">Note</span>
           </button>
@@ -508,7 +511,9 @@ export const DockView: React.FC<DockViewProps> = ({
           <div className="flex flex-col items-center justify-center h-48 text-zinc-500 text-xs">
             <Radio className="h-8 w-8 text-zinc-700 mb-2 animate-pulse" />
             <p>No markers yet in this session.</p>
-            <p className="text-[11px] text-zinc-600 mt-1">Press hotkeys [1] - [5] or click buttons above to mark events.</p>
+            <p className="text-[11px] text-zinc-600 mt-1">
+              Press hotkeys [1] - [5] or click buttons above to mark events.
+            </p>
           </div>
         ) : (
           <div className="divide-y divide-zinc-900">
@@ -541,9 +546,7 @@ export const DockView: React.FC<DockViewProps> = ({
 
                   <div className="flex flex-col items-end text-right shrink-0">
                     <span className="text-[11px] font-semibold text-zinc-300">{m.memberName}</span>
-                    <span className="text-[10px] font-mono text-zinc-500">
-                      +{Math.round(m.relativeTimeMs / 1000)}s
-                    </span>
+                    <span className="text-[10px] font-mono text-zinc-500">+{Math.round(m.relativeTimeMs / 1000)}s</span>
                   </div>
                 </div>
               );

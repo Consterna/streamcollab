@@ -1,19 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import {
-  SquadMarker,
-  SquadMember,
-  RecordingSession,
-  MarkerCategory,
-} from '@streamcollab/shared';
+import { SquadMarker, SquadMember, RecordingSession, MarkerCategory } from '@streamcollab/shared';
 import { StreamCollabSocketClient } from '../services/socket';
-import {
-  Crosshair,
-  Skull,
-  Trophy,
-  Smile,
-  FileEdit,
-  Radio,
-} from 'lucide-react';
+import { Crosshair, Skull, Trophy, Smile, FileEdit, Radio } from 'lucide-react';
 
 interface ActiveToast {
   id: string;
@@ -27,11 +15,7 @@ interface HudViewProps {
   activeSession: RecordingSession | null;
 }
 
-export const HudView: React.FC<HudViewProps> = ({
-  socketClient,
-  members,
-  activeSession,
-}) => {
+export const HudView: React.FC<HudViewProps> = ({ socketClient, members, activeSession }) => {
   const [toasts, setToasts] = useState<ActiveToast[]>([]);
   const [isVisibleInObs, setIsVisibleInObs] = useState(true);
 
@@ -144,7 +128,9 @@ export const HudView: React.FC<HudViewProps> = ({
               className={`flex items-center gap-3 rounded-xl border-2 ${theme.border} bg-linear-to-r ${theme.bg} p-3.5 shadow-2xl backdrop-blur-md animate-toast-in min-w-[320px] max-w-[420px]`}
             >
               {/* Category Icon */}
-              <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${theme.badge} shadow-lg`}>
+              <div
+                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${theme.badge} shadow-lg`}
+              >
                 <Icon className="h-6 w-6 animate-pulse" />
               </div>
 
@@ -159,9 +145,7 @@ export const HudView: React.FC<HudViewProps> = ({
                   </span>
                 </div>
 
-                <div className="text-sm font-bold text-white truncate drop-shadow-xs mt-0.5">
-                  {toast.marker.label}
-                </div>
+                <div className="text-sm font-bold text-white truncate drop-shadow-xs mt-0.5">{toast.marker.label}</div>
 
                 {toast.marker.comment && (
                   <div className="text-xs text-zinc-300 truncate drop-shadow-xs mt-0.5 font-medium">

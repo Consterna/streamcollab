@@ -157,8 +157,8 @@ export class StreamCollabSocketClient {
       case 'SNTP_PONG': {
         const t4 = Date.now();
         const { t1, t2, t3 } = msg.payload;
-        const currentRtt = Math.max(0, (t4 - t1) - (t3 - t2));
-        const currentOffset = ((t2 - t1) + (t3 - t4)) / 2;
+        const currentRtt = Math.max(0, t4 - t1 - (t3 - t2));
+        const currentOffset = (t2 - t1 + (t3 - t4)) / 2;
 
         // Exponential moving average filter
         if (this.clockOffsetMs === 0) {
@@ -332,7 +332,16 @@ export class StreamCollabSocketClient {
     });
   }
 
-  startSession(roomId: string, sessionData: { name: string; framerateNumerator?: number; framerateDenominator?: number; dropFrame?: boolean; baseTimecode?: string }) {
+  startSession(
+    roomId: string,
+    sessionData: {
+      name: string;
+      framerateNumerator?: number;
+      framerateDenominator?: number;
+      dropFrame?: boolean;
+      baseTimecode?: string;
+    }
+  ) {
     this.send({
       type: 'START_SESSION',
       payload: {

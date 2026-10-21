@@ -19,11 +19,7 @@ function escapeXml(str: string): string {
 /**
  * Generate Apple Final Cut Pro 7 / Adobe Premiere Pro XML (xmeml version 4)
  */
-export function exportToFcpXml(
-  session: RecordingSession,
-  markers: SquadMarker[],
-  options?: XmlExportOptions
-): string {
+export function exportToFcpXml(session: RecordingSession, markers: SquadMarker[], options?: XmlExportOptions): string {
   const tc = new SMPTETimecode({
     framerateNumerator: session.framerateNumerator,
     framerateDenominator: session.framerateDenominator,
@@ -59,23 +55,25 @@ export function exportToFcpXml(
     durationFrames = timebase * 60; // Default minimum 1 minute
   }
 
-  const markerXmlBlocks = sortedMarkers.map((marker) => {
-    const inFrame = tc.millisecondsToFrames(marker.relativeTimeMs);
-    const outFrame = inFrame + 1; // 1-frame marker
+  const markerXmlBlocks = sortedMarkers
+    .map((marker) => {
+      const inFrame = tc.millisecondsToFrames(marker.relativeTimeMs);
+      const outFrame = inFrame + 1; // 1-frame marker
 
-    const categoryTag = marker.category.toUpperCase();
-    const markerName = escapeXml(`[${categoryTag}] ${marker.label}`);
-    const authorPart = marker.memberName ? ` (By: ${marker.memberName})` : '';
-    const commentBody = marker.comment ? `${marker.comment}${authorPart}` : authorPart.trim();
-    const markerComment = escapeXml(commentBody);
+      const categoryTag = marker.category.toUpperCase();
+      const markerName = escapeXml(`[${categoryTag}] ${marker.label}`);
+      const authorPart = marker.memberName ? ` (By: ${marker.memberName})` : '';
+      const commentBody = marker.comment ? `${marker.comment}${authorPart}` : authorPart.trim();
+      const markerComment = escapeXml(commentBody);
 
-    return `    <marker>
+      return `    <marker>
       <name>${markerName}</name>
       <comment>${markerComment}</comment>
       <in>${inFrame}</in>
       <out>${outFrame}</out>
     </marker>`;
-  }).join('\n');
+    })
+    .join('\n');
 
   const markersSection = markerXmlBlocks.length > 0 ? `\n${markerXmlBlocks}` : '';
 

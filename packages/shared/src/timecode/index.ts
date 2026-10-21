@@ -128,7 +128,7 @@ export class SMPTETimecode {
   millisecondsToFrames(ms: number): number {
     if (ms <= 0) return 0;
     // Rational frame calculation with epsilon protection against IEEE 754 precision issues
-    return Math.floor(((ms * this.numerator) / (this.denominator * 1000)) + 1e-6);
+    return Math.floor((ms * this.numerator) / (this.denominator * 1000) + 1e-6);
   }
 
   /**
@@ -153,7 +153,7 @@ export class SMPTETimecode {
       const m = f % M;
 
       if (m > D) {
-        f += (D * 9 * d) + D * Math.floor((m - D) / (this.nominalFps * 60 - D));
+        f += D * 9 * d + D * Math.floor((m - D) / (this.nominalFps * 60 - D));
       } else {
         f += D * 9 * d;
       }
@@ -204,19 +204,10 @@ export class SMPTETimecode {
         );
       }
       const dropFrames = this.dropFramesPerMinute * (totalMinutes - Math.floor(totalMinutes / 10));
-      return (
-        (totalMinutes * 60 + seconds) * this.nominalFps +
-        frames -
-        dropFrames
-      );
+      return (totalMinutes * 60 + seconds) * this.nominalFps + frames - dropFrames;
     }
 
-    return (
-      hours * 3600 * this.nominalFps +
-      minutes * 60 * this.nominalFps +
-      seconds * this.nominalFps +
-      frames
-    );
+    return hours * 3600 * this.nominalFps + minutes * 60 * this.nominalFps + seconds * this.nominalFps + frames;
   }
 
   /**

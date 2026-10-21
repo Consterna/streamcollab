@@ -101,7 +101,10 @@ describe('WebSocket rooms, connections and timing', () => {
 
   it('rejects joining a room that was never created', async () => {
     const dock = await connect();
-    dock.send({ type: 'JOIN_ROOM', payload: { roomId: 'ghost-room', clientKind: 'dock', member: dockMember('mem-ghost', 'Ghost') } });
+    dock.send({
+      type: 'JOIN_ROOM',
+      payload: { roomId: 'ghost-room', clientKind: 'dock', member: dockMember('mem-ghost', 'Ghost') },
+    });
 
     const error = await dock.waitFor((m) => m.type === 'ERROR');
     expect(error.payload.code).toBe('ROOM_NOT_FOUND');
@@ -112,7 +115,10 @@ describe('WebSocket rooms, connections and timing', () => {
 
   it('joins an existing room and returns its state', async () => {
     const dock = await connect();
-    dock.send({ type: 'JOIN_ROOM', payload: { roomId: 'fresh-room', clientKind: 'dock', member: dockMember('mem-fresh', 'Fresh') } });
+    dock.send({
+      type: 'JOIN_ROOM',
+      payload: { roomId: 'fresh-room', clientKind: 'dock', member: dockMember('mem-fresh', 'Fresh') },
+    });
 
     const joined = await dock.waitFor((m) => m.type === 'JOINED');
     expect(joined.payload).toMatchObject({ roomId: 'fresh-room', clientKind: 'dock', isHost: false });
@@ -126,10 +132,16 @@ describe('WebSocket rooms, connections and timing', () => {
     const dock = await connect();
     const hud = await connect();
 
-    dock.send({ type: 'JOIN_ROOM', payload: { roomId: 'squad-dup', clientKind: 'dock', member: dockMember('mem-dup', 'Dup') } });
+    dock.send({
+      type: 'JOIN_ROOM',
+      payload: { roomId: 'squad-dup', clientKind: 'dock', member: dockMember('mem-dup', 'Dup') },
+    });
     await dock.waitFor((m) => m.type === 'ROOM_STATE');
     // The HUD runs in the same OBS (same localStorage member id) but joins as an observer
-    hud.send({ type: 'JOIN_ROOM', payload: { roomId: 'squad-dup', clientKind: 'hud', member: dockMember('mem-dup', 'Dup') } });
+    hud.send({
+      type: 'JOIN_ROOM',
+      payload: { roomId: 'squad-dup', clientKind: 'hud', member: dockMember('mem-dup', 'Dup') },
+    });
     await hud.waitFor((m) => m.type === 'ROOM_STATE');
 
     dock.send({
@@ -144,7 +156,10 @@ describe('WebSocket rooms, connections and timing', () => {
     const onHud = await hud.waitFor((m) => m.type === 'MARKER_ADDED');
     expect(onHud.payload.id).toBe(onDock.payload.id);
 
-    const kinds = roomManager.getConnections('squad-dup').map((c: any) => c.kind).sort();
+    const kinds = roomManager
+      .getConnections('squad-dup')
+      .map((c: any) => c.kind)
+      .sort();
     expect(kinds).toEqual(['dock', 'hud']);
     expect(db.getRoomMembers('squad-dup')).toHaveLength(1);
 
@@ -156,12 +171,18 @@ describe('WebSocket rooms, connections and timing', () => {
     const dock = await connect();
     const hud = await connect();
 
-    dock.send({ type: 'JOIN_ROOM', payload: { roomId: 'squad-life', clientKind: 'dock', member: dockMember('mem-life', 'Life') } });
+    dock.send({
+      type: 'JOIN_ROOM',
+      payload: { roomId: 'squad-life', clientKind: 'dock', member: dockMember('mem-life', 'Life') },
+    });
     await dock.waitFor((m) => m.type === 'ROOM_STATE');
     hud.send({ type: 'JOIN_ROOM', payload: { roomId: 'squad-life', clientKind: 'hud' } });
     await hud.waitFor((m) => m.type === 'ROOM_STATE');
 
-    dock.send({ type: 'UPDATE_STATUS', payload: { roomId: 'squad-life', memberId: 'mem-life', status: { obsStatus: 'recording' } } });
+    dock.send({
+      type: 'UPDATE_STATUS',
+      payload: { roomId: 'squad-life', memberId: 'mem-life', status: { obsStatus: 'recording' } },
+    });
     await hud.waitFor((m) => m.type === 'MEMBER_UPDATED');
 
     hud.ws.close();
@@ -191,7 +212,10 @@ describe('WebSocket rooms, connections and timing', () => {
 
   it('stamps markers with the calibrated client keypress time and stores the in-file position', async () => {
     const dock = await connect();
-    dock.send({ type: 'JOIN_ROOM', payload: { roomId: 'squad-time', clientKind: 'dock', member: dockMember('mem-time', 'Time') } });
+    dock.send({
+      type: 'JOIN_ROOM',
+      payload: { roomId: 'squad-time', clientKind: 'dock', member: dockMember('mem-time', 'Time') },
+    });
     await dock.waitFor((m) => m.type === 'ROOM_STATE');
 
     const pressedAt = Date.now() - 1500; // the message took 1.5s to arrive
@@ -223,7 +247,10 @@ describe('WebSocket rooms, connections and timing', () => {
   it('records a recording anchor and exports a per-POV timeline and an aligned sync matrix', async () => {
     const { hostToken } = roomManager.createRoom('squad-pov');
     const dock = await connect();
-    dock.send({ type: 'JOIN_ROOM', payload: { roomId: 'squad-pov', clientKind: 'dock', member: dockMember('mem-pov', 'Pov') } });
+    dock.send({
+      type: 'JOIN_ROOM',
+      payload: { roomId: 'squad-pov', clientKind: 'dock', member: dockMember('mem-pov', 'Pov') },
+    });
     await dock.waitFor((m) => m.type === 'ROOM_STATE');
 
     const startRes = await app.inject({
@@ -260,7 +287,10 @@ describe('WebSocket rooms, connections and timing', () => {
     });
     const added = await dock.waitFor((m) => m.type === 'MARKER_ADDED');
 
-    const edlRes = await app.inject({ method: 'GET', url: `/api/rooms/squad-pov/export/edl?sessionId=${session.id}&memberId=mem-pov` });
+    const edlRes = await app.inject({
+      method: 'GET',
+      url: `/api/rooms/squad-pov/export/edl?sessionId=${session.id}&memberId=mem-pov`,
+    });
     expect(edlRes.statusCode).toBe(200);
     expect(edlRes.payload).toContain('TITLE: POV Test - Pov');
     const expectedMs = added.payload.timestamp - recordStartedAt;
@@ -269,19 +299,29 @@ describe('WebSocket rooms, connections and timing', () => {
     const ff = String(expectedFrames % 30).padStart(2, '0');
     expect(edlRes.payload).toContain(`* LOC: 00:00:${ss}:${ff} Red Pov Kill`);
 
-    const matrixRes = await app.inject({ method: 'GET', url: `/api/rooms/squad-pov/export/matrix?sessionId=${session.id}` });
+    const matrixRes = await app.inject({
+      method: 'GET',
+      url: `/api/rooms/squad-pov/export/matrix?sessionId=${session.id}`,
+    });
     const matrix = JSON.parse(matrixRes.payload);
     expect(matrix.members[0].aligned).toBe(true);
     expect(matrix.members[0].sessionOffsetMs).toBe(-2000);
     expect(matrix.members[0].sessionOffsetFrames).toBe(-60);
 
-    const missing = await app.inject({ method: 'GET', url: `/api/rooms/squad-pov/export/edl?sessionId=${session.id}&memberId=nobody` });
+    const missing = await app.inject({
+      method: 'GET',
+      url: `/api/rooms/squad-pov/export/edl?sessionId=${session.id}&memberId=nobody`,
+    });
     expect(missing.statusCode).toBe(404);
     dock.ws.terminate();
   });
 
   it('sends safe Content-Disposition headers for session names with quotes and accents', async () => {
-    const created = await app.inject({ method: 'POST', url: '/api/rooms', payload: { id: 'squad-name', name: 'Names' } });
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/rooms',
+      payload: { id: 'squad-name', name: 'Names' },
+    });
     const { hostToken } = JSON.parse(created.payload);
     await app.inject({
       method: 'POST',
@@ -333,10 +373,12 @@ describe('WebSocket heartbeat', () => {
     const frozen = await open(false); // simulates a crashed OBS / dropped Wi-Fi
 
     healthy.send(JSON.stringify({ type: 'JOIN_ROOM', payload: { roomId: 'hb-room', clientKind: 'hud' } }));
-    frozen.send(JSON.stringify({
-      type: 'JOIN_ROOM',
-      payload: { roomId: 'hb-room', clientKind: 'dock', member: dockMember('mem-frozen', 'Frozen') },
-    }));
+    frozen.send(
+      JSON.stringify({
+        type: 'JOIN_ROOM',
+        payload: { roomId: 'hb-room', clientKind: 'dock', member: dockMember('mem-frozen', 'Frozen') },
+      })
+    );
     await until(() => roomManager.getConnections('hb-room').length === 2);
 
     await until(() => roomManager.getConnections('hb-room').length === 1, 1000);

@@ -27,7 +27,10 @@ export interface ConnectedClient {
 
 /** An error that is safe to send back to the client, with a machine-readable code */
 export class RoomError extends Error {
-  constructor(public code: ErrorCode, message: string) {
+  constructor(
+    public code: ErrorCode,
+    message: string
+  ) {
     super(message);
   }
 }
@@ -158,10 +161,14 @@ export class RoomManager {
         this.db.setMemberTokenHash(fullMember.id, hashToken(issuedMemberToken));
       }
 
-      this.broadcastToRoom(roomId, {
-        type: 'MEMBER_JOINED',
-        payload: fullMember,
-      }, socket);
+      this.broadcastToRoom(
+        roomId,
+        {
+          type: 'MEMBER_JOINED',
+          payload: fullMember,
+        },
+        socket
+      );
     }
 
     this.sendToSocket(socket, {
@@ -245,10 +252,7 @@ export class RoomManager {
     this.db.upsertMember(roomId, updated);
 
     // A new recording start becomes this member's anchor in the running session
-    if (
-      typeof updated.recordStartedAt === 'number' &&
-      updated.recordStartedAt !== existing.recordStartedAt
-    ) {
+    if (typeof updated.recordStartedAt === 'number' && updated.recordStartedAt !== existing.recordStartedAt) {
       const activeSession = this.db.getActiveSession(roomId);
       if (activeSession) {
         this.saveAnchor(activeSession.id, updated);
@@ -274,13 +278,16 @@ export class RoomManager {
   }
 
   // Session handling
-  startSession(roomId: string, sessionData: {
-    name: string;
-    baseTimecode?: string;
-    framerateNumerator?: number;
-    framerateDenominator?: number;
-    dropFrame?: boolean;
-  }): RecordingSession {
+  startSession(
+    roomId: string,
+    sessionData: {
+      name: string;
+      baseTimecode?: string;
+      framerateNumerator?: number;
+      framerateDenominator?: number;
+      dropFrame?: boolean;
+    }
+  ): RecordingSession {
     const sessionId = crypto.randomUUID();
     const session: RecordingSession = {
       id: sessionId,

@@ -13,10 +13,7 @@ function escapeCsvField(val: string | number | undefined | null): string {
 /**
  * Universal CSV exporter compatible with Google Sheets, Excel, and Markerbox
  */
-export function exportToCsv(
-  session: RecordingSession,
-  markers: SquadMarker[]
-): string {
+export function exportToCsv(session: RecordingSession, markers: SquadMarker[]): string {
   const tc = new SMPTETimecode({
     framerateNumerator: session.framerateNumerator,
     framerateDenominator: session.framerateDenominator,

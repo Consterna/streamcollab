@@ -60,8 +60,15 @@ describe('StreamCollab Server & SQLite WAL Integration', () => {
 
     // A streamer that already joined from a dock (and got a member token) for the HTTP quick-mark tests
     db.upsertMember('test-room', {
-      id: 'mem-tester', name: 'Tester', role: 'player', obsStatus: 'recording', fps: 60,
-      outputDurationMs: 0, clockOffsetMs: 0, rttMs: 0, lastHeartbeat: Date.now(),
+      id: 'mem-tester',
+      name: 'Tester',
+      role: 'player',
+      obsStatus: 'recording',
+      fps: 60,
+      outputDurationMs: 0,
+      clockOffsetMs: 0,
+      rttMs: 0,
+      lastHeartbeat: Date.now(),
     });
     db.setMemberTokenHash('mem-tester', hashToken(memberToken));
   });

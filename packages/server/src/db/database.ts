@@ -213,7 +213,8 @@ export class DatabaseService {
 
   // Member methods
   upsertMember(roomId: string, member: SquadMember) {
-    this.stmt(`
+    this.stmt(
+      `
       INSERT INTO members (
         id, room_id, name, avatar_url, role, obs_status, stream_url,
         fps, output_duration_ms, clock_offset_ms, rtt_ms, last_heartbeat,
@@ -234,7 +235,8 @@ export class DatabaseService {
         fps_num = excluded.fps_num,
         fps_den = excluded.fps_den,
         record_started_at = excluded.record_started_at
-    `).run(
+    `
+    ).run(
       member.id,
       roomId,
       member.name,
@@ -288,12 +290,14 @@ export class DatabaseService {
 
   // Session methods
   createSession(session: RecordingSession): RecordingSession {
-    this.stmt(`
+    this.stmt(
+      `
       INSERT INTO recording_sessions (
         id, room_id, name, started_at, stopped_at, base_timecode,
         framerate_num, framerate_den, drop_frame
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
+    `
+    ).run(
       session.id,
       session.roomId,
       session.name,
@@ -345,22 +349,24 @@ export class DatabaseService {
   }
 
   getLatestSession(roomId: string): RecordingSession | null {
-    const row = this.stmt(
-      'SELECT * FROM recording_sessions WHERE room_id = ? ORDER BY started_at DESC LIMIT 1'
-    ).get(roomId) as any;
+    const row = this.stmt('SELECT * FROM recording_sessions WHERE room_id = ? ORDER BY started_at DESC LIMIT 1').get(
+      roomId
+    ) as any;
     return row ? this.mapSession(row) : null;
   }
 
   // Recording anchors (where each member's file starts within a session)
   upsertSessionAnchor(anchor: SessionMemberAnchor) {
-    this.stmt(`
+    this.stmt(
+      `
       INSERT INTO session_members (session_id, member_id, record_started_at, framerate_num, framerate_den)
       VALUES (?, ?, ?, ?, ?)
       ON CONFLICT(session_id, member_id) DO UPDATE SET
         record_started_at = excluded.record_started_at,
         framerate_num = excluded.framerate_num,
         framerate_den = excluded.framerate_den
-    `).run(
+    `
+    ).run(
       anchor.sessionId,
       anchor.memberId,
       anchor.recordStartedAt,
@@ -387,13 +393,15 @@ export class DatabaseService {
 
   // Marker methods
   createMarker(marker: SquadMarker): SquadMarker {
-    this.stmt(`
+    this.stmt(
+      `
       INSERT INTO markers (
         id, room_id, session_id, member_id, member_name,
         timestamp, relative_time_ms, timecode, frame_number,
         category, label, comment, color, tags, obs_record_ms
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
+    `
+    ).run(
       marker.id,
       marker.roomId,
       marker.sessionId,
@@ -435,9 +443,9 @@ export class DatabaseService {
   }
 
   getSessionMarkers(sessionId: string): SquadMarker[] {
-    const rows = this.stmt(
-      'SELECT * FROM markers WHERE session_id = ? ORDER BY relative_time_ms ASC'
-    ).all(sessionId) as any[];
+    const rows = this.stmt('SELECT * FROM markers WHERE session_id = ? ORDER BY relative_time_ms ASC').all(
+      sessionId
+    ) as any[];
     return rows.map((r) => this.mapMarker(r));
   }
 

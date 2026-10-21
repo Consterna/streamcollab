@@ -8,7 +8,10 @@ const optionalString = z.preprocess((v) => (v === '' ? undefined : v), z.string(
 
 const booleanFlag = z.preprocess(
   (v) => (v === '' || v === undefined ? undefined : String(v).toLowerCase()),
-  z.enum(['true', 'false', '1', '0']).default('false').transform((v) => v === 'true' || v === '1')
+  z
+    .enum(['true', 'false', '1', '0'])
+    .default('false')
+    .transform((v) => v === 'true' || v === '1')
 );
 
 const envSchema = z.object({
@@ -61,7 +64,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   const allowedOrigins = parseOriginList(e.ALLOWED_ORIGIN);
   for (const origin of allowedOrigins) {
     if (!/^https?:\/\/[^/\s]+$/.test(origin)) {
-      throw new Error(`Invalid StreamCollab server configuration:\n  - ALLOWED_ORIGIN: "${origin}" must look like https://host[:port]`);
+      throw new Error(
+        `Invalid StreamCollab server configuration:\n  - ALLOWED_ORIGIN: "${origin}" must look like https://host[:port]`
+      );
     }
   }
 

@@ -1,11 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import {
-  SquadMember,
-  Room,
-  RecordingSession,
-  SquadMarker,
-  ClientKind,
-} from '@streamcollab/shared';
+import { SquadMember, Room, RecordingSession, SquadMarker, ClientKind } from '@streamcollab/shared';
 import { ObsService } from './services/obs';
 import { StreamCollabSocketClient } from './services/socket';
 import { getLastRoom, saveLastRoom, saveHostToken } from './services/credentials';
@@ -83,17 +77,20 @@ export function App() {
     return id;
   });
 
-  const member: SquadMember = useMemo(() => ({
-    id: memberId,
-    name: userName,
-    role: 'player',
-    obsStatus: 'disconnected',
-    fps: 60,
-    outputDurationMs: 0,
-    clockOffsetMs: 0,
-    rttMs: 0,
-    lastHeartbeat: 0, // set by the server on join
-  }), [memberId, userName]);
+  const member: SquadMember = useMemo(
+    () => ({
+      id: memberId,
+      name: userName,
+      role: 'player',
+      obsStatus: 'disconnected',
+      fps: 60,
+      outputDurationMs: 0,
+      clockOffsetMs: 0,
+      rttMs: 0,
+      lastHeartbeat: 0, // set by the server on join
+    }),
+    [memberId, userName]
+  );
 
   // Services singletons
   const obsService = useMemo(() => new ObsService(), []);
@@ -126,94 +123,108 @@ export function App() {
     const subscriptions: Array<() => void> = [];
     const setJoinError = (error: string | null) =>
       setJoinState((state) => ({ key: joinKey, isHost: state.key === joinKey && state.isHost, error }));
-    subscriptions.push(socketClient.on('onRoomState', (state) => {
-      setRoom(state.room);
-      setActiveSession(state.activeSession);
-      if (state.activeSession) {
-        setLastSession(state.activeSession);
-      }
-      setMarkers(state.markers);
-    }));
+    subscriptions.push(
+      socketClient.on('onRoomState', (state) => {
+        setRoom(state.room);
+        setActiveSession(state.activeSession);
+        if (state.activeSession) {
+          setLastSession(state.activeSession);
+        }
+        setMarkers(state.markers);
+      })
+    );
 
-    subscriptions.push(socketClient.on('onMemberJoined', (newMember) => {
-      setRoom((prev) => {
-        if (!prev) return null;
-        const exists = prev.members.some((m) => m.id === newMember.id);
-        const members = exists
-          ? prev.members.map((m) => (m.id === newMember.id ? newMember : m))
-          : [...prev.members, newMember];
-        return { ...prev, members };
-      });
-    }));
+    subscriptions.push(
+      socketClient.on('onMemberJoined', (newMember) => {
+        setRoom((prev) => {
+          if (!prev) return null;
+          const exists = prev.members.some((m) => m.id === newMember.id);
+          const members = exists
+            ? prev.members.map((m) => (m.id === newMember.id ? newMember : m))
+            : [...prev.members, newMember];
+          return { ...prev, members };
+        });
+      })
+    );
 
-    subscriptions.push(socketClient.on('onMemberLeft', (leftMemberId) => {
-      setRoom((prev) => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          members: prev.members.map((m) =>
-            m.id === leftMemberId ? { ...m, obsStatus: 'disconnected' } : m
-          ),
-        };
-      });
-    }));
+    subscriptions.push(
+      socketClient.on('onMemberLeft', (leftMemberId) => {
+        setRoom((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            members: prev.members.map((m) => (m.id === leftMemberId ? { ...m, obsStatus: 'disconnected' } : m)),
+          };
+        });
+      })
+    );
 
-    subscriptions.push(socketClient.on('onMemberUpdated', (updatedMember) => {
-      setRoom((prev) => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          members: prev.members.map((m) =>
-            m.id === updatedMember.id ? updatedMember : m
-          ),
-        };
-      });
-    }));
+    subscriptions.push(
+      socketClient.on('onMemberUpdated', (updatedMember) => {
+        setRoom((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            members: prev.members.map((m) => (m.id === updatedMember.id ? updatedMember : m)),
+          };
+        });
+      })
+    );
 
-    subscriptions.push(socketClient.on('onMarkerAdded', (marker) => {
-      setMarkers((prev) => {
-        if (prev.some((m) => m.id === marker.id)) return prev;
-        return [...prev, marker];
-      });
-    }));
+    subscriptions.push(
+      socketClient.on('onMarkerAdded', (marker) => {
+        setMarkers((prev) => {
+          if (prev.some((m) => m.id === marker.id)) return prev;
+          return [...prev, marker];
+        });
+      })
+    );
 
-    subscriptions.push(socketClient.on('onSessionStarted', (session) => {
-      setActiveSession(session);
-      setLastSession(session);
-      setMarkers([]);
-    }));
-
-    subscriptions.push(socketClient.on('onSessionStopped', (session) => {
-      setActiveSession(null);
-      setLastSession(session);
-    }));
-
-    subscriptions.push(socketClient.on('onJoined', (info) => {
-      setJoinState({ key: joinKey, isHost: info.isHost, error: null });
-    }));
-
-    subscriptions.push(socketClient.on('onError', (error) => {
-      if (error.code === 'MEMBER_TOKEN_INVALID') {
-        // This browser lost the token for its member id (cleared storage, closed before it arrived...).
-        // The old id stays locked to protect it, so continue under a fresh identity.
-        const freshId = newMemberId();
-        localStorage.setItem('streamcollab_member_id', freshId);
-        setMemberId(freshId);
-        return;
-      }
-      setJoinError(error.message);
-      if (error.code === 'HOST_TOKEN_INVALID' && roomId) {
-        // Forget the bad token and join again as a viewer
-        saveHostToken(roomId, null);
-        socketClient.rejoin();
-      }
-      if (error.code === 'ROOM_NOT_FOUND') {
-        setRoom(null);
-        setActiveSession(null);
-        setLastSession(null);
+    subscriptions.push(
+      socketClient.on('onSessionStarted', (session) => {
+        setActiveSession(session);
+        setLastSession(session);
         setMarkers([]);
-      }
-    }));
+      })
+    );
+
+    subscriptions.push(
+      socketClient.on('onSessionStopped', (session) => {
+        setActiveSession(null);
+        setLastSession(session);
+      })
+    );
+
+    subscriptions.push(
+      socketClient.on('onJoined', (info) => {
+        setJoinState({ key: joinKey, isHost: info.isHost, error: null });
+      })
+    );
+
+    subscriptions.push(
+      socketClient.on('onError', (error) => {
+        if (error.code === 'MEMBER_TOKEN_INVALID') {
+          // This browser lost the token for its member id (cleared storage, closed before it arrived...).
+          // The old id stays locked to protect it, so continue under a fresh identity.
+          const freshId = newMemberId();
+          localStorage.setItem('streamcollab_member_id', freshId);
+          setMemberId(freshId);
+          return;
+        }
+        setJoinError(error.message);
+        if (error.code === 'HOST_TOKEN_INVALID' && roomId) {
+          // Forget the bad token and join again as a viewer
+          saveHostToken(roomId, null);
+          socketClient.rejoin();
+        }
+        if (error.code === 'ROOM_NOT_FOUND') {
+          setRoom(null);
+          setActiveSession(null);
+          setLastSession(null);
+          setMarkers([]);
+        }
+      })
+    );
 
     socketClient.connect();
     if (roomId) {
@@ -241,13 +252,7 @@ export function App() {
 
   // For HUD view in OBS Browser Source, render transparent without wrapper navigation
   if (currentView === 'hud') {
-    return (
-      <HudView
-        socketClient={socketClient}
-        members={room?.members || []}
-        activeSession={activeSession}
-      />
-    );
+    return <HudView socketClient={socketClient} members={room?.members || []} activeSession={activeSession} />;
   }
 
   return (

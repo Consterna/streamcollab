@@ -61,7 +61,13 @@ describe('Per-member (POV) timeline rebasing', () => {
 
   it("uses the member's own exact in-file position (obsRecordMs) for their markers", () => {
     const markers = [
-      marker({ id: 'b1', memberId: 'mem-b', memberName: 'Bravo', timestamp: session.startedAt + 10000, obsRecordMs: 5900 }),
+      marker({
+        id: 'b1',
+        memberId: 'mem-b',
+        memberName: 'Bravo',
+        timestamp: session.startedAt + 10000,
+        obsRecordMs: 5900,
+      }),
     ];
     const { markers: rebased } = rebaseSessionForMember(session, markers, bravoAnchor);
     expect(rebased[0].relativeTimeMs).toBe(5900);

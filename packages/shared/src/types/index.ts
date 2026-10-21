@@ -146,7 +146,10 @@ export type ClientMessage =
         clientTimestamp?: number; // Server-calibrated epoch ms at the moment the key was pressed
       };
     }
-  | { type: 'START_SESSION'; payload: { roomId: string; session: Omit<RecordingSession, 'id' | 'startedAt' | 'stoppedAt'> } }
+  | {
+      type: 'START_SESSION';
+      payload: { roomId: string; session: Omit<RecordingSession, 'id' | 'startedAt' | 'stoppedAt'> };
+    }
   | { type: 'STOP_SESSION'; payload: { roomId: string; sessionId: string } };
 
 export type ServerMessage =

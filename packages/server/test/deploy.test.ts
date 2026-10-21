@@ -61,7 +61,10 @@ describe('Serving the compiled client', () => {
 
   beforeAll(async () => {
     fs.mkdirSync(path.join(clientDir, 'assets'), { recursive: true });
-    fs.writeFileSync(path.join(clientDir, 'index.html'), '<!doctype html><title>StreamCollab</title><div id="root"></div>');
+    fs.writeFileSync(
+      path.join(clientDir, 'index.html'),
+      '<!doctype html><title>StreamCollab</title><div id="root"></div>'
+    );
     fs.writeFileSync(path.join(clientDir, 'assets', 'index-abc123.js'), 'console.log("app")');
     // A file outside the served root that must never be reachable
     fs.writeFileSync(path.join(tmp, 'secret.txt'), 'top secret');
@@ -137,7 +140,11 @@ describe('API-only mode', () => {
   it('starts without a client build and keeps 404s for the root', async () => {
     const dbPath = path.resolve(process.cwd(), 'test-apionly-streamcollab.sqlite');
     removeDb(dbPath);
-    const server = await createServer({ dbPath, logger: false, clientDir: path.join(os.tmpdir(), 'does-not-exist-sc') });
+    const server = await createServer({
+      dbPath,
+      logger: false,
+      clientDir: path.join(os.tmpdir(), 'does-not-exist-sc'),
+    });
     try {
       expect((await server.fastify.inject({ method: 'GET', url: '/api/health' })).statusCode).toBe(200);
       expect((await server.fastify.inject({ method: 'GET', url: '/' })).statusCode).toBe(404);

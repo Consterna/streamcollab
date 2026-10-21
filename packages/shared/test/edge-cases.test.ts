@@ -40,7 +40,9 @@ describe('Edge Cases and Robustness Verification', () => {
 
     it('CSV handles 0 markers and returns only valid header row', () => {
       const csv = exportToCsv(emptySession, []);
-      expect(csv).toBe('Marker ID,Timestamp (UTC),Timecode,Frame,Relative Time (ms),Category,Creator,Label,Comment,Color,Session ID\r\n');
+      expect(csv).toBe(
+        'Marker ID,Timestamp (UTC),Timecode,Frame,Relative Time (ms),Category,Creator,Label,Comment,Color,Session ID\r\n'
+      );
     });
 
     it('YouTube chapters handles 0 markers by generating 00:00 default chapter', () => {

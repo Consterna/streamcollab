@@ -122,7 +122,9 @@ describe('NLE Exporters', () => {
       expect(xml).toContain('<comment>Insane smoke spray (By: Tarik)</comment>');
 
       // Verify track does not contain markers (markers must be on sequence level)
-      expect(xml).toContain('<track>\n          <enabled>TRUE</enabled>\n          <locked>FALSE</locked>\n        </track>');
+      expect(xml).toContain(
+        '<track>\n          <enabled>TRUE</enabled>\n          <locked>FALSE</locked>\n        </track>'
+      );
     });
   });
 
@@ -130,7 +132,9 @@ describe('NLE Exporters', () => {
     it('generates standard RFC 4180 CSV with quotes escaping', () => {
       const csv = exportToCsv(mockSession, mockMarkers);
 
-      expect(csv).toContain('Marker ID,Timestamp (UTC),Timecode,Frame,Relative Time (ms),Category,Creator,Label,Comment,Color,Session ID');
+      expect(csv).toContain(
+        'Marker ID,Timestamp (UTC),Timecode,Frame,Relative Time (ms),Category,Creator,Label,Comment,Color,Session ID'
+      );
       expect(csv).toContain('01:00:15:00,900,15000,KILL,Shroud,First Blood,Pistol headshot,Red,sess-123');
       expect(csv).toContain('01:02:00:00,7200,120000,WIPE,Tarik,Ace 1v5,Insane smoke spray,Fuchsia,sess-123');
     });
@@ -151,9 +155,21 @@ describe('NLE Exporters', () => {
     it('computes member offsets from each recording anchor', () => {
       const anchors: SessionMemberAnchor[] = [
         // Shroud hit record 2.5s before the director started the session
-        { sessionId: 'sess-123', memberId: 'mem-1', recordStartedAt: 1700000000000 - 2500, framerateNumerator: 60, framerateDenominator: 1 },
+        {
+          sessionId: 'sess-123',
+          memberId: 'mem-1',
+          recordStartedAt: 1700000000000 - 2500,
+          framerateNumerator: 60,
+          framerateDenominator: 1,
+        },
         // Tarik started 5.1s late, recording at 59.94
-        { sessionId: 'sess-123', memberId: 'mem-2', recordStartedAt: 1700000000000 + 5100, framerateNumerator: 60000, framerateDenominator: 1001 },
+        {
+          sessionId: 'sess-123',
+          memberId: 'mem-2',
+          recordStartedAt: 1700000000000 + 5100,
+          framerateNumerator: 60000,
+          framerateDenominator: 1001,
+        },
       ];
       const matrix = generateMulticamSyncMatrix(mockSession, mockMarkers, mockMembers, anchors);
 
@@ -197,7 +213,13 @@ describe('NLE Exporters', () => {
         lastHeartbeat: 1700000600000,
       };
       const anchors: SessionMemberAnchor[] = [
-        { sessionId: 'sess-123', memberId: 'mem-ntsc', recordStartedAt: 1700000000000 + 1001, framerateNumerator: 30000, framerateDenominator: 1001 },
+        {
+          sessionId: 'sess-123',
+          memberId: 'mem-ntsc',
+          recordStartedAt: 1700000000000 + 1001,
+          framerateNumerator: 30000,
+          framerateDenominator: 1001,
+        },
       ];
 
       const matrix = generateMulticamSyncMatrix(mockSession, mockMarkers, [ntscMember], anchors);

@@ -22,14 +22,7 @@ interface ExportModalProps {
 
 type ExportType = 'edl' | 'xml' | 'csv' | 'youtube' | 'matrix';
 
-export const ExportModal: React.FC<ExportModalProps> = ({
-  isOpen,
-  onClose,
-  session,
-  markers,
-  members,
-  roomId,
-}) => {
+export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, session, markers, members, roomId }) => {
   const [selectedFormat, setSelectedFormat] = useState<ExportType>('edl');
   const [copied, setCopied] = useState(false);
 
@@ -89,11 +82,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     }
   }, [isOpen, session, markers, selectedFormat, remoteUrl]);
 
-  const content = remoteUrl
-    ? remote?.key === remoteKey
-      ? remote.text
-      : '// Loading from server...'
-    : localContent;
+  const content = remoteUrl ? (remote?.key === remoteKey ? remote.text : '// Loading from server...') : localContent;
 
   if (!isOpen || !session) return null;
 
@@ -221,8 +210,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         {/* Footer Actions */}
         <div className="flex items-center justify-between border-t border-zinc-800 px-6 py-4 bg-zinc-900">
           <div className="text-xs text-zinc-400">
-            Framerate: <span className="text-zinc-200">{session.framerateNumerator}/{session.framerateDenominator} fps</span>
-            {session.dropFrame && ' (Drop Frame)'} | Base TC: <span className="text-zinc-200">{session.baseTimecode}</span>
+            Framerate:{' '}
+            <span className="text-zinc-200">
+              {session.framerateNumerator}/{session.framerateDenominator} fps
+            </span>
+            {session.dropFrame && ' (Drop Frame)'} | Base TC:{' '}
+            <span className="text-zinc-200">{session.baseTimecode}</span>
           </div>
           <div className="flex items-center gap-3">
             <button

@@ -32,8 +32,8 @@ export class SntpClockEngine {
    * T4 = Client receive
    */
   static calculateOffset(t1: number, t2: number, t3: number, t4: number): SntpMeasurement {
-    const rtt = Math.max(0, (t4 - t1) - (t3 - t2));
-    const offset = ((t2 - t1) + (t3 - t4)) / 2;
+    const rtt = Math.max(0, t4 - t1 - (t3 - t2));
+    const offset = (t2 - t1 + (t3 - t4)) / 2;
     return {
       rtt,
       offset,

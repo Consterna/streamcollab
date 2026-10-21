@@ -115,39 +115,45 @@ export function registerApiRoutes(
   });
 
   // Start session (host only)
-  fastify.post('/api/rooms/:id/session/start', async (req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    const { id } = req.params;
-    if (!requireRoom(id, reply) || !requireHost(id, req, reply)) return reply;
+  fastify.post(
+    '/api/rooms/:id/session/start',
+    async (req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+      const { id } = req.params;
+      if (!requireRoom(id, reply) || !requireHost(id, req, reply)) return reply;
 
-    const body = sessionSettingsSchema.safeParse(req.body ?? {});
-    if (!body.success) return badRequest(reply, body.error);
+      const body = sessionSettingsSchema.safeParse(req.body ?? {});
+      if (!body.success) return badRequest(reply, body.error);
 
-    const session = roomManager.startSession(id, {
-      ...body.data,
-      name: body.data.name || 'Main Stream Session',
-    });
-    return reply.status(201).send(session);
-  });
+      const session = roomManager.startSession(id, {
+        ...body.data,
+        name: body.data.name || 'Main Stream Session',
+      });
+      return reply.status(201).send(session);
+    }
+  );
 
   // Stop session (host only)
-  fastify.post('/api/rooms/:id/session/stop', async (req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    const { id } = req.params;
-    if (!requireRoom(id, reply) || !requireHost(id, req, reply)) return reply;
+  fastify.post(
+    '/api/rooms/:id/session/stop',
+    async (req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+      const { id } = req.params;
+      if (!requireRoom(id, reply) || !requireHost(id, req, reply)) return reply;
 
-    const body = stopSessionBodySchema.safeParse(req.body ?? {});
-    if (!body.success) return badRequest(reply, body.error);
+      const body = stopSessionBodySchema.safeParse(req.body ?? {});
+      if (!body.success) return badRequest(reply, body.error);
 
-    const sessionId = body.data.sessionId || roomManager.getActiveSession(id)?.id;
-    if (!sessionId) {
-      return reply.status(400).send({ error: 'No active session found to stop' });
+      const sessionId = body.data.sessionId || roomManager.getActiveSession(id)?.id;
+      if (!sessionId) {
+        return reply.status(400).send({ error: 'No active session found to stop' });
+      }
+
+      const session = roomManager.stopSession(id, sessionId);
+      if (!session) {
+        return reply.status(404).send({ error: `Session ${sessionId} not found in room ${id}` });
+      }
+      return { session };
     }
-
-    const session = roomManager.stopSession(id, sessionId);
-    if (!session) {
-      return reply.status(404).send({ error: `Session ${sessionId} not found in room ${id}` });
-    }
-    return { session };
-  });
+  );
 
   // Quick mark over HTTP (Stream Deck, Streamer.bot...): Authorization: Bearer <memberToken>
   fastify.post(
@@ -184,7 +190,10 @@ export function registerApiRoutes(
   // List markers
   fastify.get(
     '/api/rooms/:id/markers',
-    async (req: FastifyRequest<{ Params: { id: string }; Querystring: { sessionId?: string } }>, reply: FastifyReply) => {
+    async (
+      req: FastifyRequest<{ Params: { id: string }; Querystring: { sessionId?: string } }>,
+      reply: FastifyReply
+    ) => {
       const { id } = req.params;
       if (!requireRoom(id, reply)) return reply;
       const { sessionId } = req.query;
@@ -212,92 +221,95 @@ export function registerApiRoutes(
   );
 
   // NLE Timeline Exporters
-  fastify.get('/api/rooms/:id/export/:format', async (
-    req: FastifyRequest<{
-      Params: { id: string; format: string };
-      Querystring: { sessionId?: string; memberId?: string };
-    }>,
-    reply: FastifyReply
-  ) => {
-    const { id, format } = req.params;
-    const { sessionId, memberId } = req.query;
+  fastify.get(
+    '/api/rooms/:id/export/:format',
+    async (
+      req: FastifyRequest<{
+        Params: { id: string; format: string };
+        Querystring: { sessionId?: string; memberId?: string };
+      }>,
+      reply: FastifyReply
+    ) => {
+      const { id, format } = req.params;
+      const { sessionId, memberId } = req.query;
 
-    const room = roomManager.getRoom(id);
-    if (!room) {
-      return reply.status(404).send({ error: `Room ${id} not found` });
-    }
-
-    let session = sessionId ? db.getSession(sessionId) : roomManager.getActiveSession(id);
-    if (session && session.roomId !== id) {
-      return reply.status(404).send({ error: `Session ${sessionId} not found in room ${id}` });
-    }
-    if (!session) {
-      // Fallback: get the most recent session in this room
-      session = db.getLatestSession(id);
-    }
-
-    if (!session) {
-      return reply.status(404).send({ error: 'No recording session found for export' });
-    }
-
-    const members = db.getRoomMembers(id);
-    const anchors = db.getSessionAnchors(session.id);
-    let markers = db.getSessionMarkers(session.id);
-
-    // Per-POV export: re-time every marker against one member's own recording file
-    if (memberId) {
-      const anchor = anchors.find((a) => a.memberId === memberId);
-      if (!anchor) {
-        return reply.status(404).send({
-          error: `Member ${memberId} has no recording anchor in session ${session.id} (OBS was not recording)`,
-        });
-      }
-      const memberName = members.find((m) => m.id === memberId)?.name;
-      const rebased = rebaseSessionForMember(session, markers, anchor, memberName);
-      session = rebased.session;
-      markers = rebased.markers;
-    }
-
-    switch (format.toLowerCase()) {
-      case 'edl': {
-        const edlContent = exportToEdl(session, markers, { title: session.name });
-        reply.header('Content-Type', 'text/plain; charset=utf-8');
-        reply.header('Content-Disposition', attachmentDisposition(`${session.name}.edl`));
-        return reply.send(edlContent);
+      const room = roomManager.getRoom(id);
+      if (!room) {
+        return reply.status(404).send({ error: `Room ${id} not found` });
       }
 
-      case 'xml': {
-        const xmlContent = exportToFcpXml(session, markers, { sequenceName: session.name });
-        reply.header('Content-Type', 'application/xml; charset=utf-8');
-        reply.header('Content-Disposition', attachmentDisposition(`${session.name}.xml`));
-        return reply.send(xmlContent);
+      let session = sessionId ? db.getSession(sessionId) : roomManager.getActiveSession(id);
+      if (session && session.roomId !== id) {
+        return reply.status(404).send({ error: `Session ${sessionId} not found in room ${id}` });
+      }
+      if (!session) {
+        // Fallback: get the most recent session in this room
+        session = db.getLatestSession(id);
       }
 
-      case 'csv': {
-        const csvContent = exportToCsv(session, markers);
-        reply.header('Content-Type', 'text/csv; charset=utf-8');
-        reply.header('Content-Disposition', attachmentDisposition(`${session.name}.csv`));
-        return reply.send(csvContent);
+      if (!session) {
+        return reply.status(404).send({ error: 'No recording session found for export' });
       }
 
-      case 'youtube': {
-        const ytContent = exportToYouTubeChapters(session, markers);
-        reply.header('Content-Type', 'text/plain; charset=utf-8');
-        reply.header('Content-Disposition', attachmentDisposition(`${session.name}_chapters.txt`));
-        return reply.send(ytContent);
+      const members = db.getRoomMembers(id);
+      const anchors = db.getSessionAnchors(session.id);
+      let markers = db.getSessionMarkers(session.id);
+
+      // Per-POV export: re-time every marker against one member's own recording file
+      if (memberId) {
+        const anchor = anchors.find((a) => a.memberId === memberId);
+        if (!anchor) {
+          return reply.status(404).send({
+            error: `Member ${memberId} has no recording anchor in session ${session.id} (OBS was not recording)`,
+          });
+        }
+        const memberName = members.find((m) => m.id === memberId)?.name;
+        const rebased = rebaseSessionForMember(session, markers, anchor, memberName);
+        session = rebased.session;
+        markers = rebased.markers;
       }
 
-      case 'matrix': {
-        const matrix = generateMulticamSyncMatrix(session, markers, members, anchors);
-        reply.header('Content-Type', 'application/json; charset=utf-8');
-        reply.header('Content-Disposition', attachmentDisposition(`${session.name}_matrix.json`));
-        return reply.send(matrix);
-      }
+      switch (format.toLowerCase()) {
+        case 'edl': {
+          const edlContent = exportToEdl(session, markers, { title: session.name });
+          reply.header('Content-Type', 'text/plain; charset=utf-8');
+          reply.header('Content-Disposition', attachmentDisposition(`${session.name}.edl`));
+          return reply.send(edlContent);
+        }
 
-      default:
-        return reply.status(400).send({
-          error: `Unsupported format: "${format}". Supported formats are: edl, xml, csv, youtube, matrix`,
-        });
+        case 'xml': {
+          const xmlContent = exportToFcpXml(session, markers, { sequenceName: session.name });
+          reply.header('Content-Type', 'application/xml; charset=utf-8');
+          reply.header('Content-Disposition', attachmentDisposition(`${session.name}.xml`));
+          return reply.send(xmlContent);
+        }
+
+        case 'csv': {
+          const csvContent = exportToCsv(session, markers);
+          reply.header('Content-Type', 'text/csv; charset=utf-8');
+          reply.header('Content-Disposition', attachmentDisposition(`${session.name}.csv`));
+          return reply.send(csvContent);
+        }
+
+        case 'youtube': {
+          const ytContent = exportToYouTubeChapters(session, markers);
+          reply.header('Content-Type', 'text/plain; charset=utf-8');
+          reply.header('Content-Disposition', attachmentDisposition(`${session.name}_chapters.txt`));
+          return reply.send(ytContent);
+        }
+
+        case 'matrix': {
+          const matrix = generateMulticamSyncMatrix(session, markers, members, anchors);
+          reply.header('Content-Type', 'application/json; charset=utf-8');
+          reply.header('Content-Disposition', attachmentDisposition(`${session.name}_matrix.json`));
+          return reply.send(matrix);
+        }
+
+        default:
+          return reply.status(400).send({
+            error: `Unsupported format: "${format}". Supported formats are: edl, xml, csv, youtube, matrix`,
+          });
+      }
     }
-  });
+  );
 }

@@ -18,11 +18,7 @@ export const CATEGORY_TO_DAVINCI_COLOR: Record<string, DaVinciMarkerColor> = {
 /**
  * Generate DaVinci Resolve CMX 3600 EDL format with strict CRLF line endings
  */
-export function exportToEdl(
-  session: RecordingSession,
-  markers: SquadMarker[],
-  options?: EdlExportOptions
-): string {
+export function exportToEdl(session: RecordingSession, markers: SquadMarker[], options?: EdlExportOptions): string {
   const tc = new SMPTETimecode({
     framerateNumerator: session.framerateNumerator,
     framerateDenominator: session.framerateDenominator,
@@ -33,11 +29,7 @@ export function exportToEdl(
   const clipName = (options?.clipName || 'StreamCollab').replace(/[^\w\s-]/g, '');
   const fcm = session.dropFrame ? 'DROP FRAME' : 'NON-DROP FRAME';
 
-  const lines: string[] = [
-    `TITLE: ${title}`,
-    `FCM: ${fcm}`,
-    '',
-  ];
+  const lines: string[] = [`TITLE: ${title}`, `FCM: ${fcm}`, ''];
 
   // Sort markers chronologically
   const sortedMarkers = [...markers].sort((a, b) => a.relativeTimeMs - b.relativeTimeMs);

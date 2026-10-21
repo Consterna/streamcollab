@@ -45,9 +45,7 @@ export function rebaseSessionForMember(
   const rebased = markers
     .map((marker): SquadMarker => {
       const ownMarker = marker.memberId === anchor.memberId && typeof marker.obsRecordMs === 'number';
-      const relativeTimeMs = ownMarker
-        ? (marker.obsRecordMs as number)
-        : marker.timestamp - anchor.recordStartedAt;
+      const relativeTimeMs = ownMarker ? (marker.obsRecordMs as number) : marker.timestamp - anchor.recordStartedAt;
 
       return {
         ...marker,

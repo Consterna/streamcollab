@@ -92,7 +92,10 @@ describe('Room access control', () => {
 
   const joinDock = async (memberId: string, extra: Record<string, unknown> = {}, room = roomId) => {
     const client = await connect();
-    client.send({ type: 'JOIN_ROOM', payload: { roomId: room, clientKind: 'dock', member: dockMember(memberId, memberId), ...extra } });
+    client.send({
+      type: 'JOIN_ROOM',
+      payload: { roomId: room, clientKind: 'dock', member: dockMember(memberId, memberId), ...extra },
+    });
     return client;
   };
 
@@ -154,8 +157,14 @@ describe('Room access control', () => {
       const url = `/api/rooms/${roomId}/session/start`;
       expect((await app.inject({ method: 'POST', url, payload: {} })).statusCode).toBe(403);
       expect(
-        (await app.inject({ method: 'POST', url, payload: {}, headers: { authorization: 'Bearer wrong-token-0000000000' } }))
-          .statusCode
+        (
+          await app.inject({
+            method: 'POST',
+            url,
+            payload: {},
+            headers: { authorization: 'Bearer wrong-token-0000000000' },
+          })
+        ).statusCode
       ).toBe(403);
 
       const bad = await app.inject({
@@ -167,7 +176,12 @@ describe('Room access control', () => {
       expect(bad.statusCode).toBe(400);
       expect(JSON.parse(bad.payload).error).toMatch(/baseTimecode/);
 
-      const ok = await app.inject({ method: 'POST', url, payload: { name: 'Locked' }, headers: { authorization: `Bearer ${hostToken}` } });
+      const ok = await app.inject({
+        method: 'POST',
+        url,
+        payload: { name: 'Locked' },
+        headers: { authorization: `Bearer ${hostToken}` },
+      });
       expect(ok.statusCode).toBe(201);
 
       const stopAnon = await app.inject({ method: 'POST', url: `/api/rooms/${roomId}/session/stop`, payload: {} });
@@ -196,21 +210,38 @@ describe('Room access control', () => {
       expect(crossStop.statusCode).toBe(404);
       expect(db.getSession(otherSession.id)?.stoppedAt).toBeNull();
 
-      const crossExport = await app.inject({ method: 'GET', url: `/api/rooms/${roomId}/export/csv?sessionId=${otherSession.id}` });
+      const crossExport = await app.inject({
+        method: 'GET',
+        url: `/api/rooms/${roomId}/export/csv?sessionId=${otherSession.id}`,
+      });
       expect(crossExport.statusCode).toBe(404);
-      const crossMarkers = await app.inject({ method: 'GET', url: `/api/rooms/${roomId}/markers?sessionId=${otherSession.id}` });
+      const crossMarkers = await app.inject({
+        method: 'GET',
+        url: `/api/rooms/${roomId}/markers?sessionId=${otherSession.id}`,
+      });
       expect(crossMarkers.statusCode).toBe(404);
     });
 
     it('only allows configured origins cross-origin', async () => {
-      const allowed = await app.inject({ method: 'GET', url: '/api/health', headers: { origin: 'https://director.example' } });
+      const allowed = await app.inject({
+        method: 'GET',
+        url: '/api/health',
+        headers: { origin: 'https://director.example' },
+      });
       expect(allowed.headers['access-control-allow-origin']).toBe('https://director.example');
-      const denied = await app.inject({ method: 'GET', url: '/api/health', headers: { origin: 'https://evil.example' } });
+      const denied = await app.inject({
+        method: 'GET',
+        url: '/api/health',
+        headers: { origin: 'https://evil.example' },
+      });
       expect(denied.headers['access-control-allow-origin']).toBeUndefined();
     });
 
     it('rate limits room creation', async () => {
-      const limited = await createServer({ dbPath: path.resolve(process.cwd(), 'test-ratelimit-streamcollab.sqlite'), logger: false });
+      const limited = await createServer({
+        dbPath: path.resolve(process.cwd(), 'test-ratelimit-streamcollab.sqlite'),
+        logger: false,
+      });
       try {
         const statuses: number[] = [];
         for (let i = 0; i < 12; i++) {
@@ -279,7 +310,10 @@ describe('Room access control', () => {
       expect(marker.payload.memberName).toBe('mem-attacker');
       expect(marker.payload.roomId).toBe(roomId);
 
-      attacker.send({ type: 'UPDATE_STATUS', payload: { roomId, memberId: 'mem-victim', status: { obsStatus: 'paused' } } });
+      attacker.send({
+        type: 'UPDATE_STATUS',
+        payload: { roomId, memberId: 'mem-victim', status: { obsStatus: 'paused' } },
+      });
       const updated = await attacker.waitFor((m) => m.type === 'MEMBER_UPDATED');
       expect(updated.payload.id).toBe('mem-attacker');
       expect(db.getRoomMembers(roomId).find((m) => m.id === 'mem-victim')?.obsStatus).toBe('stopped');
@@ -343,10 +377,16 @@ describe('Room access control', () => {
 
       expect((await app.inject({ method: 'POST', url, payload })).statusCode).toBe(403);
       expect(
-        (await app.inject({ method: 'POST', url, payload, headers: { authorization: `Bearer ${hostToken}` } })).statusCode
+        (await app.inject({ method: 'POST', url, payload, headers: { authorization: `Bearer ${hostToken}` } }))
+          .statusCode
       ).toBe(403);
 
-      const ok = await app.inject({ method: 'POST', url, payload, headers: { authorization: `Bearer ${memberToken}` } });
+      const ok = await app.inject({
+        method: 'POST',
+        url,
+        payload,
+        headers: { authorization: `Bearer ${memberToken}` },
+      });
       expect(ok.statusCode).toBe(201);
       expect(JSON.parse(ok.payload).memberName).toBe('mem-deck');
 

@@ -22,15 +22,37 @@ export const LIMITS = {
 export const MARKER_CATEGORIES = ['kill', 'wipe', 'clutch', 'funny', 'note', 'custom'] as const;
 
 export const DAVINCI_MARKER_COLORS = [
-  'Blue', 'Cyan', 'Green', 'Yellow', 'Red', 'Pink', 'Purple', 'Fuchsia',
-  'Rose', 'Lavender', 'Sky', 'Mint', 'Lemon', 'Sand', 'Cocoa', 'White',
+  'Blue',
+  'Cyan',
+  'Green',
+  'Yellow',
+  'Red',
+  'Pink',
+  'Purple',
+  'Fuchsia',
+  'Rose',
+  'Lavender',
+  'Sky',
+  'Mint',
+  'Lemon',
+  'Sand',
+  'Cocoa',
+  'White',
 ] as const;
 
 export const CLIENT_KINDS = ['dock', 'hud', 'dashboard'] as const;
 
 // Room codes double as join codes: letters, digits and dashes only
-export const roomIdSchema = z.string().trim().regex(/^[A-Za-z0-9-]{3,40}$/, 'Room code must be 3-40 letters, digits or dashes');
-const idSchema = z.string().trim().min(1).max(LIMITS.memberId).regex(/^[A-Za-z0-9_-]+$/, 'Invalid id');
+export const roomIdSchema = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z0-9-]{3,40}$/, 'Room code must be 3-40 letters, digits or dashes');
+const idSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(LIMITS.memberId)
+  .regex(/^[A-Za-z0-9_-]+$/, 'Invalid id');
 const text = (max: number) => z.string().trim().max(max);
 const tokenSchema = z.string().min(16).max(LIMITS.token);
 const epochMs = z.number().finite().nonnegative();
