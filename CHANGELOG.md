@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-21
+
+### Added
+- **Spanish / English interface** with a selector in the navigation bar, `?lang=` links, browser-language detection, translated server errors and per-language default marker labels.
+- **Optional HUD alert sounds** (`&sound=1&volume=0..1`), synthesized per category with Web Audio; "HUD with sound" invite link.
+- **Automatic OBS reconnection** in the Dock (backoff 2 s → 30 s) and remembered OBS address / password per OBS profile.
+- **Room cleanup for hosts:** remove offline members, delete finished sessions, delete the room (`DELETE /api/rooms/:id/sessions/:sid`, `DELETE /api/rooms/:id`, `REMOVE_MEMBER`).
+- Member presence (`online`), shown as OFFLINE · "last seen" in the Director Panel; the on-stream HUD only lists online squadmates.
+- **Hot backups:** `npm run backup` (SQLite `VACUUM INTO`, integrity-checked, never overwrites).
+- **End-to-end tests** with Playwright (10 scenarios, OBS mocked) and a CI `e2e` job; `docs/local-testing.md` checklist for real OBS.
+- `ROOM_CREATE_LIMIT_PER_MINUTE` setting.
+
+### Changed
+- Room codes are accepted in any letter case.
+- `no-explicit-any` is an error in application code (SQLite rows are typed).
+- README no longer claims unverifiable "60 FPS GPU" / "sub-millisecond" performance; documents the real sound feature.
+
+### Fixed
+- The generated default streamer name changed on every page load.
+- Narrow OBS docks (≈420 px) pushed the room code, language selector and Undo button off-screen.
+- Session modal labels were not associated with their inputs (accessibility).
+- Offline members were shown as IDLE, like online ones.
+
+### Security
+- An IP that tries more than 20 unknown room codes per minute over WebSocket is refused for the rest of that minute.
+
 ## [1.5.1] - 2026-10-21
 
 ### Fixed
@@ -179,7 +205,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed exporter access after session stop to allow post-broadcast timeline generation.
 - Fixed route navigation handling for both query string (`?view=dock`) and hash routing (`#/dock`).
 
-[Unreleased]: https://github.com/Consterna/streamcollab/compare/v1.5.1...HEAD
+[Unreleased]: https://github.com/Consterna/streamcollab/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/Consterna/streamcollab/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/Consterna/streamcollab/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/Consterna/streamcollab/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/Consterna/streamcollab/compare/v1.3.0...v1.4.0
