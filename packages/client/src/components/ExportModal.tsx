@@ -135,7 +135,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4">
       <div className="relative w-full max-w-3xl rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-zinc-800 px-6 py-4">
@@ -167,7 +167,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                 onClick={() => setSelectedFormat(f.id)}
                 className={`flex flex-col items-center justify-center p-2.5 rounded-lg border text-center transition ${
                   isSelected
-                    ? 'border-indigo-500 bg-indigo-500/10 text-white shadow-sm'
+                    ? 'border-indigo-500 bg-indigo-500/10 text-white shadow-xs'
                     : 'border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
                 }`}
               >
@@ -186,7 +186,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             <select
               value={povMemberId}
               onChange={(e) => setPovMemberId(e.target.value)}
-              className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-200"
+              className="rounded-sm border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-200"
             >
               <option value="">Master session</option>
               {members.map((m) => (

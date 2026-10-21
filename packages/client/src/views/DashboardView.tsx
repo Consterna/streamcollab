@@ -115,7 +115,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div>
             <h1 className="text-base font-bold text-white flex items-center gap-2">
               StreamCollab Director Panel
-              <span className="rounded bg-indigo-500/20 px-2 py-0.5 text-xs font-mono text-indigo-400 border border-indigo-500/30">
+              <span className="rounded-sm bg-indigo-500/20 px-2 py-0.5 text-xs font-mono text-indigo-400 border border-indigo-500/30">
                 Room: {room?.name || roomId}
               </span>
             </h1>
@@ -287,14 +287,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search markers..."
-                    className="rounded-lg border border-zinc-700 bg-zinc-950 pl-8 pr-3 py-1 text-xs text-zinc-200 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none w-40 sm:w-48"
+                    className="rounded-lg border border-zinc-700 bg-zinc-950 pl-8 pr-3 py-1 text-xs text-zinc-200 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-hidden w-40 sm:w-48"
                   />
                 </div>
 
                 <select
                   value={filterCategory}
                   onChange={(e) => setFilterCategory(e.target.value)}
-                  className="rounded-lg border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-xs text-zinc-200 focus:border-indigo-500 focus:outline-none"
+                  className="rounded-lg border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-xs text-zinc-200 focus:border-indigo-500 focus:outline-hidden"
                 >
                   <option value="all">All Categories</option>
                   <option value="kill">Kills</option>
@@ -313,12 +313,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             ) : (
               <div className="divide-y divide-zinc-800/80 max-h-96 overflow-y-auto">
                 {filteredMarkers.map((m) => (
-                  <div key={m.id} className="py-2.5 flex items-center justify-between hover:bg-zinc-800/30 px-2 rounded">
+                  <div key={m.id} className="py-2.5 flex items-center justify-between hover:bg-zinc-800/30 px-2 rounded-sm">
                     <div className="flex items-center gap-3">
-                      <span className="font-mono text-xs font-bold text-indigo-300 bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-800/40">
+                      <span className="font-mono text-xs font-bold text-indigo-300 bg-indigo-950/60 px-2 py-0.5 rounded-sm border border-indigo-800/40">
                         {m.timecode}
                       </span>
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-zinc-800 text-zinc-300">
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm bg-zinc-800 text-zinc-300">
                         {m.category}
                       </span>
                       <div>
@@ -466,7 +466,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* Start Session Modal */}
       {showStartModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4">
           <form
             onSubmit={handleStartSession}
             className="w-full max-w-md rounded-xl border border-zinc-700 bg-zinc-900 p-6 shadow-2xl space-y-4"
@@ -483,7 +483,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 required
                 value={sessionName}
                 onChange={(e) => setSessionName(e.target.value)}
-                className="w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs text-white focus:border-indigo-500 focus:outline-none"
+                className="w-full rounded-sm border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs text-white focus:border-indigo-500 focus:outline-hidden"
               />
             </div>
 
@@ -499,7 +499,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     setIsDropFrame(false);
                   }
                 }}
-                className="w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs text-white focus:border-indigo-500 focus:outline-none"
+                className="w-full rounded-sm border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs text-white focus:border-indigo-500 focus:outline-hidden"
               >
                 <option value="60">60 FPS (Gaming standard)</option>
                 <option value="59.94">59.94 FPS (60000/1001 Broadcast)</option>
@@ -518,7 +518,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 id="dropFrame"
                 checked={isDropFrame}
                 onChange={(e) => setIsDropFrame(e.target.checked)}
-                className="rounded border-zinc-700 bg-zinc-950 text-indigo-600 focus:ring-0"
+                className="rounded-sm border-zinc-700 bg-zinc-950 text-indigo-600 focus:ring-0"
               />
               <label htmlFor="dropFrame" className="text-xs text-zinc-300">
                 SMPTE Drop Frame (DF) mode
@@ -533,7 +533,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 value={baseTimecode}
                 onChange={(e) => setBaseTimecode(e.target.value)}
                 placeholder="01:00:00:00"
-                className="w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs font-mono text-white focus:border-indigo-500 focus:outline-none"
+                className="w-full rounded-sm border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs font-mono text-white focus:border-indigo-500 focus:outline-hidden"
               />
               <p className="text-[10px] text-zinc-500 mt-1">Standard NLE broadcast starting timecode is usually 01:00:00:00.</p>
             </div>
@@ -542,13 +542,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <button
                 type="button"
                 onClick={() => setShowStartModal(false)}
-                className="rounded px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-white"
+                className="rounded-sm px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-white"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="rounded bg-emerald-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-emerald-500"
+                className="rounded-sm bg-emerald-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-emerald-500"
               >
                 Start Recording
               </button>

@@ -27,7 +27,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
           window.prompt(label, value);
         }
       }}
-      className="flex items-center gap-1 rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-[11px] text-zinc-200 hover:bg-zinc-700 transition"
+      className="flex items-center gap-1 rounded-sm border border-zinc-700 bg-zinc-800 px-2 py-1 text-[11px] text-zinc-200 hover:bg-zinc-700 transition"
       title={label}
     >
       {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
@@ -88,12 +88,12 @@ export const RoomSetupPanel: React.FC<RoomSetupPanelProps> = ({ socketClient, ro
               onChange={(e) => setRoomName(e.target.value)}
               placeholder="Room name (optional)"
               maxLength={80}
-              className="flex-1 rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-zinc-200 focus:border-indigo-500 focus:outline-none"
+              className="flex-1 rounded-sm border border-zinc-700 bg-zinc-950 px-2 py-1 text-zinc-200 focus:border-indigo-500 focus:outline-hidden"
             />
             <button
               type="submit"
               disabled={creating}
-              className="rounded bg-indigo-600 px-3 py-1 font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 transition"
+              className="rounded-sm bg-indigo-600 px-3 py-1 font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 transition"
             >
               {creating ? 'Creating…' : 'Create'}
             </button>
@@ -112,12 +112,12 @@ export const RoomSetupPanel: React.FC<RoomSetupPanelProps> = ({ socketClient, ro
               </span>
               <div className="flex items-center gap-2">
                 <span className="w-24 text-zinc-400">OBS Dock</span>
-                <code className="flex-1 truncate rounded bg-zinc-950 px-2 py-1 text-zinc-300">{dockUrl}</code>
+                <code className="flex-1 truncate rounded-sm bg-zinc-950 px-2 py-1 text-zinc-300">{dockUrl}</code>
                 <CopyButton value={dockUrl} label="Dock URL" />
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-24 text-zinc-400">HUD source</span>
-                <code className="flex-1 truncate rounded bg-zinc-950 px-2 py-1 text-zinc-300">{hudUrl}</code>
+                <code className="flex-1 truncate rounded-sm bg-zinc-950 px-2 py-1 text-zinc-300">{hudUrl}</code>
                 <CopyButton value={hudUrl} label="HUD URL" />
               </div>
             </div>
@@ -144,11 +144,11 @@ export const RoomSetupPanel: React.FC<RoomSetupPanelProps> = ({ socketClient, ro
                     value={hostTokenDraft}
                     onChange={(e) => setHostTokenDraft(e.target.value)}
                     placeholder="Paste host token"
-                    className="flex-1 rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-zinc-200 focus:border-indigo-500 focus:outline-none"
+                    className="flex-1 rounded-sm border border-zinc-700 bg-zinc-950 px-2 py-1 text-zinc-200 focus:border-indigo-500 focus:outline-hidden"
                   />
                   <button
                     type="submit"
-                    className="rounded border border-zinc-700 bg-zinc-800 px-3 py-1 text-zinc-200 hover:bg-zinc-700 transition"
+                    className="rounded-sm border border-zinc-700 bg-zinc-800 px-3 py-1 text-zinc-200 hover:bg-zinc-700 transition"
                   >
                     Unlock
                   </button>

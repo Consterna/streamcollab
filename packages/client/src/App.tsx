@@ -254,7 +254,7 @@ export function App() {
             }}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1 font-semibold transition ${
               currentView === 'dock'
-                ? 'bg-indigo-600 text-white shadow-sm'
+                ? 'bg-indigo-600 text-white shadow-xs'
                 : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
             }`}
           >
@@ -269,7 +269,7 @@ export function App() {
             }}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1 font-semibold transition ${
               currentView === 'hud'
-                ? 'bg-indigo-600 text-white shadow-sm'
+                ? 'bg-indigo-600 text-white shadow-xs'
                 : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
             }`}
           >
@@ -284,7 +284,7 @@ export function App() {
             }}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1 font-semibold transition ${
               currentView === 'dashboard'
-                ? 'bg-indigo-600 text-white shadow-sm'
+                ? 'bg-indigo-600 text-white shadow-xs'
                 : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
             }`}
           >
@@ -304,7 +304,7 @@ export function App() {
               if (e.key === 'Enter') e.currentTarget.blur();
             }}
             placeholder="Your streamer name"
-            className="w-28 rounded border border-zinc-700 bg-zinc-950 px-2 py-0.5 text-xs text-zinc-200 focus:border-indigo-500 focus:outline-none"
+            className="w-28 rounded-sm border border-zinc-700 bg-zinc-950 px-2 py-0.5 text-xs text-zinc-200 focus:border-indigo-500 focus:outline-hidden"
             title="Streamer Display Name"
           />
 
@@ -317,7 +317,7 @@ export function App() {
               if (e.key === 'Enter') e.currentTarget.blur();
             }}
             placeholder="Room ID"
-            className="w-24 rounded border border-zinc-700 bg-zinc-950 px-2 py-0.5 text-xs font-mono text-zinc-200 focus:border-indigo-500 focus:outline-none"
+            className="w-24 rounded-sm border border-zinc-700 bg-zinc-950 px-2 py-0.5 text-xs font-mono text-zinc-200 focus:border-indigo-500 focus:outline-hidden"
             title="Active Room Code"
           />
         </div>

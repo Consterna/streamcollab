@@ -249,12 +249,12 @@ export const DockView: React.FC<DockViewProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowObsSettings(!showObsSettings)}
-            className="flex items-center gap-1.5 rounded bg-zinc-800 px-2 py-1 text-zinc-300 hover:bg-zinc-700 transition"
+            className="flex items-center gap-1.5 rounded-sm bg-zinc-800 px-2 py-1 text-zinc-300 hover:bg-zinc-700 transition"
             title="OBS WebSocket Settings"
           >
             <div
               className={`h-2.5 w-2.5 rounded-full ${
-                obsConnected ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50' : 'bg-red-500'
+                obsConnected ? 'bg-emerald-500 shadow-xs shadow-emerald-500/50' : 'bg-red-500'
               }`}
             />
             <span className="font-semibold text-[11px]">{obsConnected ? 'OBS Linked' : 'OBS Disconnected'}</span>
@@ -270,7 +270,7 @@ export const DockView: React.FC<DockViewProps> = ({
 
         {/* SNTP Sync & Export */}
         <div className="flex items-center gap-2">
-          <div className="hidden sm:flex items-center gap-1.5 text-[10px] text-zinc-400 font-mono bg-zinc-950 px-2 py-1 rounded border border-zinc-800/80">
+          <div className="hidden sm:flex items-center gap-1.5 text-[10px] text-zinc-400 font-mono bg-zinc-950 px-2 py-1 rounded-sm border border-zinc-800/80">
             <Activity className="h-3 w-3 text-indigo-400" />
             <span>RTT: {sntpStats.rtt}ms</span>
             <span className="text-zinc-600">|</span>
@@ -280,7 +280,7 @@ export const DockView: React.FC<DockViewProps> = ({
           <button
             onClick={() => setIsExportOpen(true)}
             disabled={!sessionForExport}
-            className="flex items-center gap-1 rounded bg-indigo-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-indigo-500 disabled:opacity-40 transition shadow-sm"
+            className="flex items-center gap-1 rounded-sm bg-indigo-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-indigo-500 disabled:opacity-40 transition shadow-xs"
           >
             <Download className="h-3.5 w-3.5" />
             <span>Export NLE</span>
@@ -297,7 +297,7 @@ export const DockView: React.FC<DockViewProps> = ({
               type="text"
               value={obsAddress}
               onChange={(e) => setObsAddress(e.target.value)}
-              className="flex-1 rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-zinc-200 font-mono text-[11px]"
+              className="flex-1 rounded-sm border border-zinc-700 bg-zinc-950 px-2 py-1 text-zinc-200 font-mono text-[11px]"
               placeholder="ws://127.0.0.1:4455"
             />
           </div>
@@ -307,7 +307,7 @@ export const DockView: React.FC<DockViewProps> = ({
               type="password"
               value={obsPassword}
               onChange={(e) => setObsPassword(e.target.value)}
-              className="flex-1 rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-zinc-200 font-mono text-[11px]"
+              className="flex-1 rounded-sm border border-zinc-700 bg-zinc-950 px-2 py-1 text-zinc-200 font-mono text-[11px]"
               placeholder="Optional OBS server password"
             />
             <button
@@ -318,7 +318,7 @@ export const DockView: React.FC<DockViewProps> = ({
                   obsService.connect(obsAddress, obsPassword);
                 }
               }}
-              className="rounded bg-indigo-600 px-3 py-1 font-semibold text-white hover:bg-indigo-500 transition"
+              className="rounded-sm bg-indigo-600 px-3 py-1 font-semibold text-white hover:bg-indigo-500 transition"
             >
               {obsConnected ? 'Disconnect' : 'Connect'}
             </button>
@@ -340,7 +340,7 @@ export const DockView: React.FC<DockViewProps> = ({
                 }
               }}
               disabled={!getMemberToken(member.id)}
-              className="rounded border border-zinc-700 bg-zinc-800 px-3 py-1 text-zinc-200 hover:bg-zinc-700 disabled:opacity-40 transition"
+              className="rounded-sm border border-zinc-700 bg-zinc-800 px-3 py-1 text-zinc-200 hover:bg-zinc-700 disabled:opacity-40 transition"
             >
               Copy
             </button>
@@ -349,7 +349,7 @@ export const DockView: React.FC<DockViewProps> = ({
       )}
 
       {/* Recording Status & SMPTE Master Timecode Banner */}
-      <div className="flex items-center justify-between border-b border-zinc-800 bg-gradient-to-r from-zinc-900 via-zinc-950 to-zinc-900 px-4 py-3">
+      <div className="flex items-center justify-between border-b border-zinc-800 bg-linear-to-r from-zinc-900 via-zinc-950 to-zinc-900 px-4 py-3">
         <div className="flex items-center gap-3">
           {recordStatus?.outputActive ? (
             recordStatus.outputPaused ? (
@@ -395,7 +395,7 @@ export const DockView: React.FC<DockViewProps> = ({
           >
             <div className="flex items-center gap-1 mb-1">
               <Crosshair className="h-4 w-4 text-red-400" />
-              <span className="rounded bg-red-950 px-1 text-[9px] font-mono text-red-200 border border-red-800/60">1</span>
+              <span className="rounded-sm bg-red-950 px-1 text-[9px] font-mono text-red-200 border border-red-800/60">1</span>
             </div>
             <span className="text-xs font-bold">Kill</span>
           </button>
@@ -408,7 +408,7 @@ export const DockView: React.FC<DockViewProps> = ({
           >
             <div className="flex items-center gap-1 mb-1">
               <Skull className="h-4 w-4 text-fuchsia-400" />
-              <span className="rounded bg-fuchsia-950 px-1 text-[9px] font-mono text-fuchsia-200 border border-fuchsia-800/60">2</span>
+              <span className="rounded-sm bg-fuchsia-950 px-1 text-[9px] font-mono text-fuchsia-200 border border-fuchsia-800/60">2</span>
             </div>
             <span className="text-xs font-bold">Wipe</span>
           </button>
@@ -421,7 +421,7 @@ export const DockView: React.FC<DockViewProps> = ({
           >
             <div className="flex items-center gap-1 mb-1">
               <Trophy className="h-4 w-4 text-amber-400" />
-              <span className="rounded bg-amber-950 px-1 text-[9px] font-mono text-amber-200 border border-amber-800/60">3</span>
+              <span className="rounded-sm bg-amber-950 px-1 text-[9px] font-mono text-amber-200 border border-amber-800/60">3</span>
             </div>
             <span className="text-xs font-bold">Clutch</span>
           </button>
@@ -434,7 +434,7 @@ export const DockView: React.FC<DockViewProps> = ({
           >
             <div className="flex items-center gap-1 mb-1">
               <Smile className="h-4 w-4 text-cyan-400" />
-              <span className="rounded bg-cyan-950 px-1 text-[9px] font-mono text-cyan-200 border border-cyan-800/60">4</span>
+              <span className="rounded-sm bg-cyan-950 px-1 text-[9px] font-mono text-cyan-200 border border-cyan-800/60">4</span>
             </div>
             <span className="text-xs font-bold">Funny</span>
           </button>
@@ -447,7 +447,7 @@ export const DockView: React.FC<DockViewProps> = ({
           >
             <div className="flex items-center gap-1 mb-1">
               <FileEdit className="h-4 w-4 text-blue-400" />
-              <span className="rounded bg-blue-950 px-1 text-[9px] font-mono text-blue-200 border border-blue-800/60">5</span>
+              <span className="rounded-sm bg-blue-950 px-1 text-[9px] font-mono text-blue-200 border border-blue-800/60">5</span>
             </div>
             <span className="text-xs font-bold">Note</span>
           </button>
@@ -466,7 +466,7 @@ export const DockView: React.FC<DockViewProps> = ({
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value as MarkerCategory)}
-            className="rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-200 focus:border-indigo-500 focus:outline-none"
+            className="rounded-sm border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-200 focus:border-indigo-500 focus:outline-hidden"
           >
             <option value="kill">Kill (Red)</option>
             <option value="wipe">Wipe (Fuchsia)</option>
@@ -481,13 +481,13 @@ export const DockView: React.FC<DockViewProps> = ({
             value={customComment}
             onChange={(e) => setCustomComment(e.target.value)}
             placeholder="Add custom marker label or comment (Enter to mark)..."
-            className="flex-1 rounded border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+            className="flex-1 rounded-sm border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-hidden"
           />
 
           <button
             type="submit"
             disabled={!customComment.trim()}
-            className="flex items-center gap-1 rounded bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-indigo-600 hover:text-white disabled:opacity-40 transition"
+            className="flex items-center gap-1 rounded-sm bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-indigo-600 hover:text-white disabled:opacity-40 transition"
           >
             <Send className="h-3.5 w-3.5" />
             <span>Mark</span>
@@ -529,7 +529,7 @@ export const DockView: React.FC<DockViewProps> = ({
                   <div className="flex flex-col pr-2 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-xs font-bold text-white tracking-tight">{m.timecode}</span>
-                      <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-zinc-800/80">
+                      <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-sm bg-zinc-800/80">
                         {m.category}
                       </span>
                       <span className="text-xs font-medium text-zinc-200 truncate">{m.label}</span>

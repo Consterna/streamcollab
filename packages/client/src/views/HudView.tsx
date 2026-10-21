@@ -146,7 +146,7 @@ export const HudView: React.FC<HudViewProps> = ({
           return (
             <div
               key={toast.id}
-              className={`flex items-center gap-3 rounded-xl border-2 ${theme.border} bg-gradient-to-r ${theme.bg} p-3.5 shadow-2xl backdrop-blur-md animate-toast-in min-w-[320px] max-w-[420px]`}
+              className={`flex items-center gap-3 rounded-xl border-2 ${theme.border} bg-linear-to-r ${theme.bg} p-3.5 shadow-2xl backdrop-blur-md animate-toast-in min-w-[320px] max-w-[420px]`}
             >
               {/* Category Icon */}
               <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${theme.badge} shadow-lg`}>
@@ -159,17 +159,17 @@ export const HudView: React.FC<HudViewProps> = ({
                   <span className={`text-[11px] font-black uppercase tracking-wider ${theme.glow}`}>
                     {toast.marker.category}
                   </span>
-                  <span className="font-mono text-xs font-bold text-zinc-300 bg-black/60 px-1.5 py-0.5 rounded border border-white/10">
+                  <span className="font-mono text-xs font-bold text-zinc-300 bg-black/60 px-1.5 py-0.5 rounded-sm border border-white/10">
                     {toast.marker.timecode}
                   </span>
                 </div>
 
-                <div className="text-sm font-bold text-white truncate drop-shadow-sm mt-0.5">
+                <div className="text-sm font-bold text-white truncate drop-shadow-xs mt-0.5">
                   {toast.marker.label}
                 </div>
 
                 {toast.marker.comment && (
-                  <div className="text-xs text-zinc-300 truncate drop-shadow-sm mt-0.5 font-medium">
+                  <div className="text-xs text-zinc-300 truncate drop-shadow-xs mt-0.5 font-medium">
                     {toast.marker.comment}
                   </div>
                 )}
@@ -193,7 +193,7 @@ export const HudView: React.FC<HudViewProps> = ({
               <span className="text-xs font-bold uppercase tracking-wider text-white">StreamCollab Squad</span>
             </div>
             {activeSession && (
-              <span className="text-[10px] font-mono text-emerald-400 font-semibold bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-500/30">
+              <span className="text-[10px] font-mono text-emerald-400 font-semibold bg-emerald-950/80 px-1.5 py-0.5 rounded-sm border border-emerald-500/30">
                 ACTIVE
               </span>
             )}
