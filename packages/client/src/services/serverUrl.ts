@@ -39,9 +39,16 @@ export function wsUrl(): string {
   return `${proto}//${loc.host}/ws`;
 }
 
-/** Link to another view of the app (dock / hud) that keeps pointing at the same server */
-export function viewUrl(view: 'dock' | 'hud' | 'dashboard', roomId: string): string {
-  const params = new URLSearchParams({ view, room: roomId });
+/**
+ * Link to another view of the app (dock / hud) that keeps pointing at the same server.
+ * `extra` adds options such as the UI language (`lang`) or HUD sound (`sound=1`).
+ */
+export function viewUrl(
+  view: 'dock' | 'hud' | 'dashboard',
+  roomId: string,
+  extra: Record<string, string> = {}
+): string {
+  const params = new URLSearchParams({ view, room: roomId, ...extra });
   if (SERVER_BASE) params.set('server', SERVER_BASE);
   return `${window.location.origin}/?${params}`;
 }

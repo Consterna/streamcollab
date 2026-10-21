@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Check, Copy } from 'lucide-react';
+import { useT } from '../i18n';
 
 interface HudPreviewBarProps {
   hudUrl: string;
@@ -11,6 +12,7 @@ interface HudPreviewBarProps {
  * The link pasted into OBS never shows them, so the real overlay stays clean.
  */
 export const HudPreviewBar: React.FC<HudPreviewBarProps> = ({ hudUrl, onExit }) => {
+  const { t } = useT();
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -27,7 +29,7 @@ export const HudPreviewBar: React.FC<HudPreviewBarProps> = ({ hudUrl, onExit }) 
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      window.prompt('HUD link for the OBS Browser Source', hudUrl);
+      window.prompt(t('hudPreview.promptTitle'), hudUrl);
     }
   };
 
@@ -36,19 +38,19 @@ export const HudPreviewBar: React.FC<HudPreviewBarProps> = ({ hudUrl, onExit }) 
       <button
         onClick={onExit}
         className="flex items-center gap-1.5 rounded-sm bg-indigo-600 px-2.5 py-1 font-semibold text-white hover:bg-indigo-500 transition"
-        title="Back to the app (Esc)"
+        title={t('hudPreview.backTitle')}
       >
         <ArrowLeft className="h-3.5 w-3.5" />
-        Back
+        {t('common.back')}
       </button>
-      <span className="text-zinc-400">HUD preview (transparent in OBS)</span>
+      <span className="text-zinc-400">{t('hudPreview.label')}</span>
       <button
         onClick={copyLink}
         className="flex items-center gap-1 rounded-sm border border-zinc-700 bg-zinc-800 px-2 py-1 hover:bg-zinc-700 transition"
-        title="Copy the clean HUD link for an OBS Browser Source"
+        title={t('hudPreview.copyTitle')}
       >
         {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-        {copied ? 'Copied' : 'Copy OBS link'}
+        {copied ? t('common.copied') : t('hudPreview.copy')}
       </button>
     </div>
   );

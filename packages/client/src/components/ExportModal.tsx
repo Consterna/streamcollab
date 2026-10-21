@@ -9,6 +9,7 @@ import {
   exportToYouTubeChapters,
 } from '@streamcollab/shared';
 import { apiUrl } from '../services/serverUrl';
+import { useT } from '../i18n';
 import type { LucideIcon } from 'lucide-react';
 import { Download, Copy, Check, X, FileText, Film, Table, ListVideo, Layers } from 'lucide-react';
 
@@ -24,6 +25,7 @@ interface ExportModalProps {
 type ExportType = 'edl' | 'xml' | 'csv' | 'youtube' | 'matrix';
 
 export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, session, markers, members, roomId }) => {
+  const { t } = useT();
   const [selectedFormat, setSelectedFormat] = useState<ExportType>('edl');
   const [copied, setCopied] = useState(false);
 
@@ -61,10 +63,10 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, sessi
         done(selectedFormat === 'matrix' ? JSON.stringify(JSON.parse(text), null, 2) : text);
       })
       .catch((err) => {
-        if (err.name !== 'AbortError') done(`// Export failed: ${err.message}`);
+        if (err.name !== 'AbortError') done(t('export.failed', { message: err.message }));
       });
     return () => controller.abort();
-  }, [remoteUrl, remoteKey, selectedFormat]);
+  }, [remoteUrl, remoteKey, selectedFormat, t]);
 
   // Master-timeline formats are generated locally from the live markers
   const localContent = useMemo(() => {
@@ -83,7 +85,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, sessi
     }
   }, [isOpen, session, markers, selectedFormat, remoteUrl]);
 
-  const content = remoteUrl ? (remote?.key === remoteKey ? remote.text : '// Loading from server...') : localContent;
+  const content = remoteUrl ? (remote?.key === remoteKey ? remote.text : t('export.loading')) : localContent;
 
   if (!isOpen || !session) return null;
 
@@ -127,11 +129,11 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, sessi
   };
 
   const formats: { id: ExportType; label: string; desc: string; icon: LucideIcon }[] = [
-    { id: 'edl', label: 'DaVinci Resolve', desc: 'CMX 3600 EDL (Color markers)', icon: Film },
-    { id: 'xml', label: 'Premiere Pro', desc: 'Final Cut Pro 7 XML (xmeml v4)', icon: FileText },
-    { id: 'csv', label: 'Universal CSV', desc: 'Excel, Sheets & Markerbox', icon: Table },
-    { id: 'youtube', label: 'YouTube Chapters', desc: 'Video description timestamp format', icon: ListVideo },
-    { id: 'matrix', label: 'Multicam Matrix', desc: 'Multi-POV sync matrix JSON', icon: Layers },
+    { id: 'edl', label: t('export.fmt.edl'), desc: t('export.fmt.edlDesc'), icon: Film },
+    { id: 'xml', label: t('export.fmt.xml'), desc: t('export.fmt.xmlDesc'), icon: FileText },
+    { id: 'csv', label: t('export.fmt.csv'), desc: t('export.fmt.csvDesc'), icon: Table },
+    { id: 'youtube', label: t('export.fmt.youtube'), desc: t('export.fmt.youtubeDesc'), icon: ListVideo },
+    { id: 'matrix', label: t('export.fmt.matrix'), desc: t('export.fmt.matrixDesc'), icon: Layers },
   ];
 
   return (
@@ -142,10 +144,11 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, sessi
           <div>
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
               <Film className="h-5 w-5 text-indigo-400" />
-              Export NLE Timeline & Markers
+              {t('export.title')}
             </h2>
             <p className="text-xs text-zinc-400">
-              Session: <span className="font-semibold text-zinc-200">{session.name}</span> ({markers.length} markers)
+              {t('export.session')} <span className="font-semibold text-zinc-200">{session.name}</span>{' '}
+              {t('export.markerCount', { count: markers.length })}
             </p>
           </div>
           <button
@@ -182,40 +185,38 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, sessi
         {/* Timeline selector: master session or one streamer's own recording file */}
         {members.length > 0 && (
           <div className="flex items-center gap-2 border-b border-zinc-800 px-4 py-2 text-xs bg-zinc-950/50">
-            <span className="text-zinc-400 font-medium">Timeline:</span>
+            <span className="text-zinc-400 font-medium">{t('export.timeline')}</span>
             <select
               value={povMemberId}
               onChange={(e) => setPovMemberId(e.target.value)}
               className="rounded-sm border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-200"
             >
-              <option value="">Master session</option>
+              <option value="">{t('export.master')}</option>
               {members.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.name}'s recording (POV)
+                  {t('export.pov', { name: m.name })}
                 </option>
               ))}
             </select>
-            {povMemberId && (
-              <span className="text-zinc-500">Markers re-timed to the start of this streamer's OBS file</span>
-            )}
+            {povMemberId && <span className="text-zinc-500">{t('export.povHint')}</span>}
           </div>
         )}
 
         {/* Preview Code View */}
         <div className="flex-1 overflow-auto p-4 font-mono text-xs text-zinc-300 bg-zinc-950">
           <pre className="whitespace-pre overflow-x-auto selection:bg-indigo-600 selection:text-white">
-            {content || '// No markers in this session yet.'}
+            {content || t('export.empty')}
           </pre>
         </div>
 
         {/* Footer Actions */}
         <div className="flex items-center justify-between border-t border-zinc-800 px-6 py-4 bg-zinc-900">
           <div className="text-xs text-zinc-400">
-            Framerate:{' '}
+            {t('export.framerate')}{' '}
             <span className="text-zinc-200">
               {session.framerateNumerator}/{session.framerateDenominator} fps
             </span>
-            {session.dropFrame && ' (Drop Frame)'} | Base TC:{' '}
+            {session.dropFrame && t('export.dropFrame')} | {t('export.baseTc')}{' '}
             <span className="text-zinc-200">{session.baseTimecode}</span>
           </div>
           <div className="flex items-center gap-3">
@@ -224,14 +225,14 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, sessi
               className="flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-xs font-medium text-white hover:bg-zinc-700 transition"
             >
               {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-              {copied ? 'Copied!' : 'Copy Code'}
+              {copied ? t('export.copiedCode') : t('export.copyCode')}
             </button>
             <button
               onClick={handleDownload}
               className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-medium text-white hover:bg-indigo-500 shadow-md shadow-indigo-600/20 transition"
             >
               <Download className="h-4 w-4" />
-              Download File
+              {t('export.download')}
             </button>
           </div>
         </div>

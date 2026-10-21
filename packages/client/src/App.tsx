@@ -7,6 +7,7 @@ import { DockView } from './views/DockView';
 import { HudView } from './views/HudView';
 import { DashboardView } from './views/DashboardView';
 import { HudPreviewBar } from './components/HudPreviewBar';
+import { LOCALES, Locale, MessageKey, useT } from './i18n';
 import { viewUrl } from './services/serverUrl';
 import { Monitor, Tv, LayoutDashboard } from 'lucide-react';
 
@@ -15,6 +16,20 @@ export function normalizeRoomCode(input: string): string {
   const code = input.trim();
   return /^[a-z0-9]{4}-[a-z0-9]{4}$/i.test(code) ? code.toUpperCase() : code;
 }
+
+/** Banner error: translated by its code when known, otherwise the server's message */
+interface JoinError {
+  code?: string;
+  message: string;
+  room?: string;
+}
+
+const TRANSLATED_ERRORS: Record<string, MessageKey> = {
+  ROOM_DELETED: 'error.ROOM_DELETED',
+  ROOM_NOT_FOUND: 'error.ROOM_NOT_FOUND',
+  RATE_LIMITED: 'error.RATE_LIMITED',
+  HOST_TOKEN_INVALID: 'error.HOST_TOKEN_INVALID',
+};
 
 function newMemberId() {
   return 'mem_' + Math.random().toString(36).substring(2, 9);
@@ -46,6 +61,7 @@ function writeViewToUrl(view: View, preview: boolean) {
 }
 
 export function App() {
+  const { t, locale, setLocale } = useT();
   // Parse initial view from query parameters, hash (legacy links) or pathname
   const initialView = useMemo<View>(() => {
     const params = new URLSearchParams(window.location.search);
@@ -156,7 +172,7 @@ export function App() {
   // Join outcome for one (room, view, member) combination; anything else reads as "not joined yet",
   // so switching rooms needs no reset
   const joinKey = `${roomId}|${clientKind}|${member.id}`;
-  const [joinState, setJoinState] = useState<{ key: string; isHost: boolean; error: string | null }>({
+  const [joinState, setJoinState] = useState<{ key: string; isHost: boolean; error: JoinError | null }>({
     key: '',
     isHost: false,
     error: null,
@@ -173,7 +189,7 @@ export function App() {
   // Initialize socket and listeners
   useEffect(() => {
     const subscriptions: Array<() => void> = [];
-    const setJoinError = (error: string | null) =>
+    const setJoinError = (error: JoinError | null) =>
       setJoinState((state) => ({ key: joinKey, isHost: state.key === joinKey && state.isHost, error }));
     subscriptions.push(
       socketClient.on('onRoomState', (state) => {
@@ -281,7 +297,11 @@ export function App() {
         setActiveSession(null);
         setLastSession(null);
         setMarkers([]);
-        setJoinError(`Room ${deletedRoomId} was deleted by its host.`);
+        setJoinError({
+          code: 'ROOM_DELETED',
+          message: `Room ${deletedRoomId} was deleted by its host.`,
+          room: deletedRoomId,
+        });
       })
     );
 
@@ -301,7 +321,7 @@ export function App() {
           setMemberId(freshId);
           return;
         }
-        setJoinError(error.message);
+        setJoinError({ code: error.code, message: error.message, room: roomId });
         if (error.code === 'HOST_TOKEN_INVALID' && roomId) {
           // Forget the bad token and join again as a viewer
           saveHostToken(roomId, null);
@@ -355,44 +375,45 @@ export function App() {
   return (
     <div className="flex min-h-screen flex-col bg-zinc-950 text-zinc-100">
       {/* View Switcher Bar (Hidden if loaded as an embedded dock or explicit view) */}
-      <nav className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900/90 px-4 py-2 text-xs">
-        <div className="flex items-center gap-1">
+      {/* Wraps onto two rows in narrow OBS docks instead of pushing controls off-screen */}
+      <nav className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 bg-zinc-900/90 px-4 py-2 text-xs">
+        <div className="flex flex-wrap items-center gap-1">
           <button
             onClick={() => navigateTo('dock')}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1 font-semibold transition ${
+            className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1 font-semibold transition ${
               currentView === 'dock'
                 ? 'bg-indigo-600 text-white shadow-xs'
                 : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
             }`}
           >
             <Tv className="h-3.5 w-3.5" />
-            OBS Dock
+            {t('nav.dock')}
           </button>
 
           <button
             onClick={() => navigateTo('hud')}
-            title="Preview the overlay (Esc or Back returns here)"
-            className="flex items-center gap-1.5 rounded-lg px-3 py-1 font-semibold transition text-zinc-400 hover:bg-zinc-800 hover:text-white"
+            title={t('nav.hudTitle')}
+            className="flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1 font-semibold transition text-zinc-400 hover:bg-zinc-800 hover:text-white"
           >
             <Monitor className="h-3.5 w-3.5" />
-            OBS Overlay HUD
+            {t('nav.hud')}
           </button>
 
           <button
             onClick={() => navigateTo('dashboard')}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1 font-semibold transition ${
+            className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1 font-semibold transition ${
               currentView === 'dashboard'
                 ? 'bg-indigo-600 text-white shadow-xs'
                 : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
             }`}
           >
             <LayoutDashboard className="h-3.5 w-3.5" />
-            Director Panel
+            {t('nav.dashboard')}
           </button>
         </div>
 
         {/* Room & User Setting */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <input
             type="text"
             value={nameDraft}
@@ -401,9 +422,9 @@ export function App() {
             onKeyDown={(e) => {
               if (e.key === 'Enter') e.currentTarget.blur();
             }}
-            placeholder="Your streamer name"
+            placeholder={t('nav.namePlaceholder')}
             className="w-28 rounded-sm border border-zinc-700 bg-zinc-950 px-2 py-0.5 text-xs text-zinc-200 focus:border-indigo-500 focus:outline-hidden"
-            title="Streamer Display Name"
+            title={t('nav.nameTitle')}
           />
 
           <input
@@ -414,21 +435,38 @@ export function App() {
             onKeyDown={(e) => {
               if (e.key === 'Enter') e.currentTarget.blur();
             }}
-            placeholder="Room ID"
+            placeholder={t('nav.roomPlaceholder')}
             className="w-24 rounded-sm border border-zinc-700 bg-zinc-950 px-2 py-0.5 text-xs font-mono text-zinc-200 focus:border-indigo-500 focus:outline-hidden"
-            title="Active Room Code"
+            title={t('nav.roomTitle')}
           />
+
+          <select
+            value={locale}
+            onChange={(e) => setLocale(e.target.value as Locale)}
+            aria-label={t('nav.language')}
+            title={t('nav.language')}
+            className="rounded-sm border border-zinc-700 bg-zinc-950 px-1 py-0.5 text-xs text-zinc-200 focus:border-indigo-500 focus:outline-hidden"
+          >
+            {LOCALES.map((l) => (
+              <option key={l} value={l}>
+                {l.toUpperCase()}
+              </option>
+            ))}
+          </select>
         </div>
       </nav>
 
       {(joinError || !roomId) && (
         <div className="flex items-center justify-between gap-3 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-300">
           <span>
-            {joinError ||
-              'No room selected. Enter the room code from your host, or create a room in the Director Panel.'}
+            {joinError
+              ? TRANSLATED_ERRORS[joinError.code ?? '']
+                ? t(TRANSLATED_ERRORS[joinError.code ?? ''], { room: joinError.room ?? roomId })
+                : joinError.message
+              : t('app.noRoom')}
           </span>
           {joinError && (
-            <button onClick={dismissJoinError} className="text-amber-400 hover:text-amber-200" title="Dismiss">
+            <button onClick={dismissJoinError} className="text-amber-400 hover:text-amber-200" title={t('app.dismiss')}>
               ✕
             </button>
           )}

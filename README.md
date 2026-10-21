@@ -26,6 +26,8 @@ StreamCollab allows competitive gaming squads, content creator groups, and espor
 - **OBS Browser Source HUD (Transparent Overlay)**:
   - Transparent gaming overlay (`bg-transparent`) optimized for OBS Studio Browser Sources.
   - CSS-animated alert toasts that slide into the stream when any squadmate records a highlight.
+  - Optional alert sounds per category (`&sound=1&volume=0.6` on the HUD link), synthesized in the page; no audio files.
+  - Only squadmates whose dock is connected appear in the on-stream squad list.
   - Real-time squad status HUD badge showing each creator's live OBS recording health (🔴 REC, ⏸️ PAUSED, ⚪ IDLE).
   - **Resource Optimization**: Listens to OBS's `obsSourceVisibleChanged` event and stops rendering and toast timers while the source / scene is hidden.
 
@@ -52,6 +54,11 @@ StreamCollab allows competitive gaming squads, content creator groups, and espor
   - Fastify v5 with `@fastify/websocket` v11 and `@fastify/cors`.
   - Native Node 24 `node:sqlite` (`DatabaseSync`) configured with Write-Ahead Logging (`PRAGMA journal_mode = WAL`) and normal synchronous mode for maximum throughput.
   - **SNTP 4-Timestamp Engine**: Continuous RTT & clock offset calibration (smoothed every 5 s) ($\theta = \frac{(T_2 - T_1) + (T_3 - T_4)}{2}$) between streamers' PCs and the server.
+
+---
+
+### Languages
+The interface is available in **Spanish and English**. It follows the browser language, can be switched from the selector in the navigation bar, and can be forced per link with `&lang=es` / `&lang=en`. Invite links copied from the Director Panel keep the panel's language, so docks and overlays pasted into OBS match it. Default marker labels (e.g. "Kill confirmada" / "Kill Confirmed") use the language of the streamer who marks.
 
 ---
 
@@ -284,7 +291,8 @@ The script creates the `StreamCollab Signal` input automatically. It is never ad
    - **Custom CSS**: (leave default or clear, background is already transparent)
    - **Shutdown source when not visible**: Checked (optional, built-in visibility listener handles it automatically)
 4. Click **OK**.
-5. When any squadmate presses a hotkey (`1`..`5`) or marks an event, a glowing alert badge will animate on-stream with sound cues, creator credit, and SMPTE timecode.
+5. When any squadmate presses a hotkey (`1`..`5`) or marks an event, an alert slides in on-stream with the category, label, creator and SMPTE timecode.
+6. **Sound (optional):** use the *HUD with sound* link from the Director Panel (it adds `&sound=1&volume=0.6`). Tick **Control audio via OBS** in the Browser Source properties to give the cues their own fader in the OBS mixer.
 
 ### 5. Tournament Director Panel
 - Access via any browser: `http://localhost:5173/?view=dashboard`
@@ -339,7 +347,9 @@ npm.cmd test
 - `packages/shared/test/perMember.test.ts`: Per-POV timeline rebasing and EDL locators on the creator's own file.
 - `packages/server/test/server.test.ts`: Fastify routes, Node 24 native `node:sqlite` WAL mode, SNTP 4-timestamp clock offset and RTT engine.
 - `packages/server/test/markers.test.ts`: Marker editing / deletion permissions and broadcasts, undo (WebSocket and HTTP), session history.
-- `packages/client/test/obs.test.ts`: Native OBS chapter detection, recording-only writes and error reporting (with a stubbed obs-websocket).
+- `packages/client/test/obs.test.ts`: Native OBS chapter detection, recording-only writes and error reporting, automatic reconnection backoff (with a stubbed obs-websocket).
+- `packages/client/test/i18n-sound.test.ts`: Spanish / English dictionaries in sync (keys and placeholders), interpolation, HUD sound options and cues.
+- `packages/server/test/audit.test.ts`: Case-insensitive room codes, member presence and removal, session / room deletion, per-IP limit on unknown room codes.
 - `packages/server/test/deploy.test.ts`: Environment validation, serving the compiled client (SPA fallback, cache headers, no path traversal), security headers, API-only mode.
 - `packages/server/test/security.test.ts`: Host / member tokens, spoofing attempts, cross-room access, Zod validation errors, CORS, REST and WebSocket rate limits, oversized frames.
 - `packages/server/test/ws.test.ts`: Real-socket WebSocket rooms (Dock + HUD with the same member id), heartbeat, calibrated marker timestamps, recording anchors, per-POV exports, and in-place migration of v1.0.0 databases.

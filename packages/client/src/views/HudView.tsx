@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { SquadMarker, SquadMember, RecordingSession, MarkerCategory } from '@streamcollab/shared';
 import { StreamCollabSocketClient } from '../services/socket';
+import { useT } from '../i18n';
+import { HudSound, readHudSoundOptions } from '../services/sound';
 import { Crosshair, Skull, Trophy, Smile, FileEdit, Radio } from 'lucide-react';
 
 interface ActiveToast {
@@ -18,6 +20,12 @@ interface HudViewProps {
 export const HudView: React.FC<HudViewProps> = ({ socketClient, members, activeSession }) => {
   const [toasts, setToasts] = useState<ActiveToast[]>([]);
   const [isVisibleInObs, setIsVisibleInObs] = useState(true);
+  const { t } = useT();
+  // Optional alert sounds (?sound=1&volume=0.6 on the Browser Source URL)
+  const [sound] = useState(() => new HudSound(readHudSoundOptions(window.location.search)));
+  useEffect(() => () => sound.close(), [sound]);
+  // On stream, only show squadmates whose dock is connected right now
+  const onlineMembers = members.filter((m) => m.online !== false);
 
   // OBS Browser Source visibility listener
   useEffect(() => {
@@ -38,8 +46,9 @@ export const HudView: React.FC<HudViewProps> = ({ socketClient, members, activeS
   useEffect(() => {
     // Subscribe alongside App's own marker callback instead of overwriting it
     return socketClient.on('onMarkerAdded', (marker: SquadMarker) => {
-      // If OBS source is hidden, skip visual toast animation to save GPU
+      // If OBS source is hidden, skip visual toast animation (and its sound) to save resources
       if (!isVisibleInObs) return;
+      sound.play(marker.category);
 
       const toastId = `${marker.id}-${Date.now()}`;
       setToasts((prev) => [
@@ -51,7 +60,7 @@ export const HudView: React.FC<HudViewProps> = ({ socketClient, members, activeS
         },
       ]);
     });
-  }, [socketClient, isVisibleInObs]);
+  }, [socketClient, isVisibleInObs, sound]);
 
   // Clean expired toasts
   useEffect(() => {
@@ -140,7 +149,7 @@ export const HudView: React.FC<HudViewProps> = ({ socketClient, members, activeS
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
                   <span className={`text-[11px] font-black uppercase tracking-wider ${theme.glow}`}>
-                    {toast.marker.category}
+                    {t(`category.${toast.marker.category}`)}
                   </span>
                   <span className="font-mono text-xs font-bold text-zinc-300 bg-black/60 px-1.5 py-0.5 rounded-sm border border-white/10">
                     {toast.marker.timecode}
@@ -156,7 +165,7 @@ export const HudView: React.FC<HudViewProps> = ({ socketClient, members, activeS
                 )}
 
                 <div className="text-[10px] text-zinc-400 mt-1 flex items-center gap-1 font-semibold">
-                  <span>Marked by:</span>
+                  <span>{t('hud.markedBy')}</span>
                   <span className="text-white font-bold">{toast.marker.memberName}</span>
                 </div>
               </div>
@@ -171,20 +180,20 @@ export const HudView: React.FC<HudViewProps> = ({ socketClient, members, activeS
           <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-2">
             <div className="flex items-center gap-1.5">
               <Radio className="h-3.5 w-3.5 text-indigo-400 animate-pulse" />
-              <span className="text-xs font-bold uppercase tracking-wider text-white">StreamCollab Squad</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-white">{t('hud.squad')}</span>
             </div>
             {activeSession && (
               <span className="text-[10px] font-mono text-emerald-400 font-semibold bg-emerald-950/80 px-1.5 py-0.5 rounded-sm border border-emerald-500/30">
-                ACTIVE
+                {t('hud.active')}
               </span>
             )}
           </div>
 
           <div className="space-y-1.5">
-            {members.length === 0 ? (
-              <div className="text-[11px] text-zinc-400 italic">No members connected</div>
+            {onlineMembers.length === 0 ? (
+              <div className="text-[11px] text-zinc-400 italic">{t('hud.noMembers')}</div>
             ) : (
-              members.map((m) => {
+              onlineMembers.map((m) => {
                 const isRec = m.obsStatus === 'recording';
                 const isPaused = m.obsStatus === 'paused';
 
@@ -215,11 +224,11 @@ export const HudView: React.FC<HudViewProps> = ({ socketClient, members, activeS
 
                     <div className="flex items-center gap-1.5 font-mono text-[10px]">
                       {isRec ? (
-                        <span className="text-red-400 font-bold">REC</span>
+                        <span className="text-red-400 font-bold">{t('hud.rec')}</span>
                       ) : isPaused ? (
-                        <span className="text-amber-400 font-bold">PAUSE</span>
+                        <span className="text-amber-400 font-bold">{t('hud.pause')}</span>
                       ) : (
-                        <span className="text-zinc-500 font-medium">IDLE</span>
+                        <span className="text-zinc-500 font-medium">{t('hud.idle')}</span>
                       )}
                       <span className="text-zinc-600">|</span>
                       <span className="text-zinc-400">{m.fps || 60}fps</span>

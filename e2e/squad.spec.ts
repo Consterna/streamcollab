@@ -196,3 +196,85 @@ test.describe('Room cleanup', () => {
     await expect(dock.locator('nav input').nth(1)).toHaveValue(room.id);
   });
 });
+
+test.describe('Language and sound', () => {
+  test('the UI follows ?lang=es and the selector switches language', async ({ browser, request }) => {
+    const room = await createRoom(request);
+    const context = await newIdentity(browser);
+    const dock = await context.newPage();
+    await dock.goto(`/?view=dock&room=${room.id}&lang=es`);
+
+    await expect(dock.getByText('0 marcadores registrados')).toBeVisible();
+    await expect(dock.getByRole('button', { name: 'Deshacer' })).toBeVisible();
+    await expect(dock.locator('html')).toHaveAttribute('lang', 'es');
+
+    // Default marker labels come from the marking streamer's language
+    await dock.keyboard.press('1');
+    await expect(dock.getByText('Kill confirmada')).toBeVisible();
+
+    await dock.getByRole('combobox', { name: 'Idioma' }).selectOption('en');
+    await expect(dock.getByText('1 markers captured')).toBeVisible();
+    // Already stored markers keep their original label
+    await expect(dock.getByText('Kill confirmada')).toBeVisible();
+  });
+
+  test('the HUD plays a cue only when its link enables sound', async ({ browser, request }) => {
+    const room = await createRoom(request);
+
+    // Count scheduled oscillators instead of producing real audio
+    const instrumented = async () => {
+      const context = await newIdentity(browser);
+      await context.addInitScript(() => {
+        const w = window as unknown as { __oscillators: number; AudioContext: typeof AudioContext };
+        w.__oscillators = 0;
+        const Original = w.AudioContext;
+        w.AudioContext = class extends Original {
+          createOscillator() {
+            w.__oscillators++;
+            return super.createOscillator();
+          }
+        };
+      });
+      return context;
+    };
+
+    const silentHud = await (await instrumented()).newPage();
+    await silentHud.goto(`/?view=hud&room=${room.id}`);
+    const loudHud = await (await instrumented()).newPage();
+    await loudHud.goto(`/?view=hud&room=${room.id}&sound=1&volume=0.5`);
+    await expect(loudHud.getByText(/STREAMCOLLAB SQUAD/i)).toBeVisible();
+
+    const dock = await openView(await newIdentity(browser), 'dock', room.id);
+    await markersCaptured(dock, 0);
+    await dock.keyboard.press('3');
+    await expect(loudHud.getByText('Clutch Play')).toBeVisible();
+    await expect(silentHud.getByText('Clutch Play')).toBeVisible();
+
+    const count = (page: typeof dock) =>
+      page.evaluate(() => (window as unknown as { __oscillators: number }).__oscillators);
+    expect(await count(loudHud)).toBe(4); // the clutch cue has four notes
+    expect(await count(silentHud)).toBe(0);
+  });
+});
+
+test.describe('Narrow OBS docks', () => {
+  test('every control stays on screen in a 420 px wide dock (longest language)', async ({ browser, request }) => {
+    const room = await createRoom(request);
+    const context = await newIdentity(browser);
+    const dock = await context.newPage();
+    await dock.setViewportSize({ width: 420, height: 700 });
+    await dock.goto(`/?view=dock&room=${room.id}&lang=es`);
+    await expect(dock.getByText('0 marcadores registrados')).toBeVisible();
+
+    const offscreen = await dock.evaluate(() =>
+      [...document.querySelectorAll('button, input, select')]
+        .filter((el) => {
+          const box = el.getBoundingClientRect();
+          return box.width > 0 && (box.right > window.innerWidth + 1 || box.left < -1);
+        })
+        .map((el) => el.textContent?.trim() || el.getAttribute('placeholder') || el.tagName)
+    );
+    expect(offscreen).toEqual([]);
+    expect(await dock.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(420);
+  });
+});

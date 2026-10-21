@@ -9,6 +9,7 @@ import {
 } from '../services/preferences';
 import { StreamCollabSocketClient } from '../services/socket';
 import { getMemberToken } from '../services/credentials';
+import { useT } from '../i18n';
 import { ExportModal } from '../components/ExportModal';
 import {
   Crosshair,
@@ -27,13 +28,9 @@ import {
 
 // Default marker labels, shared by the dock buttons, dock hotkeys and global OBS hotkeys
 type QuickMarkCategory = 'kill' | 'wipe' | 'clutch' | 'funny' | 'note';
-const QUICK_MARK_LABELS: Record<QuickMarkCategory, string> = {
-  kill: 'Kill Confirmed',
-  wipe: 'Squad Wipe',
-  clutch: 'Clutch Play',
-  funny: 'Funny Moment',
-  note: 'Timeline Note',
-};
+const QUICK_MARK_CATEGORIES: QuickMarkCategory[] = ['kill', 'wipe', 'clutch', 'funny', 'note'];
+const isQuickMarkCategory = (value: string): value is QuickMarkCategory =>
+  (QUICK_MARK_CATEGORIES as string[]).includes(value);
 
 interface DockViewProps {
   socketClient: StreamCollabSocketClient;
@@ -56,6 +53,9 @@ export const DockView: React.FC<DockViewProps> = ({
   lastSession,
   markers,
 }) => {
+  const { t } = useT();
+  // Default marker labels come from the marking streamer's language (they are stored as data)
+  const quickLabel = useCallback((category: QuickMarkCategory) => t(`marker.${category}`), [t]);
   const sessionForExport = activeSession || lastSession || null;
   // OBS states
   const [obsConnected, setObsConnected] = useState(obsService.connected);
@@ -241,9 +241,8 @@ export const DockView: React.FC<DockViewProps> = ({
       handleUndo();
       return;
     }
-    const label = (QUICK_MARK_LABELS as Record<string, string | undefined>)[category];
-    if (label) {
-      handleQuickMark(category as QuickMarkCategory, label);
+    if (isQuickMarkCategory(category)) {
+      handleQuickMark(category, quickLabel(category));
     }
   });
   useEffect(() => obsService.on('hotkey', (signal) => onHotkeySignal(signal)), [obsService]);
@@ -273,13 +272,13 @@ export const DockView: React.FC<DockViewProps> = ({
       const category = keyToCategory[e.key];
       if (category) {
         e.preventDefault();
-        handleQuickMark(category, QUICK_MARK_LABELS[category]);
+        handleQuickMark(category, quickLabel(category));
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleQuickMark, handleUndo]);
+  }, [handleQuickMark, handleUndo, quickLabel]);
 
   // Calculate formatted timecode for display
   const tc = new SMPTETimecode({
@@ -302,7 +301,7 @@ export const DockView: React.FC<DockViewProps> = ({
           <button
             onClick={() => setShowObsSettings(!showObsSettings)}
             className="flex items-center gap-1.5 rounded-sm bg-zinc-800 px-2 py-1 text-zinc-300 hover:bg-zinc-700 transition"
-            title="OBS WebSocket Settings"
+            title={t('dock.obsSettingsTitle')}
           >
             <div
               className={`h-2.5 w-2.5 rounded-full ${
@@ -310,7 +309,11 @@ export const DockView: React.FC<DockViewProps> = ({
               }`}
             />
             <span className="font-semibold text-[11px]">
-              {obsConnected ? 'OBS Linked' : obsRetryMs !== null ? 'OBS Disconnected · retrying' : 'OBS Disconnected'}
+              {obsConnected
+                ? t('dock.obsLinked')
+                : obsRetryMs !== null
+                  ? t('dock.obsRetrying')
+                  : t('dock.obsDisconnected')}
             </span>
             {showObsSettings ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
           </button>
@@ -337,7 +340,7 @@ export const DockView: React.FC<DockViewProps> = ({
             className="flex items-center gap-1 rounded-sm bg-indigo-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-indigo-500 disabled:opacity-40 transition shadow-xs"
           >
             <Download className="h-3.5 w-3.5" />
-            <span>Export NLE</span>
+            <span>{t('dock.exportNle')}</span>
           </button>
         </div>
       </header>
@@ -346,7 +349,7 @@ export const DockView: React.FC<DockViewProps> = ({
       {showObsSettings && (
         <div className="border-b border-zinc-800 bg-zinc-900 p-3 text-xs space-y-2 animate-toast-in">
           <div className="flex items-center gap-2">
-            <span className="w-20 text-zinc-400 font-medium">WebSocket:</span>
+            <span className="w-20 text-zinc-400 font-medium">{t('dock.websocket')}</span>
             <input
               type="text"
               value={obsAddress}
@@ -356,13 +359,13 @@ export const DockView: React.FC<DockViewProps> = ({
             />
           </div>
           <div className="flex items-center gap-2">
-            <span className="w-20 text-zinc-400 font-medium">Password:</span>
+            <span className="w-20 text-zinc-400 font-medium">{t('dock.password')}</span>
             <input
               type="password"
               value={obsPassword}
               onChange={(e) => setObsPassword(e.target.value)}
               className="flex-1 rounded-sm border border-zinc-700 bg-zinc-950 px-2 py-1 text-zinc-200 font-mono text-[11px]"
-              placeholder="Optional OBS server password"
+              placeholder={t('dock.passwordPlaceholder')}
             />
             <button
               onClick={() => {
@@ -374,33 +377,31 @@ export const DockView: React.FC<DockViewProps> = ({
               }}
               className="rounded-sm bg-indigo-600 px-3 py-1 font-semibold text-white hover:bg-indigo-500 transition"
             >
-              {obsConnected ? 'Disconnect' : obsRetryMs !== null ? 'Retry now' : 'Connect'}
+              {obsConnected ? t('dock.disconnect') : obsRetryMs !== null ? t('dock.retryNow') : t('dock.connect')}
             </button>
           </div>
           <p className="pl-22 text-[10px] text-zinc-500">
-            Saved in this OBS profile only. While disconnected the dock retries automatically
-            {obsRetryMs !== null ? ` (next try in ${Math.round(obsRetryMs / 1000)}s)` : ''}.
+            {t('dock.savedHint')}
+            {obsRetryMs !== null ? t('dock.nextTry', { seconds: Math.round(obsRetryMs / 1000) }) : ''}.
           </p>
           <div className="flex items-start gap-2">
-            <span className="w-20 text-zinc-400 font-medium">Chapters:</span>
+            <span className="w-20 text-zinc-400 font-medium">{t('dock.chapters')}</span>
             <div className="flex-1 space-y-1">
               <div className="text-[11px]">
                 {chapterSupport.state === 'unknown' && (
-                  <span className="text-zinc-500">Connect OBS to check support</span>
+                  <span className="text-zinc-500">{t('dock.chaptersUnknown')}</span>
                 )}
                 {chapterSupport.state === 'unsupported' && (
                   <span className="text-amber-400">
-                    Needs OBS 30.2+ (obs-websocket 5.5)
-                    {chapterSupport.obsVersion ? `; you have ${chapterSupport.obsVersion}` : ''}
+                    {t('dock.chaptersUnsupported')}
+                    {chapterSupport.obsVersion ? t('dock.chaptersYouHave', { version: chapterSupport.obsVersion }) : ''}
                   </span>
                 )}
                 {chapterSupport.state === 'available' && !chapterSupport.lastError && (
-                  <span className="text-emerald-400">Native chapters available (record in Hybrid MP4)</span>
+                  <span className="text-emerald-400">{t('dock.chaptersAvailable')}</span>
                 )}
                 {chapterSupport.state === 'available' && chapterSupport.lastError && (
-                  <span className="text-amber-400">
-                    OBS rejected the last chapter: set Settings - Output - Recording Format to Hybrid MP4
-                  </span>
+                  <span className="text-amber-400">{t('dock.chaptersRejected')}</span>
                 )}
               </div>
               <label className="flex items-center gap-1.5 text-[11px] text-zinc-300">
@@ -412,7 +413,7 @@ export const DockView: React.FC<DockViewProps> = ({
                     setBoolPreference('chapters', e.target.checked);
                   }}
                 />
-                Write my markers as chapters into my recording
+                {t('dock.chaptersMine')}
               </label>
               <label className="flex items-center gap-1.5 text-[11px] text-zinc-300">
                 <input
@@ -424,15 +425,14 @@ export const DockView: React.FC<DockViewProps> = ({
                     setBoolPreference('squadChapters', e.target.checked);
                   }}
                 />
-                Also add my squadmates' markers
+                {t('dock.chaptersSquad')}
               </label>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="w-20 text-zinc-400 font-medium">HTTP token:</span>
+            <span className="w-20 text-zinc-400 font-medium">{t('dock.httpToken')}</span>
             <span className="flex-1 text-[11px] text-zinc-500">
-              For Stream Deck / Streamer.bot: POST /api/rooms/{roomId}/quick-mark with Authorization: Bearer
-              &lt;token&gt; and memberId <span className="font-mono">{member.id}</span>
+              {t('dock.httpTokenHint', { room: roomId })} <span className="font-mono">{member.id}</span>
             </span>
             <button
               onClick={async () => {
@@ -441,13 +441,13 @@ export const DockView: React.FC<DockViewProps> = ({
                 try {
                   await navigator.clipboard.writeText(token);
                 } catch {
-                  window.prompt('Member token', token);
+                  window.prompt(t('dock.memberTokenPrompt'), token);
                 }
               }}
               disabled={!getMemberToken(member.id)}
               className="rounded-sm border border-zinc-700 bg-zinc-800 px-3 py-1 text-zinc-200 hover:bg-zinc-700 disabled:opacity-40 transition"
             >
-              Copy
+              {t('common.copy')}
             </button>
           </div>
         </div>
@@ -460,32 +460,38 @@ export const DockView: React.FC<DockViewProps> = ({
             recordStatus.outputPaused ? (
               <div className="flex items-center gap-2 rounded-full bg-amber-500/20 px-3 py-1 text-amber-400 border border-amber-500/40">
                 <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
-                <span className="text-xs font-bold tracking-wider">PAUSED</span>
+                <span className="text-xs font-bold tracking-wider">{t('dock.paused')}</span>
               </div>
             ) : (
               <div className="flex items-center gap-2 rounded-full bg-red-500/20 px-3 py-1 text-red-400 border border-red-500/40 animate-pulse">
                 <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
-                <span className="text-xs font-bold tracking-wider">REC LIVE</span>
+                <span className="text-xs font-bold tracking-wider">{t('dock.recLive')}</span>
               </div>
             )
           ) : (
             <div className="flex items-center gap-2 rounded-full bg-zinc-800 px-3 py-1 text-zinc-400 border border-zinc-700">
               <span className="h-2.5 w-2.5 rounded-full bg-zinc-500" />
-              <span className="text-xs font-bold tracking-wider">STANDBY</span>
+              <span className="text-xs font-bold tracking-wider">{t('dock.standby')}</span>
             </div>
           )}
 
           <div className="flex flex-col">
-            <span className="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold">SMPTE Timecode</span>
+            <span className="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold">{t('dock.smpte')}</span>
             <span className="font-mono text-xl font-bold tracking-tight text-white">{displayTimecode}</span>
           </div>
         </div>
 
         <div className="text-right">
           <div className="text-[10px] text-zinc-400 font-medium">
-            Session: {activeSession?.name || (lastSession ? `${lastSession.name} (Ended)` : 'No Active Session')}
+            {t('dock.session', {
+              name:
+                activeSession?.name ||
+                (lastSession ? t('dock.sessionEnded', { name: lastSession.name }) : t('dock.noSession')),
+            })}
           </div>
-          <div className="text-[11px] text-indigo-400 font-semibold">{markers.length} markers captured</div>
+          <div className="text-[11px] text-indigo-400 font-semibold">
+            {t('dock.markersCaptured', { count: markers.length })}
+          </div>
         </div>
       </div>
 
@@ -494,9 +500,9 @@ export const DockView: React.FC<DockViewProps> = ({
         <div className="grid grid-cols-5 gap-2">
           {/* 1. Kill */}
           <button
-            onClick={() => handleQuickMark('kill', 'Kill Confirmed')}
+            onClick={() => handleQuickMark('kill', quickLabel('kill'))}
             className="flex flex-col items-center justify-center rounded-lg border border-red-500/30 bg-red-500/10 p-2 text-red-300 hover:bg-red-500/20 hover:border-red-500 active:scale-95 transition"
-            title="Press [1] to mark Kill"
+            title={t('dock.pressToMark', { key: '1', label: t('category.kill') })}
           >
             <div className="flex items-center gap-1 mb-1">
               <Crosshair className="h-4 w-4 text-red-400" />
@@ -504,14 +510,14 @@ export const DockView: React.FC<DockViewProps> = ({
                 1
               </span>
             </div>
-            <span className="text-xs font-bold">Kill</span>
+            <span className="text-xs font-bold">{t('category.kill')}</span>
           </button>
 
           {/* 2. Squad Wipe */}
           <button
-            onClick={() => handleQuickMark('wipe', 'Squad Wipe')}
+            onClick={() => handleQuickMark('wipe', quickLabel('wipe'))}
             className="flex flex-col items-center justify-center rounded-lg border border-fuchsia-500/30 bg-fuchsia-500/10 p-2 text-fuchsia-300 hover:bg-fuchsia-500/20 hover:border-fuchsia-500 active:scale-95 transition"
-            title="Press [2] to mark Squad Wipe"
+            title={t('dock.pressToMark', { key: '2', label: t('category.wipe') })}
           >
             <div className="flex items-center gap-1 mb-1">
               <Skull className="h-4 w-4 text-fuchsia-400" />
@@ -519,14 +525,14 @@ export const DockView: React.FC<DockViewProps> = ({
                 2
               </span>
             </div>
-            <span className="text-xs font-bold">Wipe</span>
+            <span className="text-xs font-bold">{t('category.wipe')}</span>
           </button>
 
           {/* 3. Clutch */}
           <button
-            onClick={() => handleQuickMark('clutch', 'Clutch Play')}
+            onClick={() => handleQuickMark('clutch', quickLabel('clutch'))}
             className="flex flex-col items-center justify-center rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-amber-300 hover:bg-amber-500/20 hover:border-amber-500 active:scale-95 transition"
-            title="Press [3] to mark Clutch"
+            title={t('dock.pressToMark', { key: '3', label: t('category.clutch') })}
           >
             <div className="flex items-center gap-1 mb-1">
               <Trophy className="h-4 w-4 text-amber-400" />
@@ -534,14 +540,14 @@ export const DockView: React.FC<DockViewProps> = ({
                 3
               </span>
             </div>
-            <span className="text-xs font-bold">Clutch</span>
+            <span className="text-xs font-bold">{t('category.clutch')}</span>
           </button>
 
           {/* 4. Funny */}
           <button
-            onClick={() => handleQuickMark('funny', 'Funny Moment')}
+            onClick={() => handleQuickMark('funny', quickLabel('funny'))}
             className="flex flex-col items-center justify-center rounded-lg border border-cyan-500/30 bg-cyan-500/10 p-2 text-cyan-300 hover:bg-cyan-500/20 hover:border-cyan-500 active:scale-95 transition"
-            title="Press [4] to mark Funny Moment"
+            title={t('dock.pressToMark', { key: '4', label: t('category.funny') })}
           >
             <div className="flex items-center gap-1 mb-1">
               <Smile className="h-4 w-4 text-cyan-400" />
@@ -549,14 +555,14 @@ export const DockView: React.FC<DockViewProps> = ({
                 4
               </span>
             </div>
-            <span className="text-xs font-bold">Funny</span>
+            <span className="text-xs font-bold">{t('category.funny')}</span>
           </button>
 
           {/* 5. Note */}
           <button
-            onClick={() => handleQuickMark('note', 'Timeline Note')}
+            onClick={() => handleQuickMark('note', quickLabel('note'))}
             className="flex flex-col items-center justify-center rounded-lg border border-blue-500/30 bg-blue-500/10 p-2 text-blue-300 hover:bg-blue-500/20 hover:border-blue-500 active:scale-95 transition"
-            title="Press [5] to mark Note"
+            title={t('dock.pressToMark', { key: '5', label: t('category.note') })}
           >
             <div className="flex items-center gap-1 mb-1">
               <FileEdit className="h-4 w-4 text-blue-400" />
@@ -564,7 +570,7 @@ export const DockView: React.FC<DockViewProps> = ({
                 5
               </span>
             </div>
-            <span className="text-xs font-bold">Note</span>
+            <span className="text-xs font-bold">{t('category.note')}</span>
           </button>
         </div>
 
@@ -576,27 +582,27 @@ export const DockView: React.FC<DockViewProps> = ({
               handleQuickMark(selectedCategory, customComment.trim());
             }
           }}
-          className="mt-2.5 flex items-center gap-2"
+          className="mt-2.5 flex flex-wrap items-center gap-2"
         >
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value as MarkerCategory)}
             className="rounded-sm border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-200 focus:border-indigo-500 focus:outline-hidden"
           >
-            <option value="kill">Kill (Red)</option>
-            <option value="wipe">Wipe (Fuchsia)</option>
-            <option value="clutch">Clutch (Yellow)</option>
-            <option value="funny">Funny (Cyan)</option>
-            <option value="note">Note (Blue)</option>
-            <option value="custom">Custom (Green)</option>
+            <option value="kill">{t('dock.categoryOption.kill')}</option>
+            <option value="wipe">{t('dock.categoryOption.wipe')}</option>
+            <option value="clutch">{t('dock.categoryOption.clutch')}</option>
+            <option value="funny">{t('dock.categoryOption.funny')}</option>
+            <option value="note">{t('dock.categoryOption.note')}</option>
+            <option value="custom">{t('dock.categoryOption.custom')}</option>
           </select>
 
           <input
             type="text"
             value={customComment}
             onChange={(e) => setCustomComment(e.target.value)}
-            placeholder="Add custom marker label or comment (Enter to mark)..."
-            className="flex-1 rounded-sm border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-hidden"
+            placeholder={t('dock.customPlaceholder')}
+            className="min-w-40 flex-1 rounded-sm border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-hidden"
           />
 
           <button
@@ -605,18 +611,18 @@ export const DockView: React.FC<DockViewProps> = ({
             className="flex items-center gap-1 rounded-sm bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-indigo-600 hover:text-white disabled:opacity-40 transition"
           >
             <Send className="h-3.5 w-3.5" />
-            <span>Mark</span>
+            <span>{t('dock.mark')}</span>
           </button>
 
           <button
             type="button"
             onClick={handleUndo}
             disabled={!markers.some((m) => m.memberId === member.id)}
-            title="Undo your last marker (0 or Ctrl+Z). Chapters already written to the recording stay."
+            title={t('dock.undoTitle')}
             className="flex items-center gap-1 rounded-sm bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-zinc-700 disabled:opacity-40 transition"
           >
             <Undo2 className="h-3.5 w-3.5" />
-            <span>Undo</span>
+            <span>{t('dock.undo')}</span>
           </button>
         </form>
       </div>
@@ -624,17 +630,15 @@ export const DockView: React.FC<DockViewProps> = ({
       {/* Real-time Marker History List */}
       <div className="flex-1 overflow-y-auto p-2">
         <div className="flex items-center justify-between px-2 py-1 text-[11px] font-semibold text-zinc-400 border-b border-zinc-800/60">
-          <span>EVENT & TIMECODE</span>
-          <span>CREATOR</span>
+          <span>{t('dock.eventHeader')}</span>
+          <span>{t('dock.creatorHeader')}</span>
         </div>
 
         {markers.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-zinc-500 text-xs">
             <Radio className="h-8 w-8 text-zinc-700 mb-2 animate-pulse" />
-            <p>No markers yet in this session.</p>
-            <p className="text-[11px] text-zinc-600 mt-1">
-              Press hotkeys [1] - [5] or click buttons above to mark events. [0] undoes your last one.
-            </p>
+            <p>{t('dock.empty')}</p>
+            <p className="text-[11px] text-zinc-600 mt-1">{t('dock.emptyHint')}</p>
           </div>
         ) : (
           <div className="divide-y divide-zinc-900">

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { MarkerCategory, MarkerChanges, SquadMarker } from '@streamcollab/shared';
 import { Check, Pencil, Trash, X } from 'lucide-react';
+import { useT } from '../i18n';
 
 interface MarkerRowProps {
   marker: SquadMarker;
@@ -13,6 +14,7 @@ const CATEGORIES: MarkerCategory[] = ['kill', 'wipe', 'clutch', 'funny', 'note',
 
 /** One timeline entry in the Director Panel, editable in place by the host */
 export const MarkerRow: React.FC<MarkerRowProps> = ({ marker, canEdit, onSave, onDelete }) => {
+  const { t } = useT();
   const [draft, setDraft] = useState<{ label: string; comment: string; category: MarkerCategory } | null>(null);
 
   const startEditing = () =>
@@ -46,11 +48,11 @@ export const MarkerRow: React.FC<MarkerRowProps> = ({ marker, canEdit, onSave, o
               value={draft.category}
               onChange={(e) => setDraft({ ...draft, category: e.target.value as MarkerCategory })}
               className={inputClass}
-              aria-label="Category"
+              aria-label={t('markerRow.category')}
             >
               {CATEGORIES.map((category) => (
                 <option key={category} value={category}>
-                  {category}
+                  {t(`category.${category}`)}
                 </option>
               ))}
             </select>
@@ -59,25 +61,29 @@ export const MarkerRow: React.FC<MarkerRowProps> = ({ marker, canEdit, onSave, o
               onChange={(e) => setDraft({ ...draft, label: e.target.value })}
               maxLength={80}
               className={`${inputClass} w-36`}
-              aria-label="Label"
+              aria-label={t('markerRow.label')}
               autoFocus
             />
             <input
               value={draft.comment}
               onChange={(e) => setDraft({ ...draft, comment: e.target.value })}
               maxLength={280}
-              placeholder="Comment"
+              placeholder={t('markerRow.comment')}
               className={`${inputClass} flex-1 min-w-24`}
-              aria-label="Comment"
+              aria-label={t('markerRow.comment')}
             />
-            <button type="submit" className="rounded-sm p-1 text-emerald-400 hover:bg-zinc-800" title="Save">
+            <button
+              type="submit"
+              className="rounded-sm p-1 text-emerald-400 hover:bg-zinc-800"
+              title={t('common.save')}
+            >
               <Check className="h-4 w-4" />
             </button>
             <button
               type="button"
               onClick={() => setDraft(null)}
               className="rounded-sm p-1 text-zinc-400 hover:bg-zinc-800"
-              title="Cancel"
+              title={t('common.cancel')}
             >
               <X className="h-4 w-4" />
             </button>
@@ -102,14 +108,14 @@ export const MarkerRow: React.FC<MarkerRowProps> = ({ marker, canEdit, onSave, o
               <button
                 onClick={startEditing}
                 className="rounded-sm p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white"
-                title="Edit marker"
+                title={t('markerRow.edit')}
               >
                 <Pencil className="h-3.5 w-3.5" />
               </button>
               <button
                 onClick={() => onDelete(marker)}
                 className="rounded-sm p-1 text-zinc-400 hover:bg-zinc-800 hover:text-red-400"
-                title="Delete marker"
+                title={t('markerRow.delete')}
               >
                 <Trash className="h-3.5 w-3.5" />
               </button>

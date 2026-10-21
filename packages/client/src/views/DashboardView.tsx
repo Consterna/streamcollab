@@ -7,6 +7,7 @@ import { MarkerRow } from '../components/MarkerRow';
 import { SessionHistory } from '../components/SessionHistory';
 import { apiUrl } from '../services/serverUrl';
 import { deleteSession } from '../services/api';
+import { useT, MessageKey, TranslateParams } from '../i18n';
 import { Play, Square, Users, Film, Download, Radio, Search, Layers } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -21,13 +22,13 @@ interface DashboardViewProps {
 }
 
 /** "3m ago" style relative time for offline members */
-function formatAgo(timestamp: number): string {
+function formatAgo(timestamp: number, t: (key: MessageKey, params?: TranslateParams) => string): string {
   const seconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
-  if (seconds < 60) return 'just now';
+  if (seconds < 60) return t('dash.ago.now');
   const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 60) return t('dash.ago.minutes', { n: minutes });
   const hours = Math.round(minutes / 60);
-  return hours < 48 ? `${hours}h ago` : `${Math.round(hours / 24)}d ago`;
+  return hours < 48 ? t('dash.ago.hours', { n: hours }) : t('dash.ago.days', { n: Math.round(hours / 24) });
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -40,6 +41,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   isHost,
   onRoomChange,
 }) => {
+  const { t } = useT();
   const liveSession = activeSession || lastSession || null;
 
   // Session history: null = follow the current session; otherwise browse a past one
@@ -104,15 +106,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   }, [socketClient]);
 
   const handleDeleteSession = async (session: SessionSummary) => {
-    if (
-      !window.confirm(`Delete session "${session.name}" and its ${session.markerCount} markers? This cannot be undone.`)
-    ) {
+    if (!window.confirm(t('dash.deleteSessionConfirm', { name: session.name, count: session.markerCount }))) {
       return;
     }
     try {
       await deleteSession(roomId, session.id);
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : 'Could not delete the session');
+      window.alert(err instanceof Error ? err.message : t('dash.deleteSessionFailed'));
     }
   };
 
@@ -126,7 +126,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   };
 
   const handleDeleteMarker = (marker: SquadMarker) => {
-    if (window.confirm(`Delete marker "${marker.label}" (${marker.timecode}) by ${marker.memberName}?`)) {
+    if (
+      window.confirm(
+        t('dash.deleteMarkerConfirm', { label: marker.label, timecode: marker.timecode, member: marker.memberName })
+      )
+    ) {
       socketClient.deleteMarker(marker.id);
     }
   };
@@ -136,7 +140,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   // Start session form state
   const [showStartModal, setShowStartModal] = useState(false);
-  const [sessionName, setSessionName] = useState('Match 1 - Final Round');
+  const [sessionName, setSessionName] = useState(() => t('dash.defaultSessionName'));
   const [baseTimecode, setBaseTimecode] = useState('01:00:00:00');
   const [selectedFramerate, setSelectedFramerate] = useState('60');
   const [isDropFrame, setIsDropFrame] = useState(false);
@@ -167,7 +171,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const handleStopSession = () => {
     if (!activeSession) return;
-    if (window.confirm(`Are you sure you want to stop recording session "${activeSession.name}"?`)) {
+    if (window.confirm(t('dash.stopConfirm', { name: activeSession.name }))) {
       socketClient.stopSession(roomId, activeSession.id);
     }
   };
@@ -189,7 +193,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   );
 
   const handleRemoveMember = (memberId: string, name: string) => {
-    if (window.confirm(`Remove ${name} from this room? Their markers stay; if they come back they rejoin as new.`)) {
+    if (window.confirm(t('dash.removeConfirm', { name }))) {
       socketClient.removeMember(memberId);
     }
   };
@@ -204,12 +208,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div>
             <h1 className="text-base font-bold text-white flex items-center gap-2">
-              StreamCollab Director Panel
+              {t('dash.title')}
               <span className="rounded-sm bg-indigo-500/20 px-2 py-0.5 text-xs font-mono text-indigo-400 border border-indigo-500/30">
-                Room: {room?.name || roomId}
+                {t('dash.room', { name: room?.name || roomId })}
               </span>
             </h1>
-            <p className="text-xs text-zinc-400">Collaborative OBS Multicam & Live Squad Marker Command Center</p>
+            <p className="text-xs text-zinc-400">{t('dash.subtitle')}</p>
           </div>
         </div>
 
@@ -228,22 +232,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <button
                 onClick={handleStopSession}
                 disabled={!isHost}
-                title={isHost ? undefined : 'Only the room host can stop sessions'}
+                title={isHost ? undefined : t('dash.onlyHostStop')}
                 className="disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 rounded-lg bg-red-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-red-500 shadow-lg shadow-red-600/20 transition"
               >
                 <Square className="h-4 w-4" />
-                Stop Session
+                {t('dash.stopSession')}
               </button>
             </div>
           ) : (
             <button
               onClick={() => setShowStartModal(true)}
               disabled={!isHost || !room}
-              title={isHost ? undefined : 'Only the room host can start sessions'}
+              title={isHost ? undefined : t('dash.onlyHostStart')}
               className="disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-500 shadow-lg shadow-emerald-600/20 transition"
             >
               <Play className="h-4 w-4" />
-              Start New Session
+              {t('dash.startSession')}
             </button>
           )}
 
@@ -253,7 +257,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-40 transition shadow-lg shadow-indigo-600/20"
           >
             <Download className="h-4 w-4" />
-            Export Timeline
+            {t('dash.exportTimeline')}
           </button>
         </div>
       </header>
@@ -275,9 +279,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="flex items-center justify-between border-b border-zinc-800 pb-3 mb-4">
               <div className="flex items-center gap-2">
                 <Users className="h-5 w-5 text-indigo-400" />
-                <h2 className="text-sm font-bold text-white">Squad Sync & OBS Health Matrix</h2>
+                <h2 className="text-sm font-bold text-white">{t('dash.squadMatrix')}</h2>
                 <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-xs font-semibold text-zinc-300">
-                  {members.length} Creators
+                  {t('dash.creators', { count: members.length })}
                 </span>
               </div>
             </div>
@@ -285,22 +289,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {members.length === 0 ? (
               <div className="flex flex-col items-center justify-center p-8 text-zinc-500 text-xs">
                 <Users className="h-8 w-8 text-zinc-700 mb-2" />
-                <p>No squad members currently connected to this room.</p>
-                <p className="text-[11px] text-zinc-600 mt-1">Open the OBS Dock in another tab or OBS to join.</p>
+                <p>{t('dash.noMembers')}</p>
+                <p className="text-[11px] text-zinc-600 mt-1">{t('dash.noMembersHint')}</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
                     <tr className="border-b border-zinc-800 text-[11px] font-semibold text-zinc-400">
-                      <th className="pb-2">CREATOR</th>
-                      <th className="pb-2">ROLE</th>
-                      <th className="pb-2">OBS STATUS</th>
-                      <th className="pb-2">RECORD DURATION</th>
-                      <th className="pb-2">FPS</th>
-                      <th className="pb-2">CLOCK OFFSET (Δ)</th>
-                      <th className="pb-2">RTT</th>
-                      {isHost && <th className="pb-2" aria-label="Actions" />}
+                      <th className="pb-2">{t('dash.col.creator')}</th>
+                      <th className="pb-2">{t('dash.col.role')}</th>
+                      <th className="pb-2">{t('dash.col.status')}</th>
+                      <th className="pb-2">{t('dash.col.duration')}</th>
+                      <th className="pb-2">{t('dash.col.fps')}</th>
+                      <th className="pb-2">{t('dash.col.offset')}</th>
+                      <th className="pb-2">{t('dash.col.rtt')}</th>
+                      {isHost && <th className="pb-2" aria-label={t('dash.col.actions')} />}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-800/60 font-mono">
@@ -317,27 +321,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             </div>
                             {m.name}
                           </td>
-                          <td className="py-2.5 font-sans capitalize text-zinc-400">{m.role}</td>
+                          <td className="py-2.5 font-sans text-zinc-400">{t(`dash.role.${m.role}`)}</td>
                           <td className="py-2.5 font-sans">
                             {isOffline ? (
                               <span
                                 className="inline-flex items-center gap-1.5 rounded-full bg-zinc-900 px-2 py-0.5 text-[10px] font-medium text-zinc-500 border border-zinc-800"
                                 title={m.lastHeartbeat ? new Date(m.lastHeartbeat).toLocaleString() : undefined}
                               >
-                                OFFLINE{m.lastHeartbeat ? ` · ${formatAgo(m.lastHeartbeat)}` : ''}
+                                {t('dash.status.offline')}
+                                {m.lastHeartbeat ? ` · ${formatAgo(m.lastHeartbeat, t)}` : ''}
                               </span>
                             ) : isRec ? (
                               <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/20 px-2 py-0.5 text-[10px] font-bold text-red-400 border border-red-500/30">
                                 <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse" />
-                                RECORDING
+                                {t('dash.status.recording')}
                               </span>
                             ) : isPaused ? (
                               <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-400 border border-amber-500/30">
-                                PAUSED
+                                {t('dash.status.paused')}
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] font-medium text-zinc-400">
-                                IDLE
+                                {t('dash.status.idle')}
                               </span>
                             )}
                           </td>
@@ -363,9 +368,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                 <button
                                   onClick={() => handleRemoveMember(m.id, m.name)}
                                   className="rounded-sm px-2 py-0.5 text-[11px] text-zinc-500 hover:bg-zinc-800 hover:text-red-400"
-                                  title="Remove this offline member from the room"
+                                  title={t('dash.removeTitle')}
                                 >
-                                  Remove
+                                  {t('dash.remove')}
                                 </button>
                               )}
                             </td>
@@ -385,10 +390,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <div className="flex items-center gap-2">
                 <Film className="h-5 w-5 text-indigo-400" />
                 <h2 className="text-sm font-bold text-white">
-                  {viewingHistory ? `Session Timeline: ${viewedSession?.name ?? ''}` : 'Live Event Timeline'}
+                  {viewingHistory
+                    ? t('dash.sessionTimeline', { name: viewedSession?.name ?? '' })
+                    : t('dash.liveTimeline')}
                 </h2>
                 <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-xs font-semibold text-zinc-300">
-                  {filteredMarkers.length} of {viewedMarkers.length}
+                  {t('dash.countOf', { shown: filteredMarkers.length, total: viewedMarkers.length })}
                 </span>
               </div>
 
@@ -400,7 +407,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search markers..."
+                    placeholder={t('dash.search')}
                     className="rounded-lg border border-zinc-700 bg-zinc-950 pl-8 pr-3 py-1 text-xs text-zinc-200 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-hidden w-40 sm:w-48"
                   />
                 </div>
@@ -410,20 +417,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   onChange={(e) => setFilterCategory(e.target.value)}
                   className="rounded-lg border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-xs text-zinc-200 focus:border-indigo-500 focus:outline-hidden"
                 >
-                  <option value="all">All Categories</option>
-                  <option value="kill">Kills</option>
-                  <option value="wipe">Squad Wipes</option>
-                  <option value="clutch">Clutches</option>
-                  <option value="funny">Funny</option>
-                  <option value="note">Notes</option>
+                  <option value="all">{t('dash.filter.all')}</option>
+                  <option value="kill">{t('dash.filter.kill')}</option>
+                  <option value="wipe">{t('dash.filter.wipe')}</option>
+                  <option value="clutch">{t('dash.filter.clutch')}</option>
+                  <option value="funny">{t('dash.filter.funny')}</option>
+                  <option value="note">{t('dash.filter.note')}</option>
                 </select>
               </div>
             </div>
 
             {filteredMarkers.length === 0 ? (
-              <div className="p-8 text-center text-zinc-500 text-xs">
-                No markers found matching your current filter.
-              </div>
+              <div className="p-8 text-center text-zinc-500 text-xs">{t('dash.noMatches')}</div>
             ) : (
               <div className="divide-y divide-zinc-800/80 max-h-96 overflow-y-auto">
                 {filteredMarkers.map((m) => (
@@ -455,7 +460,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <h2 className="text-sm font-bold text-white flex items-center justify-between border-b border-zinc-800 pb-3 mb-3">
               <div className="flex items-center gap-2">
                 <Layers className="h-4 w-4 text-indigo-400" />
-                <span>Recording Session Details</span>
+                <span>{t('dash.details')}</span>
               </div>
               {viewedSession && (
                 <span
@@ -465,7 +470,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       : 'bg-zinc-800 text-zinc-300 border border-zinc-700'
                   }`}
                 >
-                  {!viewedSession.stoppedAt ? 'LIVE RECORDING' : 'COMPLETED'}
+                  {!viewedSession.stoppedAt ? t('dash.liveRecording') : t('dash.completed')}
                 </span>
               )}
             </h2>
@@ -473,27 +478,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {viewedSession ? (
               <div className="space-y-3 text-xs">
                 <div>
-                  <span className="text-zinc-500 block text-[11px]">Session Name:</span>
+                  <span className="text-zinc-500 block text-[11px]">{t('dash.sessionName')}</span>
                   <span className="font-semibold text-white">{viewedSession.name}</span>
                 </div>
                 <div>
-                  <span className="text-zinc-500 block text-[11px]">Framerate & Standard:</span>
+                  <span className="text-zinc-500 block text-[11px]">{t('dash.framerate')}</span>
                   <span className="font-mono text-zinc-200">
                     {viewedSession.framerateNumerator}/{viewedSession.framerateDenominator} fps
-                    {viewedSession.dropFrame ? ' (SMPTE Drop Frame)' : ' (Non-Drop Frame)'}
+                    {viewedSession.dropFrame ? t('dash.dropFrame') : t('dash.nonDropFrame')}
                   </span>
                 </div>
                 <div>
-                  <span className="text-zinc-500 block text-[11px]">Base Timecode Offset:</span>
+                  <span className="text-zinc-500 block text-[11px]">{t('dash.baseTimecode')}</span>
                   <span className="font-mono text-zinc-200">{viewedSession.baseTimecode}</span>
                 </div>
                 <div>
-                  <span className="text-zinc-500 block text-[11px]">Started At:</span>
+                  <span className="text-zinc-500 block text-[11px]">{t('dash.startedAt')}</span>
                   <span className="text-zinc-300">{new Date(viewedSession.startedAt).toLocaleString()}</span>
                 </div>
                 {viewedSession.stoppedAt && (
                   <div>
-                    <span className="text-zinc-500 block text-[11px]">Duration:</span>
+                    <span className="text-zinc-500 block text-[11px]">{t('dash.duration')}</span>
                     <span className="text-zinc-300 font-mono">
                       {Math.floor((viewedSession.stoppedAt - viewedSession.startedAt) / 60000)}m{' '}
                       {Math.floor(((viewedSession.stoppedAt - viewedSession.startedAt) % 60000) / 1000)}s
@@ -502,10 +507,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 )}
               </div>
             ) : (
-              <div className="text-xs text-zinc-500">
-                No active session is currently running. Click "Start New Session" above to configure framerate and
-                timeline.
-              </div>
+              <div className="text-xs text-zinc-500">{t('dash.noActiveSession')}</div>
             )}
           </div>
 
@@ -513,7 +515,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 p-5 shadow-xl">
             <h2 className="text-sm font-bold text-white flex items-center gap-2 border-b border-zinc-800 pb-3 mb-3">
               <Download className="h-4 w-4 text-indigo-400" />
-              Quick NLE Downloads
+              {t('dash.quickDownloads')}
             </h2>
             <div className="space-y-2">
               <a
@@ -523,7 +525,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   !viewedSession ? 'pointer-events-none opacity-40' : ''
                 }`}
               >
-                <span className="font-medium text-zinc-200">DaVinci Resolve EDL</span>
+                <span className="font-medium text-zinc-200">{t('dash.dl.edl')}</span>
                 <span className="font-mono text-[10px] text-zinc-500">.edl</span>
               </a>
 
@@ -534,7 +536,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   !viewedSession ? 'pointer-events-none opacity-40' : ''
                 }`}
               >
-                <span className="font-medium text-zinc-200">Adobe Premiere Pro XML</span>
+                <span className="font-medium text-zinc-200">{t('dash.dl.xml')}</span>
                 <span className="font-mono text-[10px] text-zinc-500">.xml</span>
               </a>
 
@@ -545,7 +547,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   !viewedSession ? 'pointer-events-none opacity-40' : ''
                 }`}
               >
-                <span className="font-medium text-zinc-200">Universal CSV (Sheets/Excel)</span>
+                <span className="font-medium text-zinc-200">{t('dash.dl.csv')}</span>
                 <span className="font-mono text-[10px] text-zinc-500">.csv</span>
               </a>
 
@@ -556,7 +558,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   !viewedSession ? 'pointer-events-none opacity-40' : ''
                 }`}
               >
-                <span className="font-medium text-zinc-200">YouTube Chapters</span>
+                <span className="font-medium text-zinc-200">{t('dash.dl.youtube')}</span>
                 <span className="font-mono text-[10px] text-zinc-500">.txt</span>
               </a>
 
@@ -567,7 +569,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   !viewedSession ? 'pointer-events-none opacity-40' : ''
                 }`}
               >
-                <span className="font-medium text-zinc-200">Multicam Sync Matrix JSON</span>
+                <span className="font-medium text-zinc-200">{t('dash.dl.matrix')}</span>
                 <span className="font-mono text-[10px] text-zinc-500">.json</span>
               </a>
             </div>
@@ -584,12 +586,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           >
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <Play className="h-5 w-5 text-emerald-400" />
-              Configure Recording Session
+              {t('dash.configure')}
             </h3>
 
             <div>
               <label htmlFor="sessionName" className="text-xs font-semibold text-zinc-400 block mb-1">
-                Session Name
+                {t('dash.form.name')}
               </label>
               <input
                 id="sessionName"
@@ -603,7 +605,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             <div>
               <label htmlFor="sessionFramerate" className="text-xs font-semibold text-zinc-400 block mb-1">
-                Timeline Framerate
+                {t('dash.form.framerate')}
               </label>
               <select
                 id="sessionFramerate"
@@ -618,13 +620,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 }}
                 className="w-full rounded-sm border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs text-white focus:border-indigo-500 focus:outline-hidden"
               >
-                <option value="60">60 FPS (Gaming standard)</option>
-                <option value="59.94">59.94 FPS (60000/1001 Broadcast)</option>
-                <option value="50">50 FPS (PAL HD)</option>
+                <option value="60">{t('dash.form.fps.60')}</option>
+                <option value="59.94">{t('dash.form.fps.59.94')}</option>
+                <option value="50">{t('dash.form.fps.50')}</option>
                 <option value="30">30 FPS</option>
-                <option value="29.97">29.97 FPS (NTSC)</option>
+                <option value="29.97">{t('dash.form.fps.29.97')}</option>
                 <option value="25">25 FPS</option>
-                <option value="24">24 FPS (Cinematic)</option>
+                <option value="24">{t('dash.form.fps.24')}</option>
                 <option value="23.976">23.976 FPS (24000/1001)</option>
               </select>
             </div>
@@ -638,13 +640,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 className="rounded-sm border-zinc-700 bg-zinc-950 text-indigo-600 focus:ring-0"
               />
               <label htmlFor="dropFrame" className="text-xs text-zinc-300">
-                SMPTE Drop Frame (DF) mode
+                {t('dash.form.dropFrame')}
               </label>
             </div>
 
             <div>
               <label htmlFor="sessionBaseTimecode" className="text-xs font-semibold text-zinc-400 block mb-1">
-                Base Starting Timecode
+                {t('dash.form.baseTimecode')}
               </label>
               <input
                 id="sessionBaseTimecode"
@@ -655,9 +657,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 placeholder="01:00:00:00"
                 className="w-full rounded-sm border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs font-mono text-white focus:border-indigo-500 focus:outline-hidden"
               />
-              <p className="text-[10px] text-zinc-500 mt-1">
-                Standard NLE broadcast starting timecode is usually 01:00:00:00.
-              </p>
+              <p className="text-[10px] text-zinc-500 mt-1">{t('dash.form.baseHint')}</p>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
@@ -666,13 +666,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 onClick={() => setShowStartModal(false)}
                 className="rounded-sm px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-white"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="submit"
                 className="rounded-sm bg-emerald-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-emerald-500"
               >
-                Start Recording
+                {t('dash.form.start')}
               </button>
             </div>
           </form>
