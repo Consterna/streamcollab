@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-20
+
+### Changed
+- **Toolchain:** Vite 8 (Rolldown / Oxc) and `@vitejs/plugin-react` 6 across the monorepo (the client was on Vite 6 while Vitest used Vite 7), Vitest 5, TypeScript 6.0, `@types/node` 24 (matches the Node 24 runtime), React 19.3, lucide-react 1.60 (brand icons were removed: the YouTube export uses `ListVideo`). TypeScript 7 is not adopted yet because typescript-eslint supports `<6.1`.
+- **Tailwind CSS 4** via `@tailwindcss/vite`: configuration moved to `@theme` in `index.css`, v3 utility renames applied by the official upgrade tool, PostCSS / autoprefixer removed. Visual parity checked against pre-upgrade screenshots.
+- **TypeScript project references:** root `tsconfig.json` solution, `tsc -b` builds shared then server incrementally; new scripts `typecheck`, `clean`, `check`.
+- `@streamcollab/shared` exposes a `development` export condition (sources) used by Vite, Vitest and `tsx`, and is marked `sideEffects: false`: Zod no longer ships to the browser (client JS 408 kB -> 319 kB, gzip 121 -> 96 kB).
+- Client services expose `on()` subscriptions instead of mutable callback properties; React components follow the React Compiler rules (no prop mutation, no setState cascades in effects, `useEffectEvent` for the OBS hotkey handler, no impure calls during render).
+
+### Added
+- ESLint 10 flat config (typescript-eslint 8, eslint-plugin-react-hooks 7, eslint-config-prettier) and Prettier 3 (`npm run lint`, `format`, `format:check`).
+- GitHub Actions CI: lint, format check, typecheck, tests, build, production `npm audit`, Docker build and container smoke test (health, client, room creation, graceful shutdown).
+
+### Fixed
+- Docker build stage did not copy the root `tsconfig.json` required by `tsc -b`.
+
+### Security
+- Tailwind 3 pulled in vulnerable dev dependencies (`braces`, `postcss-selector-parser`); `npm audit` now reports 0 vulnerabilities.
+
 ## [1.3.0] - 2026-10-20
 
 ### Added
@@ -144,7 +163,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed exporter access after session stop to allow post-broadcast timeline generation.
 - Fixed route navigation handling for both query string (`?view=dock`) and hash routing (`#/dock`).
 
-[Unreleased]: https://github.com/Consterna/streamcollab/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/Consterna/streamcollab/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/Consterna/streamcollab/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/Consterna/streamcollab/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/Consterna/streamcollab/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/Consterna/streamcollab/compare/v1.0.0...v1.1.0

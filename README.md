@@ -74,7 +74,7 @@ streamcollab/
 │   │   │   └── websocket/ # Real-time state synchronization
 │   │   └── test/          # Integration tests for server, DB, and exporters
 │   │
-│   └── client/            # Vite 6 + React 19 + Tailwind CSS Frontend
+│   └── client/            # Vite 8 + React 19 + Tailwind CSS 4 Frontend
 │       ├── src/
 │       │   ├── services/  # obs-websocket-js v5 wrapper & socket client
 │       │   ├── components/# NLE Export Modal & UI widgets
@@ -90,9 +90,13 @@ streamcollab/
 ├── deploy/Caddyfile       # HTTPS reverse proxy for docker-compose
 ├── Dockerfile             # Multi-stage production image
 ├── docker-compose.yml     # App + Caddy (automatic HTTPS / WSS)
+├── .github/workflows/ci.yml  # Lint, format, typecheck, test, build, Docker smoke test
 ├── .env.example           # Environment template (PORT, HOST, DATABASE_PATH)
 ├── package.json           # npm workspaces monorepo configuration
+├── tsconfig.json          # Solution file: `tsc -b` builds shared -> server
 ├── tsconfig.base.json
+├── eslint.config.mjs      # ESLint 10 flat config (typescript-eslint, react-hooks)
+├── .prettierrc.json
 └── vitest.config.ts
 ```
 
@@ -124,6 +128,20 @@ npm.cmd run build
 npm.cmd test
 ```
 All 90 unit and integration tests verify SMPTE drop frame boundaries, NLE XML/EDL formatting, CSV escaping, and Fastify SQLite WAL routes.
+
+### Developer Workflow
+| Command | What it does |
+| --- | --- |
+| `npm.cmd run check` | Everything CI runs: lint, format check, typecheck and tests |
+| `npm.cmd run lint` | ESLint 10 (TypeScript + React hooks / React Compiler rules) |
+| `npm.cmd run format` | Prettier (`format:check` to verify only) |
+| `npm.cmd run typecheck` | `tsc -b` (shared, server) + client `tsc --noEmit` |
+| `npm.cmd run build` | Incremental `tsc -b` + Vite production build of the client |
+| `npm.cmd run clean` | Remove `tsc -b` outputs |
+
+In development, `@streamcollab/shared` is resolved from its TypeScript sources through the `development` export condition (Vite, Vitest and `tsx --conditions=development`), so you never need to rebuild it while working. Production and Docker use the compiled `dist`.
+
+GitHub Actions (`.github/workflows/ci.yml`) runs the same checks plus `npm audit` on production dependencies, then builds the Docker image and smoke-tests it (health, client, room creation, graceful shutdown exit code).
 
 ### 4. Start Development Servers
 In two terminal windows:
