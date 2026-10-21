@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useEffectEvent } from 'react';
 import {
   SquadMarker,
   SquadMember,
@@ -7,7 +7,7 @@ import {
   MarkerCategory,
   SMPTETimecode,
 } from '@streamcollab/shared';
-import { ObsService, ObsRecordStatus, ObsVideoSettings } from '../services/obs';
+import { ObsService, ObsRecordStatus, ObsVideoSettings, ObsHotkeySignal } from '../services/obs';
 import { StreamCollabSocketClient } from '../services/socket';
 import { getMemberToken } from '../services/credentials';
 import { ExportModal } from '../components/ExportModal';
@@ -18,13 +18,9 @@ import {
   Smile,
   FileEdit,
   Radio,
-  Clock,
-  Settings,
   ChevronDown,
   ChevronUp,
   Download,
-  CheckCircle2,
-  AlertCircle,
   Activity,
   Send,
 } from 'lucide-react';
@@ -87,7 +83,7 @@ export const DockView: React.FC<DockViewProps> = ({
 
   // OBS listeners
   useEffect(() => {
-    obsService.onStatusChange = (connected) => {
+    const offStatus = obsService.on('status', (connected) => {
       setObsConnected(connected);
       if (connected) {
         obsService.getVideoSettings().then((settings) => {
@@ -96,9 +92,9 @@ export const DockView: React.FC<DockViewProps> = ({
         });
         obsService.queryRecordStatus();
       }
-    };
+    });
 
-    obsService.onRecordChange = (status) => {
+    const offRecord = obsService.on('record', (status) => {
       setRecordStatus(status);
       setElapsedDurationMs(status.outputDuration);
 
@@ -126,11 +122,11 @@ export const DockView: React.FC<DockViewProps> = ({
         fpsDenominator: settings?.fpsDenominator,
         recordStartedAt: anchor.startedAt,
       });
-    };
+    });
 
     return () => {
-      obsService.onStatusChange = undefined;
-      obsService.onRecordChange = undefined;
+      offStatus();
+      offRecord();
     };
   }, [obsService, socketClient, roomId, member.id]);
 
@@ -142,6 +138,15 @@ export const DockView: React.FC<DockViewProps> = ({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [obsService]);
+
+  // Wall clock for the session timecode while OBS isn't recording (ticks only when it is shown)
+  const [now, setNow] = useState(() => Date.now());
+  const showSessionClock = Boolean(activeSession) && !recordStatus?.outputActive;
+  useEffect(() => {
+    if (!showSessionClock) return;
+    const interval = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(interval);
+  }, [showSessionClock]);
 
   // Keep local duration ticking smoothly if recording
   useEffect(() => {
@@ -155,11 +160,13 @@ export const DockView: React.FC<DockViewProps> = ({
   }, [recordStatus?.outputActive, recordStatus?.outputPaused]);
 
   // Clock sync callback
-  useEffect(() => {
-    socketClient.callbacks.onClockSync = (offset, rtt) => {
-      setSntpStats({ offset: Math.round(offset * 10) / 10, rtt: Math.round(rtt * 10) / 10 });
-    };
-  }, [socketClient]);
+  useEffect(
+    () =>
+      socketClient.on('onClockSync', (offset, rtt) => {
+        setSntpStats({ offset: Math.round(offset * 10) / 10, rtt: Math.round(rtt * 10) / 10 });
+      }),
+    [socketClient]
+  );
 
   // Trigger quick marker
   const handleQuickMark = useCallback(
@@ -188,19 +195,14 @@ export const DockView: React.FC<DockViewProps> = ({
   );
 
   // Global OBS hotkeys (from obs-scripts/streamcollab-hotkeys.lua) work while the game has focus
-  const handleQuickMarkRef = useRef(handleQuickMark);
-  handleQuickMarkRef.current = handleQuickMark;
-  useEffect(() => {
-    obsService.onHotkeySignal = ({ category }) => {
-      const label = (QUICK_MARK_LABELS as Record<string, string | undefined>)[category];
-      if (label) {
-        handleQuickMarkRef.current(category as QuickMarkCategory, label);
-      }
-    };
-    return () => {
-      obsService.onHotkeySignal = undefined;
-    };
-  }, [obsService]);
+  // useEffectEvent always sees the latest handleQuickMark without re-subscribing
+  const onHotkeySignal = useEffectEvent(({ category }: ObsHotkeySignal) => {
+    const label = (QUICK_MARK_LABELS as Record<string, string | undefined>)[category];
+    if (label) {
+      handleQuickMark(category as QuickMarkCategory, label);
+    }
+  });
+  useEffect(() => obsService.on('hotkey', (signal) => onHotkeySignal(signal)), [obsService]);
 
   // Dock-focused hotkeys (1: Kill, 2: Wipe, 3: Clutch, 4: Funny, 5: Note)
   useEffect(() => {
@@ -237,7 +239,7 @@ export const DockView: React.FC<DockViewProps> = ({
   });
 
   const displayTimecode = tc.relativeMsToTimecode(
-    recordStatus?.outputActive ? elapsedDurationMs : (activeSession ? Math.max(0, Date.now() - activeSession.startedAt) : 0),
+    recordStatus?.outputActive ? elapsedDurationMs : (activeSession ? Math.max(0, now - activeSession.startedAt) : 0),
     activeSession?.baseTimecode || '01:00:00:00'
   );
 

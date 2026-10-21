@@ -12,7 +12,7 @@ import { getLastRoom, saveLastRoom, saveHostToken } from './services/credentials
 import { DockView } from './views/DockView';
 import { HudView } from './views/HudView';
 import { DashboardView } from './views/DashboardView';
-import { Monitor, Tv, LayoutDashboard, Link as LinkIcon } from 'lucide-react';
+import { Monitor, Tv, LayoutDashboard } from 'lucide-react';
 
 function newMemberId() {
   return 'mem_' + Math.random().toString(36).substring(2, 9);
@@ -92,7 +92,7 @@ export function App() {
     outputDurationMs: 0,
     clockOffsetMs: 0,
     rttMs: 0,
-    lastHeartbeat: Date.now(),
+    lastHeartbeat: 0, // set by the server on join
   }), [memberId, userName]);
 
   // Services singletons
@@ -104,8 +104,17 @@ export function App() {
   const [activeSession, setActiveSession] = useState<RecordingSession | null>(null);
   const [lastSession, setLastSession] = useState<RecordingSession | null>(null);
   const [markers, setMarkers] = useState<SquadMarker[]>([]);
-  const [isHost, setIsHost] = useState(false);
-  const [joinError, setJoinError] = useState<string | null>(null);
+  // Join outcome for one (room, view, member) combination; anything else reads as "not joined yet",
+  // so switching rooms needs no reset
+  const joinKey = `${roomId}|${clientKind}|${member.id}`;
+  const [joinState, setJoinState] = useState<{ key: string; isHost: boolean; error: string | null }>({
+    key: '',
+    isHost: false,
+    error: null,
+  });
+  const isHost = joinState.key === joinKey && joinState.isHost;
+  const joinError = joinState.key === joinKey ? joinState.error : null;
+  const dismissJoinError = () => setJoinState((state) => ({ ...state, error: null }));
 
   const switchRoom = (newRoom: string) => {
     setRoomId(newRoom);
@@ -114,16 +123,19 @@ export function App() {
 
   // Initialize socket and listeners
   useEffect(() => {
-    socketClient.callbacks.onRoomState = (state) => {
+    const subscriptions: Array<() => void> = [];
+    const setJoinError = (error: string | null) =>
+      setJoinState((state) => ({ key: joinKey, isHost: state.key === joinKey && state.isHost, error }));
+    subscriptions.push(socketClient.on('onRoomState', (state) => {
       setRoom(state.room);
       setActiveSession(state.activeSession);
       if (state.activeSession) {
         setLastSession(state.activeSession);
       }
       setMarkers(state.markers);
-    };
+    }));
 
-    socketClient.callbacks.onMemberJoined = (newMember) => {
+    subscriptions.push(socketClient.on('onMemberJoined', (newMember) => {
       setRoom((prev) => {
         if (!prev) return null;
         const exists = prev.members.some((m) => m.id === newMember.id);
@@ -132,9 +144,9 @@ export function App() {
           : [...prev.members, newMember];
         return { ...prev, members };
       });
-    };
+    }));
 
-    socketClient.callbacks.onMemberLeft = (leftMemberId) => {
+    subscriptions.push(socketClient.on('onMemberLeft', (leftMemberId) => {
       setRoom((prev) => {
         if (!prev) return null;
         return {
@@ -144,9 +156,9 @@ export function App() {
           ),
         };
       });
-    };
+    }));
 
-    socketClient.callbacks.onMemberUpdated = (updatedMember) => {
+    subscriptions.push(socketClient.on('onMemberUpdated', (updatedMember) => {
       setRoom((prev) => {
         if (!prev) return null;
         return {
@@ -156,42 +168,40 @@ export function App() {
           ),
         };
       });
-    };
+    }));
 
-    socketClient.callbacks.onMarkerAdded = (marker) => {
+    subscriptions.push(socketClient.on('onMarkerAdded', (marker) => {
       setMarkers((prev) => {
         if (prev.some((m) => m.id === marker.id)) return prev;
         return [...prev, marker];
       });
-    };
+    }));
 
-    socketClient.callbacks.onSessionStarted = (session) => {
+    subscriptions.push(socketClient.on('onSessionStarted', (session) => {
       setActiveSession(session);
       setLastSession(session);
       setMarkers([]);
-    };
+    }));
 
-    socketClient.callbacks.onSessionStopped = (session) => {
+    subscriptions.push(socketClient.on('onSessionStopped', (session) => {
       setActiveSession(null);
       setLastSession(session);
-    };
+    }));
 
-    socketClient.callbacks.onJoined = (info) => {
-      setIsHost(info.isHost);
-      setJoinError(null);
-    };
+    subscriptions.push(socketClient.on('onJoined', (info) => {
+      setJoinState({ key: joinKey, isHost: info.isHost, error: null });
+    }));
 
-    socketClient.callbacks.onError = (error) => {
-      setJoinError(error.message);
+    subscriptions.push(socketClient.on('onError', (error) => {
       if (error.code === 'MEMBER_TOKEN_INVALID') {
         // This browser lost the token for its member id (cleared storage, closed before it arrived...).
         // The old id stays locked to protect it, so continue under a fresh identity.
         const freshId = newMemberId();
         localStorage.setItem('streamcollab_member_id', freshId);
         setMemberId(freshId);
-        setJoinError(null);
         return;
       }
+      setJoinError(error.message);
       if (error.code === 'HOST_TOKEN_INVALID' && roomId) {
         // Forget the bad token and join again as a viewer
         saveHostToken(roomId, null);
@@ -203,10 +213,8 @@ export function App() {
         setLastSession(null);
         setMarkers([]);
       }
-    };
+    }));
 
-    setIsHost(false);
-    setJoinError(null);
     socketClient.connect();
     if (roomId) {
       saveLastRoom(roomId);
@@ -214,9 +222,10 @@ export function App() {
     }
 
     return () => {
+      subscriptions.forEach((unsubscribe) => unsubscribe());
       socketClient.disconnect();
     };
-  }, [socketClient, roomId, member, clientKind]);
+  }, [socketClient, roomId, member, clientKind, joinKey]);
 
   // Handle URL hash changes
   useEffect(() => {
@@ -235,7 +244,6 @@ export function App() {
     return (
       <HudView
         socketClient={socketClient}
-        roomId={roomId}
         members={room?.members || []}
         activeSession={activeSession}
       />
@@ -330,7 +338,7 @@ export function App() {
               'No room selected. Enter the room code from your host, or create a room in the Director Panel.'}
           </span>
           {joinError && (
-            <button onClick={() => setJoinError(null)} className="text-amber-400 hover:text-amber-200" title="Dismiss">
+            <button onClick={dismissJoinError} className="text-amber-400 hover:text-amber-200" title="Dismiss">
               ✕
             </button>
           )}

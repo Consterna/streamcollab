@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   SquadMarker,
   SquadMember,
@@ -13,9 +13,6 @@ import {
   Smile,
   FileEdit,
   Radio,
-  Clock,
-  Wifi,
-  Sparkles,
 } from 'lucide-react';
 
 interface ActiveToast {
@@ -26,14 +23,12 @@ interface ActiveToast {
 
 interface HudViewProps {
   socketClient: StreamCollabSocketClient;
-  roomId: string;
   members: SquadMember[];
   activeSession: RecordingSession | null;
 }
 
 export const HudView: React.FC<HudViewProps> = ({
   socketClient,
-  roomId,
   members,
   activeSession,
 }) => {

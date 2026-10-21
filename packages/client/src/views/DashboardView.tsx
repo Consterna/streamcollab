@@ -1,11 +1,8 @@
 import React, { useState } from 'react';
 import {
   Room,
-  SquadMember,
   RecordingSession,
   SquadMarker,
-  MarkerCategory,
-  SMPTETimecode,
 } from '@streamcollab/shared';
 import { StreamCollabSocketClient } from '../services/socket';
 import { ExportModal } from '../components/ExportModal';
@@ -17,14 +14,9 @@ import {
   Users,
   Film,
   Download,
-  Activity,
-  Plus,
   Radio,
   Search,
-  Filter,
   Layers,
-  Settings,
-  ShieldAlert,
 } from 'lucide-react';
 
 interface DashboardViewProps {

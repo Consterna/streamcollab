@@ -48,14 +48,10 @@ export class StreamCollabSocketClient {
   private currentKind: ClientKind = 'dock';
   private currentMember: Omit<SquadMember, 'lastHeartbeat' | 'clockOffsetMs' | 'rttMs'> | undefined;
 
-  // Single-slot callbacks (owned by App) plus any number of extra listeners (views)
-  callbacks: SocketClientCallbacks = {};
+  // Any number of listeners per event (App state, views, overlays)
   private listeners: { [K in keyof SocketClientCallbacks]?: Set<NonNullable<SocketClientCallbacks[K]>> } = {};
 
-  /**
-   * Subscribe to a socket event without replacing the App-level callback.
-   * Returns an unsubscribe function for use in effect cleanups.
-   */
+  /** Subscribe to a socket event; returns an unsubscribe function for use in effect cleanups */
   on<K extends keyof SocketClientCallbacks>(event: K, handler: NonNullable<SocketClientCallbacks[K]>): () => void {
     let set = this.listeners[event] as Set<NonNullable<SocketClientCallbacks[K]>> | undefined;
     if (!set) {
@@ -72,7 +68,6 @@ export class StreamCollabSocketClient {
     event: K,
     ...args: Parameters<NonNullable<SocketClientCallbacks[K]>>
   ) {
-    (this.callbacks[event] as ((...a: any[]) => void) | undefined)?.(...args);
     this.listeners[event]?.forEach((handler) => (handler as (...a: any[]) => void)(...args));
   }
 

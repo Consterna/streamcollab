@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   RecordingSession,
   SquadMarker,
@@ -32,58 +32,68 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 }) => {
   const [selectedFormat, setSelectedFormat] = useState<ExportType>('edl');
   const [copied, setCopied] = useState(false);
-  const [content, setContent] = useState('');
 
   // '' = master session timeline; otherwise a member id for that streamer's own recording file
   const [povMemberId, setPovMemberId] = useState('');
 
+  // Per-POV timelines and the sync matrix need the server's recording anchors
+  let remoteUrl: string | null = null;
+  if (isOpen && session && (povMemberId || selectedFormat === 'matrix')) {
+    const params = new URLSearchParams({ sessionId: session.id });
+    if (povMemberId) params.set('memberId', povMemberId);
+    remoteUrl = apiUrl(`/api/rooms/${encodeURIComponent(roomId)}/export/${selectedFormat}?${params}`);
+  }
+  // Include the marker count so new markers trigger a fresh export
+  const remoteKey = remoteUrl ? `${remoteUrl}#${markers.length}` : null;
+  const [remote, setRemote] = useState<{ key: string; text: string } | null>(null);
+
   useEffect(() => {
-    if (!isOpen || !session) return;
-
-    // Per-POV timelines and the sync matrix need the server's recording anchors
-    if (povMemberId || selectedFormat === 'matrix') {
-      const controller = new AbortController();
-      const params = new URLSearchParams({ sessionId: session.id });
-      if (povMemberId) params.set('memberId', povMemberId);
-      setContent('// Loading from server...');
-      fetch(apiUrl(`/api/rooms/${encodeURIComponent(roomId)}/export/${selectedFormat}?${params}`), { signal: controller.signal })
-        .then(async (res) => {
-          const text = await res.text();
-          if (!res.ok) {
-            let message = text;
-            try {
-              message = JSON.parse(text).error || text;
-            } catch {
-              // plain-text error body
-            }
-            setContent(`// ${message}`);
-            return;
+    if (!remoteUrl || !remoteKey) return;
+    const controller = new AbortController();
+    const done = (text: string) => setRemote({ key: remoteKey, text });
+    fetch(remoteUrl, { signal: controller.signal })
+      .then(async (res) => {
+        const text = await res.text();
+        if (!res.ok) {
+          let message = text;
+          try {
+            message = JSON.parse(text).error || text;
+          } catch {
+            // plain-text error body
           }
-          setContent(selectedFormat === 'matrix' ? JSON.stringify(JSON.parse(text), null, 2) : text);
-        })
-        .catch((err) => {
-          if (err.name !== 'AbortError') setContent(`// Export failed: ${err.message}`);
-        });
-      return () => controller.abort();
-    }
+          done(`// ${message}`);
+          return;
+        }
+        done(selectedFormat === 'matrix' ? JSON.stringify(JSON.parse(text), null, 2) : text);
+      })
+      .catch((err) => {
+        if (err.name !== 'AbortError') done(`// Export failed: ${err.message}`);
+      });
+    return () => controller.abort();
+  }, [remoteUrl, remoteKey, selectedFormat]);
 
-    let text = '';
+  // Master-timeline formats are generated locally from the live markers
+  const localContent = useMemo(() => {
+    if (!isOpen || !session || remoteUrl) return '';
     switch (selectedFormat) {
       case 'edl':
-        text = exportToEdl(session, markers, { title: session.name });
-        break;
+        return exportToEdl(session, markers, { title: session.name });
       case 'xml':
-        text = exportToFcpXml(session, markers, { sequenceName: session.name });
-        break;
+        return exportToFcpXml(session, markers, { sequenceName: session.name });
       case 'csv':
-        text = exportToCsv(session, markers);
-        break;
+        return exportToCsv(session, markers);
       case 'youtube':
-        text = exportToYouTubeChapters(session, markers);
-        break;
+        return exportToYouTubeChapters(session, markers);
+      default:
+        return '';
     }
-    setContent(text);
-  }, [isOpen, selectedFormat, session, markers, members, roomId, povMemberId]);
+  }, [isOpen, session, markers, selectedFormat, remoteUrl]);
+
+  const content = remoteUrl
+    ? remote?.key === remoteKey
+      ? remote.text
+      : '// Loading from server...'
+    : localContent;
 
   if (!isOpen || !session) return null;
 

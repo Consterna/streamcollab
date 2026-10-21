@@ -26,6 +26,12 @@ export interface ObsHotkeySignal {
   seq: number;
 }
 
+export interface ObsServiceEvents {
+  status: (connected: boolean) => void;
+  record: (status: ObsRecordStatus) => void;
+  hotkey: (signal: ObsHotkeySignal) => void;
+}
+
 // obs-websocket v5 event subscription bits
 const EVENT_SUB_GENERAL = 1;
 const EVENT_SUB_INPUTS = 8;
@@ -41,9 +47,23 @@ export class ObsService {
   private lastRecordSampleAt = 0;
   private lastSignalSeq: number | null = null;
 
-  onStatusChange?: (connected: boolean) => void;
-  onRecordChange?: (status: ObsRecordStatus) => void;
-  onHotkeySignal?: (signal: ObsHotkeySignal) => void;
+  private listeners: { [K in keyof ObsServiceEvents]: Set<ObsServiceEvents[K]> } = {
+    status: new Set(),
+    record: new Set(),
+    hotkey: new Set(),
+  };
+
+  /** Subscribe to OBS events; returns an unsubscribe function for effect cleanups */
+  on<K extends keyof ObsServiceEvents>(event: K, handler: ObsServiceEvents[K]): () => void {
+    this.listeners[event].add(handler);
+    return () => {
+      this.listeners[event].delete(handler);
+    };
+  }
+
+  private emit<K extends keyof ObsServiceEvents>(event: K, ...args: Parameters<ObsServiceEvents[K]>) {
+    this.listeners[event].forEach((handler) => (handler as (...a: Parameters<ObsServiceEvents[K]>) => void)(...args));
+  }
 
   constructor() {
     this.obs = new OBSWebSocket();
@@ -63,7 +83,7 @@ export class ObsService {
       });
 
       this.isConnected = true;
-      this.onStatusChange?.(true);
+      this.emit('status', true);
 
       this.setupListeners();
       this.startPolling();
@@ -72,7 +92,7 @@ export class ObsService {
     } catch (err) {
       console.warn('[ObsService] Failed to connect to OBS WebSocket:', err);
       this.isConnected = false;
-      this.onStatusChange?.(false);
+      this.emit('status', false);
       return false;
     }
   }
@@ -86,7 +106,7 @@ export class ObsService {
         // ignore
       }
       this.isConnected = false;
-      this.onStatusChange?.(false);
+      this.emit('status', false);
     }
   }
 
@@ -106,13 +126,13 @@ export class ObsService {
       const seq = Number(inputSettings?.sc_seq);
       if (typeof category !== 'string' || !Number.isFinite(seq) || seq === this.lastSignalSeq) return;
       this.lastSignalSeq = seq;
-      this.onHotkeySignal?.({ category, seq });
+      this.emit('hotkey', { category, seq });
     });
 
     this.obs.on('ConnectionClosed', () => {
       this.isConnected = false;
       this.stopPolling();
-      this.onStatusChange?.(false);
+      this.emit('status', false);
     });
   }
 
@@ -176,7 +196,7 @@ export class ObsService {
       };
       this.lastRecordStatus = status;
       this.lastRecordSampleAt = performance.now();
-      this.onRecordChange?.(status);
+      this.emit('record', status);
       return status;
     } catch (err) {
       return null;
