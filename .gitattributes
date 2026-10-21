@@ -1,0 +1,8 @@
+# Container / shell / OBS script files must keep LF line endings on every OS
+Dockerfile text eol=lf
+.dockerignore text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.sh text eol=lf
+*.lua text eol=lf
+deploy/Caddyfile text eol=lf

@@ -1,0 +1,6 @@
+# Caddy obtains and renews the TLS certificate for $DOMAIN automatically.
+# reverse_proxy forwards WebSocket upgrades (/ws) as-is, so the app gets wss:// for free.
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy streamcollab:3000
+}

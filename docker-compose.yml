@@ -1,0 +1,46 @@
+# StreamCollab on a VPS: the app container plus Caddy for automatic HTTPS / WSS.
+#
+#   1. Point a DNS A/AAAA record (e.g. collab.example.com) at the VPS.
+#   2. cp .env.example .env  and set DOMAIN (plus ADMIN_TOKEN if you want the room list).
+#   3. docker compose up -d --build
+#
+# SQLite data persists in the "streamcollab-data" volume; certificates in "caddy-data".
+
+services:
+  streamcollab:
+    build: .
+    image: streamcollab:1.3.0
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Caddy sits in front, so trust X-Forwarded-For for rate limiting
+      TRUST_PROXY: "true"
+      DATABASE_PATH: /data/streamcollab.sqlite
+    volumes:
+      - streamcollab-data:/data
+    expose:
+      - "3000"
+    stop_grace_period: 15s
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - streamcollab
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env (e.g. collab.example.com)}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  streamcollab-data:
+  caddy-data:
+  caddy-config:
