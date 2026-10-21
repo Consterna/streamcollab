@@ -8,10 +8,15 @@ import {
 } from '@streamcollab/shared';
 import { ObsService } from './services/obs';
 import { StreamCollabSocketClient } from './services/socket';
+import { getLastRoom, saveLastRoom, saveHostToken } from './services/credentials';
 import { DockView } from './views/DockView';
 import { HudView } from './views/HudView';
 import { DashboardView } from './views/DashboardView';
 import { Monitor, Tv, LayoutDashboard, Link as LinkIcon } from 'lucide-react';
+
+function newMemberId() {
+  return 'mem_' + Math.random().toString(36).substring(2, 9);
+}
 
 export function App() {
   // Parse initial view from pathname, query parameters, or hash
@@ -34,7 +39,7 @@ export function App() {
 
   const initialRoom = useMemo(() => {
     const params = new URLSearchParams(window.location.search);
-    return params.get('room') || 'squad-1';
+    return params.get('room') || getLastRoom() || '';
   }, []);
 
   const [currentView, setCurrentView] = useState<string>(initialView);
@@ -69,14 +74,14 @@ export function App() {
   // Only docks represent a squad member; HUD overlays and dashboards observe
   const clientKind: ClientKind = currentView === 'hud' ? 'hud' : currentView === 'dashboard' ? 'dashboard' : 'dock';
 
-  const memberId = useMemo(() => {
+  const [memberId, setMemberId] = useState(() => {
     let id = localStorage.getItem('streamcollab_member_id');
     if (!id) {
-      id = 'mem_' + Math.random().toString(36).substring(2, 9);
+      id = newMemberId();
       localStorage.setItem('streamcollab_member_id', id);
     }
     return id;
-  }, []);
+  });
 
   const member: SquadMember = useMemo(() => ({
     id: memberId,
@@ -99,6 +104,13 @@ export function App() {
   const [activeSession, setActiveSession] = useState<RecordingSession | null>(null);
   const [lastSession, setLastSession] = useState<RecordingSession | null>(null);
   const [markers, setMarkers] = useState<SquadMarker[]>([]);
+  const [isHost, setIsHost] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
+
+  const switchRoom = (newRoom: string) => {
+    setRoomId(newRoom);
+    setRoomDraft(newRoom);
+  };
 
   // Initialize socket and listeners
   useEffect(() => {
@@ -164,8 +176,42 @@ export function App() {
       setLastSession(session);
     };
 
+    socketClient.callbacks.onJoined = (info) => {
+      setIsHost(info.isHost);
+      setJoinError(null);
+    };
+
+    socketClient.callbacks.onError = (error) => {
+      setJoinError(error.message);
+      if (error.code === 'MEMBER_TOKEN_INVALID') {
+        // This browser lost the token for its member id (cleared storage, closed before it arrived...).
+        // The old id stays locked to protect it, so continue under a fresh identity.
+        const freshId = newMemberId();
+        localStorage.setItem('streamcollab_member_id', freshId);
+        setMemberId(freshId);
+        setJoinError(null);
+        return;
+      }
+      if (error.code === 'HOST_TOKEN_INVALID' && roomId) {
+        // Forget the bad token and join again as a viewer
+        saveHostToken(roomId, null);
+        socketClient.rejoin();
+      }
+      if (error.code === 'ROOM_NOT_FOUND') {
+        setRoom(null);
+        setActiveSession(null);
+        setLastSession(null);
+        setMarkers([]);
+      }
+    };
+
+    setIsHost(false);
+    setJoinError(null);
     socketClient.connect();
-    socketClient.joinRoom(roomId, clientKind, member);
+    if (roomId) {
+      saveLastRoom(roomId);
+      socketClient.joinRoom(roomId, clientKind, member);
+    }
 
     return () => {
       socketClient.disconnect();
@@ -277,6 +323,20 @@ export function App() {
         </div>
       </nav>
 
+      {(joinError || !roomId) && (
+        <div className="flex items-center justify-between gap-3 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-300">
+          <span>
+            {joinError ||
+              'No room selected. Enter the room code from your host, or create a room in the Director Panel.'}
+          </span>
+          {joinError && (
+            <button onClick={() => setJoinError(null)} className="text-amber-400 hover:text-amber-200" title="Dismiss">
+              ✕
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Active View */}
       <main className="flex-1 flex flex-col">
         {currentView === 'dock' && (
@@ -300,10 +360,8 @@ export function App() {
             activeSession={activeSession}
             lastSession={lastSession}
             markers={markers}
-            onRoomChange={(newRoom) => {
-              setRoomId(newRoom);
-              setRoomDraft(newRoom);
-            }}
+            isHost={isHost}
+            onRoomChange={switchRoom}
           />
         )}
       </main>

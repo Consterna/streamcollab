@@ -1,26 +1,58 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
+import rateLimit from '@fastify/rate-limit';
+import { LIMITS } from '@streamcollab/shared';
 import { DatabaseService } from './db/database.js';
 import { RoomManager } from './rooms/roomManager.js';
 import { registerApiRoutes } from './routes/api.js';
 import { registerWebSocketHandler } from './websocket/handler.js';
 
-export async function createServer(options?: { dbPath?: string; logger?: boolean; heartbeatIntervalMs?: number }) {
-  const fastify = Fastify({ logger: options?.logger ?? true });
+export interface ServerOptions {
+  dbPath?: string;
+  logger?: boolean;
+  heartbeatIntervalMs?: number;
+  // Origins allowed to call the REST API cross-origin. Empty = same-origin only
+  // (the client is served by the same host in production and proxied by Vite in dev).
+  allowedOrigins?: string[];
+  adminToken?: string;
+  trustProxy?: boolean;
+}
 
-  await fastify.register(cors, {
-    origin: '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+/** Parse a comma-separated env var like "https://a.com, https://b.com" */
+export function parseOriginList(value: string | undefined): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
+
+export async function createServer(options: ServerOptions = {}) {
+  const fastify = Fastify({
+    logger: options.logger ?? true,
+    bodyLimit: 64 * 1024,
+    trustProxy: options.trustProxy ?? false,
   });
 
-  await fastify.register(websocket);
+  const allowedOrigins = options.allowedOrigins ?? [];
+  await fastify.register(cors, {
+    origin: allowedOrigins.length > 0 ? allowedOrigins : false,
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  });
 
-  const db = new DatabaseService(options?.dbPath);
+  // Per-route limits only (see routes/api.ts); must be registered before the routes
+  await fastify.register(rateLimit, { global: false });
+
+  await fastify.register(websocket, {
+    options: { maxPayload: LIMITS.wsMessageBytes },
+  });
+
+  const db = new DatabaseService(options.dbPath);
   const roomManager = new RoomManager(db);
 
-  registerApiRoutes(fastify, roomManager, db);
-  registerWebSocketHandler(fastify, roomManager, { heartbeatIntervalMs: options?.heartbeatIntervalMs });
+  registerApiRoutes(fastify, roomManager, db, { adminToken: options.adminToken });
+  registerWebSocketHandler(fastify, roomManager, { heartbeatIntervalMs: options.heartbeatIntervalMs });
 
   return { fastify, db, roomManager };
 }
@@ -29,7 +61,12 @@ async function start() {
   const port = parseInt(process.env.PORT || '3000', 10);
   const host = process.env.HOST || '0.0.0.0';
 
-  const { fastify } = await createServer({ dbPath: process.env.DATABASE_PATH });
+  const { fastify } = await createServer({
+    dbPath: process.env.DATABASE_PATH,
+    allowedOrigins: parseOriginList(process.env.ALLOWED_ORIGIN),
+    adminToken: process.env.ADMIN_TOKEN || undefined,
+    trustProxy: process.env.TRUST_PROXY === 'true',
+  });
 
   try {
     const address = await fastify.listen({ port, host });

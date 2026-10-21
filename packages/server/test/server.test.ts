@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createServer } from '../src/index.js';
 import { SntpClockEngine } from '../src/sntp/clock.js';
+import { hashToken } from '../src/auth/tokens.js';
 import path from 'node:path';
 import fs from 'node:fs';
 
@@ -8,6 +9,8 @@ describe('StreamCollab Server & SQLite WAL Integration', () => {
   const testDbPath = path.resolve(process.cwd(), 'test-streamcollab.sqlite');
   let app: any;
   let db: any;
+  let hostAuth: { authorization: string };
+  const memberToken = 'tester-member-token-0123456789';
 
   beforeAll(async () => {
     // Clean up test DB if left from prior run
@@ -52,12 +55,22 @@ describe('StreamCollab Server & SQLite WAL Integration', () => {
     const room = JSON.parse(res.payload);
     expect(room.id).toBe('test-room');
     expect(room.name).toBe('Test Tournament Room');
+    expect(typeof room.hostToken).toBe('string');
+    hostAuth = { authorization: `Bearer ${room.hostToken}` };
+
+    // A streamer that already joined from a dock (and got a member token) for the HTTP quick-mark tests
+    db.upsertMember('test-room', {
+      id: 'mem-tester', name: 'Tester', role: 'player', obsStatus: 'recording', fps: 60,
+      outputDurationMs: 0, clockOffsetMs: 0, rttMs: 0, lastHeartbeat: Date.now(),
+    });
+    db.setMemberTokenHash('mem-tester', hashToken(memberToken));
   });
 
   it('POST /api/rooms/:id/session/start starts a recording session', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/rooms/test-room/session/start',
+      headers: hostAuth,
       payload: {
         name: 'Tournament Match 1',
         framerateNumerator: 60,
@@ -77,9 +90,9 @@ describe('StreamCollab Server & SQLite WAL Integration', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/rooms/test-room/quick-mark',
+      headers: { authorization: `Bearer ${memberToken}` },
       payload: {
         memberId: 'mem-tester',
-        memberName: 'Tester',
         category: 'kill',
         label: 'Sniper Headshot',
         comment: 'Across the map through wall',
@@ -153,6 +166,7 @@ describe('StreamCollab Server & SQLite WAL Integration', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/rooms/test-room/session/stop',
+      headers: hostAuth,
       payload: {},
     });
     expect(res.statusCode).toBe(200);

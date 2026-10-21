@@ -6,19 +6,30 @@ import {
   SquadMarker,
   ServerMessage,
   ClientKind,
+  CreateRoomResponse,
+  ErrorCode,
   SMPTETimecode,
   CATEGORY_TO_DAVINCI_COLOR,
   MarkerCategory,
   resolveMemberFramerate,
 } from '@streamcollab/shared';
 import { DatabaseService } from '../db/database.js';
+import { generateRoomCode, generateToken, hashToken, tokenMatches } from '../auth/tokens.js';
 import crypto from 'node:crypto';
 
-interface ConnectedClient {
+export interface ConnectedClient {
   socket: WebSocket;
   roomId: string;
   kind: ClientKind;
   memberId: string | null; // Only docks represent a squad member
+  isHost: boolean; // Presented the room's host token at join time
+}
+
+/** An error that is safe to send back to the client, with a machine-readable code */
+export class RoomError extends Error {
+  constructor(public code: ErrorCode, message: string) {
+    super(message);
+  }
 }
 
 // How far a client-reported marker time may differ from the moment the server received it.
@@ -52,10 +63,29 @@ export class RoomManager {
   }
 
   // Room lifecycle
-  createRoom(id?: string, name?: string): Room {
-    const roomId = id || crypto.randomUUID().slice(0, 8);
-    const roomName = name || `Squad Room ${roomId}`;
-    return this.db.createRoom(roomId, roomName);
+  createRoom(id?: string, name?: string): CreateRoomResponse {
+    let roomId = id;
+    if (roomId) {
+      if (this.db.roomExists(roomId)) {
+        throw new RoomError('FORBIDDEN', `Room ${roomId} already exists`);
+      }
+    } else {
+      do {
+        roomId = generateRoomCode();
+      } while (this.db.roomExists(roomId));
+    }
+
+    const hostToken = generateToken();
+    const room = this.db.createRoom(roomId, name || `Squad Room ${roomId}`, hashToken(hostToken));
+    return { ...room, hostToken };
+  }
+
+  isHostToken(roomId: string, token: string | undefined): boolean {
+    return tokenMatches(token, this.db.getRoomHostTokenHash(roomId));
+  }
+
+  isMemberToken(memberId: string, token: string | undefined): boolean {
+    return tokenMatches(token, this.db.getMemberTokenHash(memberId));
   }
 
   getRoom(roomId: string): Room | null {
@@ -71,10 +101,33 @@ export class RoomManager {
     socket: WebSocket,
     roomId: string,
     kind: ClientKind,
-    member?: Omit<SquadMember, 'lastHeartbeat' | 'clockOffsetMs' | 'rttMs'>
+    member?: Omit<SquadMember, 'lastHeartbeat' | 'clockOffsetMs' | 'rttMs'>,
+    credentials: { memberToken?: string; hostToken?: string } = {}
   ) {
     if (kind === 'dock' && !member) {
-      throw new Error('Dock clients must provide member details to join a room');
+      throw new RoomError('INVALID_MESSAGE', 'Dock clients must provide member details to join a room');
+    }
+
+    // The room code is the invite: rooms must be created first (POST /api/rooms)
+    if (!this.db.roomExists(roomId)) {
+      throw new RoomError('ROOM_NOT_FOUND', `Room ${roomId} not found. Ask your host for the room code.`);
+    }
+
+    const isHost = this.isHostToken(roomId, credentials.hostToken);
+    if (credentials.hostToken && !isHost) {
+      throw new RoomError('HOST_TOKEN_INVALID', 'Invalid host token for this room');
+    }
+
+    // A member id belongs to whoever first claimed it; later joins must prove it with the member token
+    let issuedMemberToken: string | undefined;
+    if (kind === 'dock' && member) {
+      const storedHash = this.db.getMemberTokenHash(member.id);
+      if (storedHash && !tokenMatches(credentials.memberToken, storedHash)) {
+        throw new RoomError('MEMBER_TOKEN_INVALID', 'This member id is already claimed by another device');
+      }
+      if (!storedHash) {
+        issuedMemberToken = generateToken();
+      }
     }
 
     // A socket lives in exactly one room; rejoining moves it
@@ -82,13 +135,8 @@ export class RoomManager {
       this.removeClient(socket);
     }
 
-    // Rooms are created on first join (room codes / host tokens will gate this later)
-    if (!this.db.getRoom(roomId)) {
-      this.createRoom(roomId);
-    }
-
     const memberId = kind === 'dock' && member ? member.id : null;
-    this.clients.set(socket, { socket, roomId, kind, memberId });
+    this.clients.set(socket, { socket, roomId, kind, memberId, isHost });
     let sockets = this.roomSockets.get(roomId);
     if (!sockets) {
       sockets = new Set();
@@ -106,12 +154,20 @@ export class RoomManager {
         recordStartedAt: member.recordStartedAt ?? existing?.recordStartedAt ?? null,
       };
       this.db.upsertMember(roomId, fullMember);
+      if (issuedMemberToken) {
+        this.db.setMemberTokenHash(fullMember.id, hashToken(issuedMemberToken));
+      }
 
       this.broadcastToRoom(roomId, {
         type: 'MEMBER_JOINED',
         payload: fullMember,
       }, socket);
     }
+
+    this.sendToSocket(socket, {
+      type: 'JOINED',
+      payload: { roomId, clientKind: kind, isHost, memberToken: issuedMemberToken },
+    });
 
     // Send complete current room state to the newly joined client
     const room = this.db.getRoom(roomId);
@@ -141,7 +197,8 @@ export class RoomManager {
       this.roomSockets.delete(client.roomId);
     }
 
-    if (client.kind !== 'dock' || !client.memberId) return;
+    // Sockets that close during shutdown (after the database closed) have nothing left to update
+    if (client.kind !== 'dock' || !client.memberId || !this.db.isOpen) return;
 
     // The member is only gone once their last dock connection closes
     const stillConnected = [...(sockets ?? [])].some((s) => {
@@ -160,6 +217,10 @@ export class RoomManager {
       type: 'MEMBER_LEFT',
       payload: { memberId: client.memberId },
     });
+  }
+
+  getClient(socket: WebSocket): ConnectedClient | undefined {
+    return this.clients.get(socket);
   }
 
   getConnections(roomId: string): { kind: ClientKind; memberId: string | null }[] {
@@ -251,6 +312,10 @@ export class RoomManager {
   }
 
   stopSession(roomId: string, sessionId: string): RecordingSession | null {
+    // Never let one room stop another room's session
+    const session = this.db.getSession(sessionId);
+    if (!session || session.roomId !== roomId) return null;
+
     const stopped = this.db.stopSession(sessionId);
     if (stopped) {
       this.broadcastToRoom(roomId, {
@@ -280,7 +345,10 @@ export class RoomManager {
     obsRecordMs?: number;
   }): SquadMarker {
     const now = resolveMarkerTimestamp(data.clientTimestamp, Date.now());
-    let session = data.sessionId ? this.db.getSession(data.sessionId) : this.db.getActiveSession(data.roomId);
+    let session = data.sessionId ? this.db.getSession(data.sessionId) : null;
+    if (!session || session.roomId !== data.roomId) {
+      session = this.db.getActiveSession(data.roomId);
+    }
 
     // If no active session, auto-create one or fallback to base epoch session
     if (!session) {

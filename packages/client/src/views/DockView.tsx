@@ -9,6 +9,7 @@ import {
 } from '@streamcollab/shared';
 import { ObsService, ObsRecordStatus, ObsVideoSettings } from '../services/obs';
 import { StreamCollabSocketClient } from '../services/socket';
+import { getMemberToken } from '../services/credentials';
 import { ExportModal } from '../components/ExportModal';
 import {
   Crosshair,
@@ -320,6 +321,28 @@ export const DockView: React.FC<DockViewProps> = ({
               className="rounded bg-indigo-600 px-3 py-1 font-semibold text-white hover:bg-indigo-500 transition"
             >
               {obsConnected ? 'Disconnect' : 'Connect'}
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-20 text-zinc-400 font-medium">HTTP token:</span>
+            <span className="flex-1 text-[11px] text-zinc-500">
+              For Stream Deck / Streamer.bot: POST /api/rooms/{roomId}/quick-mark with
+              Authorization: Bearer &lt;token&gt; and memberId <span className="font-mono">{member.id}</span>
+            </span>
+            <button
+              onClick={async () => {
+                const token = getMemberToken(member.id);
+                if (!token) return;
+                try {
+                  await navigator.clipboard.writeText(token);
+                } catch {
+                  window.prompt('Member token', token);
+                }
+              }}
+              disabled={!getMemberToken(member.id)}
+              className="rounded border border-zinc-700 bg-zinc-800 px-3 py-1 text-zinc-200 hover:bg-zinc-700 disabled:opacity-40 transition"
+            >
+              Copy
             </button>
           </div>
         </div>

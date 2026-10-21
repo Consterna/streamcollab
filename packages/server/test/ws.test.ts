@@ -87,6 +87,10 @@ describe('WebSocket rooms, connections and timing', () => {
     roomManager = server.roomManager;
     const address = await app.listen({ port: 0, host: '127.0.0.1' });
     wsUrl = `${address.replace('http', 'ws')}/ws`;
+
+    for (const id of ['fresh-room', 'squad-dup', 'squad-life', 'squad-x', 'squad-time']) {
+      roomManager.createRoom(id);
+    }
   });
 
   afterAll(async () => {
@@ -95,10 +99,23 @@ describe('WebSocket rooms, connections and timing', () => {
     removeDb(testDbPath);
   });
 
-  it('creates an unknown room on first join and returns its state', async () => {
+  it('rejects joining a room that was never created', async () => {
+    const dock = await connect();
+    dock.send({ type: 'JOIN_ROOM', payload: { roomId: 'ghost-room', clientKind: 'dock', member: dockMember('mem-ghost', 'Ghost') } });
+
+    const error = await dock.waitFor((m) => m.type === 'ERROR');
+    expect(error.payload.code).toBe('ROOM_NOT_FOUND');
+    expect(roomManager.getConnections('ghost-room')).toEqual([]);
+    expect(db.roomExists('ghost-room')).toBe(false);
+    dock.ws.terminate();
+  });
+
+  it('joins an existing room and returns its state', async () => {
     const dock = await connect();
     dock.send({ type: 'JOIN_ROOM', payload: { roomId: 'fresh-room', clientKind: 'dock', member: dockMember('mem-fresh', 'Fresh') } });
 
+    const joined = await dock.waitFor((m) => m.type === 'JOINED');
+    expect(joined.payload).toMatchObject({ roomId: 'fresh-room', clientKind: 'dock', isHost: false });
     const state = await dock.waitFor((m) => m.type === 'ROOM_STATE');
     expect(state.payload.room.id).toBe('fresh-room');
     expect(state.payload.room.members.map((m: any) => m.id)).toEqual(['mem-fresh']);
@@ -119,7 +136,7 @@ describe('WebSocket rooms, connections and timing', () => {
       type: 'CREATE_MARKER',
       payload: {
         roomId: 'squad-dup',
-        marker: { roomId: 'squad-dup', sessionId: '', memberId: 'mem-dup', memberName: 'Dup', category: 'kill', label: 'Kill', color: 'Red' },
+        marker: { sessionId: '', category: 'kill', label: 'Kill', color: 'Red' },
       },
     });
 
@@ -167,6 +184,7 @@ describe('WebSocket rooms, connections and timing', () => {
     const dock = await connect();
     dock.send({ type: 'JOIN_ROOM', payload: { roomId: 'squad-x', clientKind: 'dock' } });
     const error = await dock.waitFor((m) => m.type === 'ERROR');
+    expect(error.payload.code).toBe('INVALID_MESSAGE');
     expect(error.payload.message).toMatch(/member details/);
     dock.ws.terminate();
   });
@@ -182,10 +200,7 @@ describe('WebSocket rooms, connections and timing', () => {
       payload: {
         roomId: 'squad-time',
         clientTimestamp: pressedAt,
-        marker: {
-          roomId: 'squad-time', sessionId: '', memberId: 'mem-time', memberName: 'Time',
-          category: 'clutch', label: 'Clutch', color: 'Yellow', obsRecordMs: 42_000,
-        },
+        marker: { sessionId: '', category: 'clutch', label: 'Clutch', color: 'Yellow', obsRecordMs: 42_000 },
       },
     });
 
@@ -206,6 +221,7 @@ describe('WebSocket rooms, connections and timing', () => {
   });
 
   it('records a recording anchor and exports a per-POV timeline and an aligned sync matrix', async () => {
+    const { hostToken } = roomManager.createRoom('squad-pov');
     const dock = await connect();
     dock.send({ type: 'JOIN_ROOM', payload: { roomId: 'squad-pov', clientKind: 'dock', member: dockMember('mem-pov', 'Pov') } });
     await dock.waitFor((m) => m.type === 'ROOM_STATE');
@@ -213,6 +229,7 @@ describe('WebSocket rooms, connections and timing', () => {
     const startRes = await app.inject({
       method: 'POST',
       url: '/api/rooms/squad-pov/session/start',
+      headers: { authorization: `Bearer ${hostToken}` },
       payload: { name: 'POV Test', baseTimecode: '00:00:00:00', framerateNumerator: 60, framerateDenominator: 1 },
     });
     const session = JSON.parse(startRes.payload);
@@ -238,7 +255,7 @@ describe('WebSocket rooms, connections and timing', () => {
       payload: {
         roomId: 'squad-pov',
         clientTimestamp: Date.now(),
-        marker: { roomId: 'squad-pov', sessionId: session.id, memberId: 'other', memberName: 'Mate', category: 'kill', label: 'Pov Kill', color: 'Red' },
+        marker: { sessionId: session.id, category: 'kill', label: 'Pov Kill', color: 'Red' },
       },
     });
     const added = await dock.waitFor((m) => m.type === 'MARKER_ADDED');
@@ -264,10 +281,12 @@ describe('WebSocket rooms, connections and timing', () => {
   });
 
   it('sends safe Content-Disposition headers for session names with quotes and accents', async () => {
-    await app.inject({ method: 'POST', url: '/api/rooms', payload: { id: 'squad-name', name: 'Names' } });
+    const created = await app.inject({ method: 'POST', url: '/api/rooms', payload: { id: 'squad-name', name: 'Names' } });
+    const { hostToken } = JSON.parse(created.payload);
     await app.inject({
       method: 'POST',
       url: '/api/rooms/squad-name/session/start',
+      headers: { authorization: `Bearer ${hostToken}` },
       payload: { name: 'Final "Épica" / día 2' },
     });
     const res = await app.inject({ method: 'GET', url: '/api/rooms/squad-name/export/csv' });
@@ -293,6 +312,7 @@ describe('WebSocket heartbeat', () => {
     roomManager = server.roomManager;
     const address = await app.listen({ port: 0, host: '127.0.0.1' });
     wsUrl = `${address.replace('http', 'ws')}/ws`;
+    roomManager.createRoom('hb-room');
   });
 
   afterAll(async () => {

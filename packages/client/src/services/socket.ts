@@ -7,9 +7,19 @@ import {
   Room,
   MarkerCategory,
   ClientKind,
+  ErrorCode,
 } from '@streamcollab/shared';
+import { getHostToken, getMemberToken, saveMemberToken } from './credentials';
+
+export interface JoinedInfo {
+  roomId: string;
+  clientKind: ClientKind;
+  isHost: boolean;
+}
 
 export interface SocketClientCallbacks {
+  onJoined?: (info: JoinedInfo) => void;
+  onError?: (error: { message: string; code?: ErrorCode }) => void;
   onRoomState?: (state: { room: Room; activeSession: RecordingSession | null; markers: SquadMarker[] }) => void;
   onMemberJoined?: (member: SquadMember) => void;
   onMemberLeft?: (memberId: string) => void;
@@ -197,6 +207,20 @@ export class StreamCollabSocketClient {
         this.emit('onSessionStopped', msg.payload);
         break;
 
+      case 'JOINED': {
+        const { memberToken, ...info } = msg.payload;
+        // Issued once, the first time this member id is claimed; needed to rejoin as this member
+        if (memberToken && this.currentMember) {
+          saveMemberToken(this.currentMember.id, memberToken);
+        }
+        this.emit('onJoined', info);
+        break;
+      }
+
+      case 'ERROR':
+        this.emit('onError', msg.payload);
+        break;
+
       default:
         break;
     }
@@ -248,8 +272,21 @@ export class StreamCollabSocketClient {
     this.currentMember = clientKind === 'dock' ? member : undefined;
     this.send({
       type: 'JOIN_ROOM',
-      payload: { roomId, clientKind, member: this.currentMember },
+      payload: {
+        roomId,
+        clientKind,
+        member: this.currentMember,
+        memberToken: this.currentMember ? getMemberToken(this.currentMember.id) : undefined,
+        hostToken: getHostToken(roomId),
+      },
     });
+  }
+
+  /** Re-send JOIN_ROOM with freshly stored credentials (e.g. after pasting a host token) */
+  rejoin() {
+    if (this.currentRoomId) {
+      this.joinRoom(this.currentRoomId, this.currentKind, this.currentMember);
+    }
   }
 
   updateStatus(roomId: string, memberId: string, status: Partial<SquadMember>) {

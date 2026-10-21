@@ -9,6 +9,7 @@ import {
 } from '@streamcollab/shared';
 import { StreamCollabSocketClient } from '../services/socket';
 import { ExportModal } from '../components/ExportModal';
+import { RoomSetupPanel } from '../components/RoomSetupPanel';
 import {
   Play,
   Square,
@@ -32,6 +33,7 @@ interface DashboardViewProps {
   activeSession: RecordingSession | null;
   lastSession?: RecordingSession | null;
   markers: SquadMarker[];
+  isHost: boolean;
   onRoomChange: (newRoomId: string) => void;
 }
 
@@ -42,6 +44,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   activeSession,
   lastSession,
   markers,
+  isHost,
   onRoomChange,
 }) => {
   const sessionForExport = activeSession || lastSession || null;
@@ -133,7 +136,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
               <button
                 onClick={handleStopSession}
-                className="flex items-center gap-1.5 rounded-lg bg-red-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-red-500 shadow-lg shadow-red-600/20 transition"
+                disabled={!isHost}
+                title={isHost ? undefined : 'Only the room host can stop sessions'}
+                className="disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 rounded-lg bg-red-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-red-500 shadow-lg shadow-red-600/20 transition"
               >
                 <Square className="h-4 w-4" />
                 Stop Session
@@ -142,7 +147,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           ) : (
             <button
               onClick={() => setShowStartModal(true)}
-              className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-500 shadow-lg shadow-emerald-600/20 transition"
+              disabled={!isHost || !room}
+              title={isHost ? undefined : 'Only the room host can start sessions'}
+              className="disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-500 shadow-lg shadow-emerald-600/20 transition"
             >
               <Play className="h-4 w-4" />
               Start New Session
@@ -159,6 +166,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </button>
         </div>
       </header>
+
+      <RoomSetupPanel
+        socketClient={socketClient}
+        roomId={roomId}
+        room={room}
+        isHost={isHost}
+        onRoomChange={onRoomChange}
+      />
 
       {/* Main Content Layout */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 p-6">

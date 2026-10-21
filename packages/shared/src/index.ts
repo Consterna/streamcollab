@@ -1,4 +1,5 @@
 export * from './types/index.js';
+export * from './schemas/index.js';
 export * from './timecode/index.js';
 export * from './exporters/edl.js';
 export * from './exporters/xml.js';

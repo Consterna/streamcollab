@@ -94,6 +94,11 @@ const MIGRATIONS: string[] = [
       FOREIGN KEY (session_id) REFERENCES recording_sessions(id) ON DELETE CASCADE
     );
   `,
+  // v3 — host and member token hashes (v1.2.0). Rooms created before this have no host.
+  `
+    ALTER TABLE rooms ADD COLUMN host_token_hash TEXT;
+    ALTER TABLE members ADD COLUMN token_hash TEXT;
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
@@ -101,6 +106,7 @@ export const SCHEMA_VERSION = MIGRATIONS.length;
 export class DatabaseService {
   private db: DatabaseSync;
   private statements = new Map<string, StatementSync>();
+  private open = true;
 
   constructor(dbPath?: string) {
     const finalPath = dbPath || path.resolve(process.cwd(), 'streamcollab.sqlite');
@@ -154,14 +160,11 @@ export class DatabaseService {
   }
 
   // Room methods
-  createRoom(id: string, name: string): Room {
+  createRoom(id: string, name: string, hostTokenHash: string | null = null): Room {
     const createdAt = Date.now();
-    this.stmt('INSERT INTO rooms (id, name, created_at, active_session_id) VALUES (?, ?, ?, ?)').run(
-      id,
-      name,
-      createdAt,
-      null
-    );
+    this.stmt(
+      'INSERT INTO rooms (id, name, created_at, active_session_id, host_token_hash) VALUES (?, ?, ?, ?, ?)'
+    ).run(id, name, createdAt, null, hostTokenHash);
     return {
       id,
       name,
@@ -193,6 +196,15 @@ export class DatabaseService {
       activeSessionId: row.active_session_id,
       members: this.getRoomMembers(row.id),
     }));
+  }
+
+  roomExists(roomId: string): boolean {
+    return Boolean(this.stmt('SELECT 1 FROM rooms WHERE id = ?').get(roomId));
+  }
+
+  getRoomHostTokenHash(roomId: string): string | null {
+    const row = this.stmt('SELECT host_token_hash FROM rooms WHERE id = ?').get(roomId) as any;
+    return row?.host_token_hash ?? null;
   }
 
   setRoomActiveSession(roomId: string, sessionId: string | null) {
@@ -239,6 +251,15 @@ export class DatabaseService {
       member.fpsDenominator ?? null,
       member.recordStartedAt ?? null
     );
+  }
+
+  getMemberTokenHash(memberId: string): string | null {
+    const row = this.stmt('SELECT token_hash FROM members WHERE id = ?').get(memberId) as any;
+    return row?.token_hash ?? null;
+  }
+
+  setMemberTokenHash(memberId: string, tokenHash: string) {
+    this.stmt('UPDATE members SET token_hash = ? WHERE id = ?').run(tokenHash, memberId);
   }
 
   removeMember(memberId: string) {
@@ -424,7 +445,13 @@ export class DatabaseService {
     return rows.map((r) => this.mapMarker(r));
   }
 
+  get isOpen(): boolean {
+    return this.open;
+  }
+
   close() {
+    if (!this.open) return;
+    this.open = false;
     this.statements.clear();
     this.db.close();
   }

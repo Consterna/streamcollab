@@ -132,6 +132,8 @@ export type ClientMessage =
         roomId: string;
         clientKind?: ClientKind; // Defaults to 'dock' for backwards compatibility
         member?: Omit<SquadMember, 'lastHeartbeat' | 'clockOffsetMs' | 'rttMs'>; // Required for docks
+        memberToken?: string; // Proves ownership of an existing member id (issued in JOINED)
+        hostToken?: string; // Grants session control (issued when the room is created)
       };
     }
   | { type: 'LEAVE_ROOM'; payload: { roomId: string; memberId: string } }
@@ -156,4 +158,27 @@ export type ServerMessage =
   | { type: 'MARKER_ADDED'; payload: SquadMarker }
   | { type: 'SESSION_STARTED'; payload: RecordingSession }
   | { type: 'SESSION_STOPPED'; payload: RecordingSession }
-  | { type: 'ERROR'; payload: { message: string } };
+  | {
+      type: 'JOINED';
+      payload: {
+        roomId: string;
+        clientKind: ClientKind;
+        isHost: boolean;
+        memberToken?: string; // Only sent to a dock the first time its member id is claimed
+      };
+    }
+  | { type: 'ERROR'; payload: { message: string; code?: ErrorCode } };
+
+export type ErrorCode =
+  | 'INVALID_MESSAGE'
+  | 'ROOM_NOT_FOUND'
+  | 'NOT_JOINED'
+  | 'FORBIDDEN'
+  | 'HOST_TOKEN_INVALID'
+  | 'MEMBER_TOKEN_INVALID'
+  | 'RATE_LIMITED';
+
+// Response of POST /api/rooms. The host token is shown once and only its hash is stored.
+export interface CreateRoomResponse extends Room {
+  hostToken: string;
+}
