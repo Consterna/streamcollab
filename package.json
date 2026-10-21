@@ -21,7 +21,8 @@
     "dev:server": "npm run dev --workspace=packages/server",
     "dev:client": "npm run dev --workspace=packages/client",
     "dev": "npm run dev:server",
-    "start": "npm run start --workspace=packages/server"
+    "start": "npm run start --workspace=packages/server",
+    "backup": "npm run backup --workspace=packages/server --"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",

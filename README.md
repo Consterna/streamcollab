@@ -148,6 +148,7 @@ All 101 unit and integration tests verify SMPTE drop frame boundaries, NLE XML/E
 | `npm.cmd run typecheck` | `tsc -b` (shared, server) + client `tsc --noEmit` |
 | `npm.cmd run build` | Incremental `tsc -b` + Vite production build of the client |
 | `npm.cmd run clean` | Remove `tsc -b` outputs |
+| `npm.cmd run backup` | Hot backup of the SQLite database (`-- <file>` to choose the destination) |
 
 In development, `@streamcollab/shared` is resolved from its TypeScript sources through the `development` export condition (Vite, Vitest and `tsx --conditions=development`), so you never need to rebuild it while working. Production and Docker use the compiled `dist`.
 
@@ -193,12 +194,12 @@ The repository ships a multi-stage `Dockerfile` (Node 24, production dependencie
 3. Open `https://collab.example.com/dashboard`, create a room and share the Dock / HUD links.
 
 Operations:
-- **Data**: SQLite lives in the `streamcollab-data` volume (`/data/streamcollab.sqlite`). To back it up, stop the app (the graceful shutdown folds the WAL into the main file) and copy it out:
+- **Data**: SQLite lives in the `streamcollab-data` volume (`/data/streamcollab.sqlite`). Back it up **while it runs** (a consistent, compacted snapshot via SQLite `VACUUM INTO`, verified with `integrity_check`) and copy it out:
   ```bash
-  docker compose stop streamcollab
-  docker compose cp streamcollab:/data/streamcollab.sqlite ./streamcollab-backup.sqlite
-  docker compose start streamcollab
+  docker compose exec streamcollab node packages/server/dist/backup.js /data/backups/streamcollab.sqlite
+  docker compose cp streamcollab:/data/backups/streamcollab.sqlite ./streamcollab-backup.sqlite
   ```
+  Locally: `npm.cmd run backup` writes `backups/streamcollab-<date>.sqlite` next to the database (or `npm.cmd run backup -- <file>`). Existing files are never overwritten. To restore, stop the server and put the copy in place of the database file.
 - **Updates**: `git pull && docker compose up -d --build`. Schema migrations run automatically on startup.
 - **Shutdown**: `docker compose stop` sends SIGTERM; the server closes sockets, checkpoints the SQLite WAL and exits (15 s grace period).
 - **Logs**: `docker compose logs -f streamcollab` (`LOG_LEVEL` controls verbosity).
