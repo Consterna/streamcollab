@@ -100,5 +100,27 @@ describe('SMPTE Timecode Engine', () => {
     it('throws descriptive error on malformed timecode input', () => {
       expect(() => tc.timecodeToFrames('invalid-timecode')).toThrowError(/Invalid SMPTE timecode format/);
     });
+
+    it('rejects dropped frame numbers in 29.97 DF mode', () => {
+      const tc29 = new SMPTETimecode({ framerateNumerator: 30000, framerateDenominator: 1001, dropFrame: true });
+      expect(() => tc29.timecodeToFrames('00:01:00;00')).toThrowError(/Invalid drop-frame timecode/);
+      expect(() => tc29.timecodeToFrames('00:01:00;01')).toThrowError(/Invalid drop-frame timecode/);
+    });
+
+    it('verifies exact round-trip conversion framesToMilliseconds -> millisecondsToFrames for 60 consecutive frames', () => {
+      const tc60 = new SMPTETimecode({ framerateNumerator: 60, framerateDenominator: 1 });
+      for (let f = 1; f <= 60; f++) {
+        const ms = tc60.framesToMilliseconds(f);
+        expect(tc60.millisecondsToFrames(ms)).toBe(f);
+      }
+    });
+
+    it('preserves sub-millisecond accuracy without premature integer truncation', () => {
+      const tc60 = new SMPTETimecode({ framerateNumerator: 60, framerateDenominator: 1 });
+      // 1 frame at 60fps is 16.66667ms
+      expect(tc60.millisecondsToFrames(16.66667)).toBe(1);
+      expect(tc60.millisecondsToFrames(33.33334)).toBe(2);
+      expect(tc60.millisecondsToFrames(50.0)).toBe(3);
+    });
   });
 });

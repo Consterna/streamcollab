@@ -149,15 +149,45 @@ describe('StreamCollab Server & SQLite WAL Integration', () => {
     expect(matrix.markers.length).toBeGreaterThan(0);
   });
 
+  it('POST /api/rooms/:id/session/stop stops active session', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/rooms/test-room/session/stop',
+      payload: {},
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body.session.stoppedAt).toBeGreaterThan(0);
+  });
+
+  it('GET /api/rooms/:id/export/edl exports completed session even when activeSession is null', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/rooms/test-room/export/edl',
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.payload).toContain('TITLE: Tournament Match 1');
+    expect(res.payload).toContain('Sniper Headshot');
+  });
+
+  it('GET /api/rooms/:id/markers returns markers for completed session', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/rooms/test-room/markers',
+    });
+    expect(res.statusCode).toBe(200);
+    const markers = JSON.parse(res.payload);
+    expect(markers.length).toBeGreaterThan(0);
+    expect(markers[0].label).toBe('Sniper Headshot');
+  });
+
+  it('DatabaseService supports WAL checkpointing without errors', () => {
+    expect(() => db.checkpoint()).not.toThrow();
+  });
+
   it('SNTP 4-timestamp engine computes correct RTT and offset', () => {
-    // T1 = client send (1000)
-    // T2 = server receive (1050) [server is +40ms ahead with 10ms network one-way trip]
-    // T3 = server send (1060) [server processed for 10ms]
-    // T4 = client receive (1120) [10ms network return trip + client clock is 1000 + 10 + 10 + 100 = 1120]
     const measurement = SntpClockEngine.calculateOffset(1000, 1050, 1060, 1120);
-    // RTT = (1120 - 1000) - (1060 - 1050) = 120 - 10 = 110ms
     expect(measurement.rtt).toBe(110);
-    // Offset = ((1050 - 1000) + (1060 - 1120)) / 2 = (50 + -60) / 2 = -5ms
     expect(measurement.offset).toBe(-5);
   });
 });

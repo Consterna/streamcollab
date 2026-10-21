@@ -35,6 +35,7 @@ interface DockViewProps {
   member: SquadMember;
   room: Room | null;
   activeSession: RecordingSession | null;
+  lastSession?: RecordingSession | null;
   markers: SquadMarker[];
 }
 
@@ -45,8 +46,10 @@ export const DockView: React.FC<DockViewProps> = ({
   member,
   room,
   activeSession,
+  lastSession,
   markers,
 }) => {
+  const sessionForExport = activeSession || lastSession || null;
   // OBS states
   const [obsConnected, setObsConnected] = useState(obsService.connected);
   const [obsAddress, setObsAddress] = useState('ws://127.0.0.1:4455');
@@ -81,12 +84,12 @@ export const DockView: React.FC<DockViewProps> = ({
       setElapsedDurationMs(status.outputDuration);
 
       // Report OBS record status to StreamCollab server
-      let obsStatus = 'idle';
+      let obsStatus: 'recording' | 'paused' | 'stopped' = 'stopped';
       if (status.outputActive) {
         obsStatus = status.outputPaused ? 'paused' : 'recording';
       }
       socketClient.updateStatus(roomId, member.id, {
-        obsStatus: obsStatus as any,
+        obsStatus,
         outputDurationMs: status.outputDuration,
         fps: videoSettings?.fps || 60,
       });
@@ -231,7 +234,7 @@ export const DockView: React.FC<DockViewProps> = ({
 
           <button
             onClick={() => setIsExportOpen(true)}
-            disabled={!activeSession}
+            disabled={!sessionForExport}
             className="flex items-center gap-1 rounded bg-indigo-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-indigo-500 disabled:opacity-40 transition shadow-sm"
           >
             <Download className="h-3.5 w-3.5" />
@@ -307,7 +310,9 @@ export const DockView: React.FC<DockViewProps> = ({
         </div>
 
         <div className="text-right">
-          <div className="text-[10px] text-zinc-400 font-medium">Session: {activeSession?.name || 'No Active Session'}</div>
+          <div className="text-[10px] text-zinc-400 font-medium">
+            Session: {activeSession?.name || (lastSession ? `${lastSession.name} (Ended)` : 'No Active Session')}
+          </div>
           <div className="text-[11px] text-indigo-400 font-semibold">{markers.length} markers captured</div>
         </div>
       </div>
@@ -482,7 +487,7 @@ export const DockView: React.FC<DockViewProps> = ({
       <ExportModal
         isOpen={isExportOpen}
         onClose={() => setIsExportOpen(false)}
-        session={activeSession}
+        session={sessionForExport}
         markers={markers}
         members={room?.members || []}
         roomId={roomId}

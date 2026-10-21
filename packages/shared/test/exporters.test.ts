@@ -108,6 +108,8 @@ describe('NLE Exporters', () => {
 
       expect(xml).toContain('<?xml version="1.0" encoding="UTF-8"?>');
       expect(xml).toContain('<xmeml version="4">');
+      // Duration must be 36000 frames (10 mins @ 60fps), NOT 252000 (which would have added 1 hour base timecode)
+      expect(xml).toContain('<duration>36000</duration>');
       expect(xml).toContain('<timebase>60</timebase>');
       expect(xml).toContain('<width>1920</width>');
       expect(xml).toContain('<height>1080</height>');
@@ -117,6 +119,9 @@ describe('NLE Exporters', () => {
       expect(xml).toContain('<out>901</out>');
       expect(xml).toContain('<name>[WIPE] Ace 1v5</name>');
       expect(xml).toContain('<comment>Insane smoke spray (By: Tarik)</comment>');
+
+      // Verify track does not contain markers (markers must be on sequence level)
+      expect(xml).toContain('<track>\n          <enabled>TRUE</enabled>\n          <locked>FALSE</locked>\n        </track>');
     });
   });
 
@@ -158,6 +163,26 @@ describe('NLE Exporters', () => {
       expect(tarik?.fps).toBe(59.94);
       expect(tarik?.sessionOffsetMs).toBe(5.1);
       expect(matrix.markers.length).toBe(2);
+    });
+
+    it('aligns 29.97 fps member with exact rational timecode and non-drift frame calculations', () => {
+      const ntscMember: SquadMember = {
+        id: 'mem-ntsc',
+        name: 'RetroCam',
+        role: 'player',
+        obsStatus: 'recording',
+        fps: 29.97,
+        outputDurationMs: 60000,
+        clockOffsetMs: 100.1,
+        rttMs: 15.0,
+        lastHeartbeat: 1700000600000,
+      };
+
+      const matrix = generateMulticamSyncMatrix(mockSession, mockMarkers, [ntscMember]);
+      expect(matrix.members[0].fps).toBe(29.97);
+      expect(matrix.members[0].sessionOffsetMs).toBe(100.1);
+      // 100.1ms at 29.97 (30000/1001) fps = 100.1 * 30000 / 1001000 = 3 frames
+      expect(matrix.members[0].sessionOffsetFrames).toBe(3);
     });
   });
 });

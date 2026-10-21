@@ -127,12 +127,8 @@ export class SMPTETimecode {
    */
   millisecondsToFrames(ms: number): number {
     if (ms <= 0) return 0;
-    // (ms * numerator) / (denominator * 1000)
-    // Use BigInt for precise rational multiplication without floating point drift
-    const bigMs = BigInt(Math.floor(ms));
-    const bigNum = BigInt(this.numerator);
-    const bigDen = BigInt(this.denominator) * 1000n;
-    return Number((bigMs * bigNum) / bigDen);
+    // Rational frame calculation with epsilon protection against IEEE 754 precision issues
+    return Math.floor(((ms * this.numerator) / (this.denominator * 1000)) + 1e-6);
   }
 
   /**
@@ -140,10 +136,7 @@ export class SMPTETimecode {
    */
   framesToMilliseconds(frames: number): number {
     if (frames <= 0) return 0;
-    const bigFrames = BigInt(Math.floor(frames));
-    const bigDen = BigInt(this.denominator) * 1000n;
-    const bigNum = BigInt(this.numerator);
-    return Number((bigFrames * bigDen) / bigNum);
+    return (frames * this.denominator * 1000) / this.numerator;
   }
 
   /**
@@ -205,6 +198,11 @@ export class SMPTETimecode {
     const totalMinutes = hours * 60 + minutes;
 
     if (this.dropFrame) {
+      if (totalMinutes % 10 !== 0 && seconds === 0 && frames < this.dropFramesPerMinute) {
+        throw new Error(
+          `Invalid drop-frame timecode: "${tc}". Frames 00 to 0${this.dropFramesPerMinute - 1} are dropped at minute ${minutes}`
+        );
+      }
       const dropFrames = this.dropFramesPerMinute * (totalMinutes - Math.floor(totalMinutes / 10));
       return (
         (totalMinutes * 60 + seconds) * this.nominalFps +

@@ -13,10 +13,28 @@ import { DashboardView } from './views/DashboardView';
 import { Monitor, Tv, LayoutDashboard, Link as LinkIcon } from 'lucide-react';
 
 export function App() {
-  // Parse query parameters
-  const params = useMemo(() => new URLSearchParams(window.location.search), []);
-  const initialView = params.get('view') || window.location.hash.replace('#/', '') || 'dock';
-  const initialRoom = params.get('room') || 'squad-1';
+  // Parse initial view from pathname, query parameters, or hash
+  const initialView = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    const viewParam = params.get('view')?.toLowerCase();
+    if (viewParam && ['dock', 'hud', 'dashboard'].includes(viewParam)) {
+      return viewParam;
+    }
+    const hash = window.location.hash.replace(/^#\/?/, '').toLowerCase();
+    if (['dock', 'hud', 'dashboard'].includes(hash)) {
+      return hash;
+    }
+    const path = window.location.pathname.replace(/^\//, '').toLowerCase();
+    if (['dock', 'hud', 'dashboard'].includes(path)) {
+      return path;
+    }
+    return 'dock';
+  }, []);
+
+  const initialRoom = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('room') || 'squad-1';
+  }, []);
 
   const [currentView, setCurrentView] = useState<string>(initialView);
   const [roomId, setRoomId] = useState<string>(initialRoom);
@@ -52,6 +70,7 @@ export function App() {
   // Shared state from server
   const [room, setRoom] = useState<Room | null>(null);
   const [activeSession, setActiveSession] = useState<RecordingSession | null>(null);
+  const [lastSession, setLastSession] = useState<RecordingSession | null>(null);
   const [markers, setMarkers] = useState<SquadMarker[]>([]);
 
   // Initialize socket and listeners
@@ -59,6 +78,9 @@ export function App() {
     socketClient.callbacks.onRoomState = (state) => {
       setRoom(state.room);
       setActiveSession(state.activeSession);
+      if (state.activeSession) {
+        setLastSession(state.activeSession);
+      }
       setMarkers(state.markers);
     };
 
@@ -106,11 +128,13 @@ export function App() {
 
     socketClient.callbacks.onSessionStarted = (session) => {
       setActiveSession(session);
+      setLastSession(session);
       setMarkers([]);
     };
 
     socketClient.callbacks.onSessionStopped = (session) => {
       setActiveSession(null);
+      setLastSession(session);
     };
 
     socketClient.connect();
@@ -124,7 +148,7 @@ export function App() {
   // Handle URL hash changes
   useEffect(() => {
     const handleHash = () => {
-      const h = window.location.hash.replace('#/', '');
+      const h = window.location.hash.replace(/^#\/?/, '').toLowerCase();
       if (['dock', 'hud', 'dashboard'].includes(h)) {
         setCurrentView(h);
       }
@@ -233,6 +257,7 @@ export function App() {
             member={member}
             room={room}
             activeSession={activeSession}
+            lastSession={lastSession}
             markers={markers}
           />
         )}
@@ -243,6 +268,7 @@ export function App() {
             roomId={roomId}
             room={room}
             activeSession={activeSession}
+            lastSession={lastSession}
             markers={markers}
             onRoomChange={(newRoom) => setRoomId(newRoom)}
           />

@@ -129,6 +129,11 @@ export const HudView: React.FC<HudViewProps> = ({
     }
   };
 
+  // Save 100% CEF GPU rendering resources when hidden inside OBS Browser Source
+  if (!isVisibleInObs) {
+    return null;
+  }
+
   return (
     <div className="relative h-screen w-screen bg-transparent select-none overflow-hidden font-sans p-6">
       {/* Top Right: Animated Marker Toasts */}

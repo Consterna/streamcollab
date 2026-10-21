@@ -43,8 +43,8 @@ export class StreamCollabSocketClient {
     } else {
       const loc = window.location;
       const proto = loc.protocol === 'https:' ? 'wss:' : 'ws:';
-      // In dev mode (port 5173), proxy or direct connect to 3000
-      this.serverUrl = `${proto}//${loc.hostname}:3000/ws`;
+      // Connect through Vite proxy (/ws) on dev server or direct host in production
+      this.serverUrl = `${proto}//${loc.host}/ws`;
     }
   }
 

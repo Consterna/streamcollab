@@ -26,10 +26,28 @@ export function generateMulticamSyncMatrix(
     // Estimate member session start offset in ms
     // If member recorded duration is known, we can calculate alignment
     const memberFps = member.fps || 60;
+    let num = Math.round(memberFps);
+    let den = 1;
+    let dropFrame = false;
+
+    if (Math.abs(memberFps - 59.94) < 0.05) {
+      num = 60000;
+      den = 1001;
+      dropFrame = true;
+    } else if (Math.abs(memberFps - 29.97) < 0.05) {
+      num = 30000;
+      den = 1001;
+      dropFrame = true;
+    } else if (Math.abs(memberFps - 23.976) < 0.05) {
+      num = 24000;
+      den = 1001;
+      dropFrame = false;
+    }
+
     const memberTc = new SMPTETimecode({
-      framerateNumerator: memberFps === 59.94 ? 60000 : Math.round(memberFps),
-      framerateDenominator: memberFps === 59.94 ? 1001 : 1,
-      dropFrame: memberFps === 59.94 || memberFps === 29.97,
+      framerateNumerator: num,
+      framerateDenominator: den,
+      dropFrame,
     });
 
     const sessionOffsetMs = clockOffset;

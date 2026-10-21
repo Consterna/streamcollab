@@ -30,6 +30,7 @@ interface DashboardViewProps {
   roomId: string;
   room: Room | null;
   activeSession: RecordingSession | null;
+  lastSession?: RecordingSession | null;
   markers: SquadMarker[];
   onRoomChange: (newRoomId: string) => void;
 }
@@ -39,9 +40,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   roomId,
   room,
   activeSession,
+  lastSession,
   markers,
   onRoomChange,
 }) => {
+  const sessionForExport = activeSession || lastSession || null;
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -148,7 +151,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
           <button
             onClick={() => setIsExportOpen(true)}
-            disabled={!activeSession}
+            disabled={!sessionForExport}
             className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-40 transition shadow-lg shadow-indigo-600/20"
           >
             <Download className="h-4 w-4" />
@@ -323,32 +326,54 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="space-y-6">
           {/* Session Overview Card */}
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 p-5 shadow-xl">
-            <h2 className="text-sm font-bold text-white flex items-center gap-2 border-b border-zinc-800 pb-3 mb-3">
-              <Layers className="h-4 w-4 text-indigo-400" />
-              Recording Session Details
+            <h2 className="text-sm font-bold text-white flex items-center justify-between border-b border-zinc-800 pb-3 mb-3">
+              <div className="flex items-center gap-2">
+                <Layers className="h-4 w-4 text-indigo-400" />
+                <span>Recording Session Details</span>
+              </div>
+              {sessionForExport && (
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                    activeSession
+                      ? 'bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse'
+                      : 'bg-zinc-800 text-zinc-300 border border-zinc-700'
+                  }`}
+                >
+                  {activeSession ? 'LIVE RECORDING' : 'COMPLETED'}
+                </span>
+              )}
             </h2>
 
-            {activeSession ? (
+            {sessionForExport ? (
               <div className="space-y-3 text-xs">
                 <div>
                   <span className="text-zinc-500 block text-[11px]">Session Name:</span>
-                  <span className="font-semibold text-white">{activeSession.name}</span>
+                  <span className="font-semibold text-white">{sessionForExport.name}</span>
                 </div>
                 <div>
                   <span className="text-zinc-500 block text-[11px]">Framerate & Standard:</span>
                   <span className="font-mono text-zinc-200">
-                    {activeSession.framerateNumerator}/{activeSession.framerateDenominator} fps
-                    {activeSession.dropFrame ? ' (SMPTE Drop Frame)' : ' (Non-Drop Frame)'}
+                    {sessionForExport.framerateNumerator}/{sessionForExport.framerateDenominator} fps
+                    {sessionForExport.dropFrame ? ' (SMPTE Drop Frame)' : ' (Non-Drop Frame)'}
                   </span>
                 </div>
                 <div>
                   <span className="text-zinc-500 block text-[11px]">Base Timecode Offset:</span>
-                  <span className="font-mono text-zinc-200">{activeSession.baseTimecode}</span>
+                  <span className="font-mono text-zinc-200">{sessionForExport.baseTimecode}</span>
                 </div>
                 <div>
                   <span className="text-zinc-500 block text-[11px]">Started At:</span>
-                  <span className="text-zinc-300">{new Date(activeSession.startedAt).toLocaleString()}</span>
+                  <span className="text-zinc-300">{new Date(sessionForExport.startedAt).toLocaleString()}</span>
                 </div>
+                {sessionForExport.stoppedAt && (
+                  <div>
+                    <span className="text-zinc-500 block text-[11px]">Duration:</span>
+                    <span className="text-zinc-300 font-mono">
+                      {Math.floor((sessionForExport.stoppedAt - sessionForExport.startedAt) / 60000)}m{' '}
+                      {Math.floor(((sessionForExport.stoppedAt - sessionForExport.startedAt) % 60000) / 1000)}s
+                    </span>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-xs text-zinc-500">
@@ -365,10 +390,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </h2>
             <div className="space-y-2">
               <a
-                href={activeSession ? `/api/rooms/${roomId}/export/edl?sessionId=${activeSession.id}` : '#'}
+                href={sessionForExport ? `/api/rooms/${roomId}/export/edl?sessionId=${sessionForExport.id}` : '#'}
                 download
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
-                  !activeSession ? 'pointer-events-none opacity-40' : ''
+                  !sessionForExport ? 'pointer-events-none opacity-40' : ''
                 }`}
               >
                 <span className="font-medium text-zinc-200">DaVinci Resolve EDL</span>
@@ -376,10 +401,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </a>
 
               <a
-                href={activeSession ? `/api/rooms/${roomId}/export/xml?sessionId=${activeSession.id}` : '#'}
+                href={sessionForExport ? `/api/rooms/${roomId}/export/xml?sessionId=${sessionForExport.id}` : '#'}
                 download
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
-                  !activeSession ? 'pointer-events-none opacity-40' : ''
+                  !sessionForExport ? 'pointer-events-none opacity-40' : ''
                 }`}
               >
                 <span className="font-medium text-zinc-200">Adobe Premiere Pro XML</span>
@@ -387,10 +412,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </a>
 
               <a
-                href={activeSession ? `/api/rooms/${roomId}/export/csv?sessionId=${activeSession.id}` : '#'}
+                href={sessionForExport ? `/api/rooms/${roomId}/export/csv?sessionId=${sessionForExport.id}` : '#'}
                 download
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
-                  !activeSession ? 'pointer-events-none opacity-40' : ''
+                  !sessionForExport ? 'pointer-events-none opacity-40' : ''
                 }`}
               >
                 <span className="font-medium text-zinc-200">Universal CSV (Sheets/Excel)</span>
@@ -398,10 +423,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </a>
 
               <a
-                href={activeSession ? `/api/rooms/${roomId}/export/youtube?sessionId=${activeSession.id}` : '#'}
+                href={sessionForExport ? `/api/rooms/${roomId}/export/youtube?sessionId=${sessionForExport.id}` : '#'}
                 download
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
-                  !activeSession ? 'pointer-events-none opacity-40' : ''
+                  !sessionForExport ? 'pointer-events-none opacity-40' : ''
                 }`}
               >
                 <span className="font-medium text-zinc-200">YouTube Chapters</span>
@@ -409,10 +434,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </a>
 
               <a
-                href={activeSession ? `/api/rooms/${roomId}/export/matrix?sessionId=${activeSession.id}` : '#'}
+                href={sessionForExport ? `/api/rooms/${roomId}/export/matrix?sessionId=${sessionForExport.id}` : '#'}
                 download
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
-                  !activeSession ? 'pointer-events-none opacity-40' : ''
+                  !sessionForExport ? 'pointer-events-none opacity-40' : ''
                 }`}
               >
                 <span className="font-medium text-zinc-200">Multicam Sync Matrix JSON</span>
@@ -520,7 +545,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <ExportModal
         isOpen={isExportOpen}
         onClose={() => setIsExportOpen(false)}
-        session={activeSession}
+        session={sessionForExport}
         markers={markers}
         members={members}
         roomId={roomId}

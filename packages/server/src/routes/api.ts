@@ -140,6 +140,11 @@ export function registerApiRoutes(fastify: FastifyInstance, roomManager: RoomMan
       return db.getSessionMarkers(activeSession.id);
     }
 
+    const latestSession = db.getLatestSession(id);
+    if (latestSession) {
+      return db.getSessionMarkers(latestSession.id);
+    }
+
     return db.getRoomMarkers(id);
   });
 
@@ -162,10 +167,7 @@ export function registerApiRoutes(fastify: FastifyInstance, roomManager: RoomMan
     let session = sessionId ? db.getSession(sessionId) : roomManager.getActiveSession(id);
     if (!session) {
       // Fallback: get the most recent session in this room
-      const allMarkers = db.getRoomMarkers(id);
-      if (allMarkers.length > 0 && allMarkers[0].sessionId) {
-        session = db.getSession(allMarkers[0].sessionId);
-      }
+      session = db.getLatestSession(id);
     }
 
     if (!session) {

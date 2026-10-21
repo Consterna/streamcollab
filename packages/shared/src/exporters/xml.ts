@@ -43,20 +43,20 @@ export function exportToFcpXml(
 
   const baseFrames = tc.timecodeToFrames(session.baseTimecode || '01:00:00:00');
 
-  // Calculate sequence duration (at least last marker + 30 seconds, or session duration)
-  let maxFrame = baseFrames;
+  // Calculate sequence duration in timeline frames (relative to sequence start, NOT baseFrames)
+  let durationFrames = 0;
   if (session.stoppedAt && session.startedAt) {
     const sessionDurationMs = Math.max(0, session.stoppedAt - session.startedAt);
-    maxFrame = Math.max(maxFrame, baseFrames + tc.millisecondsToFrames(sessionDurationMs));
+    durationFrames = Math.max(durationFrames, tc.millisecondsToFrames(sessionDurationMs));
   }
   for (const m of sortedMarkers) {
-    const f = baseFrames + tc.millisecondsToFrames(m.relativeTimeMs);
-    if (f + timebase * 5 > maxFrame) {
-      maxFrame = f + timebase * 5;
+    const markerFrame = tc.millisecondsToFrames(m.relativeTimeMs);
+    if (markerFrame + timebase * 5 > durationFrames) {
+      durationFrames = markerFrame + timebase * 5;
     }
   }
-  if (maxFrame === baseFrames) {
-    maxFrame = baseFrames + timebase * 60; // Default minimum 1 minute
+  if (durationFrames === 0) {
+    durationFrames = timebase * 60; // Default minimum 1 minute
   }
 
   const markerXmlBlocks = sortedMarkers.map((marker) => {
@@ -69,20 +69,22 @@ export function exportToFcpXml(
     const commentBody = marker.comment ? `${marker.comment}${authorPart}` : authorPart.trim();
     const markerComment = escapeXml(commentBody);
 
-    return `        <marker>
-          <name>${markerName}</name>
-          <comment>${markerComment}</comment>
-          <in>${inFrame}</in>
-          <out>${outFrame}</out>
-        </marker>`;
+    return `    <marker>
+      <name>${markerName}</name>
+      <comment>${markerComment}</comment>
+      <in>${inFrame}</in>
+      <out>${outFrame}</out>
+    </marker>`;
   }).join('\n');
+
+  const markersSection = markerXmlBlocks.length > 0 ? `\n${markerXmlBlocks}` : '';
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE xmeml>
 <xmeml version="4">
   <sequence id="sequence-1">
     <name>${seqName}</name>
-    <duration>${maxFrame}</duration>
+    <duration>${durationFrames}</duration>
     <rate>
       <timebase>${timebase}</timebase>
       <ntsc>${isNtsc}</ntsc>
@@ -95,7 +97,7 @@ export function exportToFcpXml(
       <string>${session.baseTimecode || '01:00:00:00'}</string>
       <frame>${baseFrames}</frame>
       <displayformat>${displayFormat}</displayformat>
-    </timecode>
+    </timecode>${markersSection}
     <media>
       <video>
         <format>
@@ -115,7 +117,6 @@ export function exportToFcpXml(
         <track>
           <enabled>TRUE</enabled>
           <locked>FALSE</locked>
-${markerXmlBlocks}
         </track>
       </video>
     </media>

@@ -40,7 +40,19 @@ async function start() {
   }
 }
 
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+
 // Start if executed directly
-if (import.meta.url === `file:///${process.argv[1]?.replace(/\\/g, '/')}`) {
-  start();
+if (process.argv[1]) {
+  try {
+    const mainFile = fileURLToPath(import.meta.url).toLowerCase();
+    const argvFile = path.resolve(process.argv[1]).toLowerCase();
+    if (mainFile === argvFile) {
+      start();
+    }
+  } catch {
+    // Ignore URL parse errors
+  }
 }
+

@@ -259,6 +259,30 @@ export class DatabaseService {
     return this.getSession(room.activeSessionId);
   }
 
+  getLatestSession(roomId: string): RecordingSession | null {
+    const stmt = this.db.prepare(
+      'SELECT * FROM recording_sessions WHERE room_id = ? ORDER BY started_at DESC LIMIT 1'
+    );
+    const row = stmt.get(roomId) as any;
+    if (!row) return null;
+
+    return {
+      id: row.id,
+      roomId: row.room_id,
+      name: row.name,
+      startedAt: Number(row.started_at),
+      stoppedAt: row.stopped_at ? Number(row.stopped_at) : null,
+      baseTimecode: row.base_timecode,
+      framerateNumerator: Number(row.framerate_num),
+      framerateDenominator: Number(row.framerate_den),
+      dropFrame: Boolean(row.drop_frame),
+    };
+  }
+
+  checkpoint() {
+    this.db.exec('PRAGMA wal_checkpoint(PASSIVE);');
+  }
+
   // Marker methods
   createMarker(marker: SquadMarker): SquadMarker {
     const stmt = this.db.prepare(`
