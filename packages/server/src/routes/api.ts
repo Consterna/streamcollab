@@ -7,8 +7,20 @@ import {
   exportToCsv,
   exportToYouTubeChapters,
   generateMulticamSyncMatrix,
+  rebaseSessionForMember,
   MarkerCategory,
 } from '@streamcollab/shared';
+
+/**
+ * Build a Content-Disposition header that survives quotes, slashes and non-ASCII session names:
+ * an ASCII-only `filename` fallback plus an RFC 5987 UTF-8 `filename*`.
+ */
+export function attachmentDisposition(filename: string): string {
+  // Also drop characters Windows forbids in filenames (e.g. the ':' in "Auto Session 23:07:27")
+  const cleaned = filename.replace(/[\r\n"\\/:*?<>|]/g, '').replace(/\s+/g, '_') || 'export';
+  const ascii = cleaned.normalize('NFKD').replace(/[^\x20-\x7E]/g, '') || 'export';
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(cleaned)}`;
+}
 
 export function registerApiRoutes(fastify: FastifyInstance, roomManager: RoomManager, db: DatabaseService) {
   // Health check
@@ -152,12 +164,12 @@ export function registerApiRoutes(fastify: FastifyInstance, roomManager: RoomMan
   fastify.get('/api/rooms/:id/export/:format', async (
     req: FastifyRequest<{
       Params: { id: string; format: string };
-      Querystring: { sessionId?: string };
+      Querystring: { sessionId?: string; memberId?: string };
     }>,
     reply: FastifyReply
   ) => {
     const { id, format } = req.params;
-    const { sessionId } = req.query;
+    const { sessionId, memberId } = req.query;
 
     const room = roomManager.getRoom(id);
     if (!room) {
@@ -174,42 +186,57 @@ export function registerApiRoutes(fastify: FastifyInstance, roomManager: RoomMan
       return reply.status(404).send({ error: 'No recording session found for export' });
     }
 
-    const markers = db.getSessionMarkers(session.id);
     const members = db.getRoomMembers(id);
+    const anchors = db.getSessionAnchors(session.id);
+    let markers = db.getSessionMarkers(session.id);
+
+    // Per-POV export: re-time every marker against one member's own recording file
+    if (memberId) {
+      const anchor = anchors.find((a) => a.memberId === memberId);
+      if (!anchor) {
+        return reply.status(404).send({
+          error: `Member ${memberId} has no recording anchor in session ${session.id} (OBS was not recording)`,
+        });
+      }
+      const memberName = members.find((m) => m.id === memberId)?.name;
+      const rebased = rebaseSessionForMember(session, markers, anchor, memberName);
+      session = rebased.session;
+      markers = rebased.markers;
+    }
 
     switch (format.toLowerCase()) {
       case 'edl': {
         const edlContent = exportToEdl(session, markers, { title: session.name });
         reply.header('Content-Type', 'text/plain; charset=utf-8');
-        reply.header('Content-Disposition', `attachment; filename="${session.name.replace(/\s+/g, '_')}.edl"`);
+        reply.header('Content-Disposition', attachmentDisposition(`${session.name}.edl`));
         return reply.send(edlContent);
       }
 
       case 'xml': {
         const xmlContent = exportToFcpXml(session, markers, { sequenceName: session.name });
         reply.header('Content-Type', 'application/xml; charset=utf-8');
-        reply.header('Content-Disposition', `attachment; filename="${session.name.replace(/\s+/g, '_')}.xml"`);
+        reply.header('Content-Disposition', attachmentDisposition(`${session.name}.xml`));
         return reply.send(xmlContent);
       }
 
       case 'csv': {
         const csvContent = exportToCsv(session, markers);
         reply.header('Content-Type', 'text/csv; charset=utf-8');
-        reply.header('Content-Disposition', `attachment; filename="${session.name.replace(/\s+/g, '_')}.csv"`);
+        reply.header('Content-Disposition', attachmentDisposition(`${session.name}.csv`));
         return reply.send(csvContent);
       }
 
       case 'youtube': {
         const ytContent = exportToYouTubeChapters(session, markers);
         reply.header('Content-Type', 'text/plain; charset=utf-8');
-        reply.header('Content-Disposition', `attachment; filename="${session.name.replace(/\s+/g, '_')}_chapters.txt"`);
+        reply.header('Content-Disposition', attachmentDisposition(`${session.name}_chapters.txt`));
         return reply.send(ytContent);
       }
 
       case 'matrix': {
-        const matrix = generateMulticamSyncMatrix(session, markers, members);
+        const matrix = generateMulticamSyncMatrix(session, markers, members, anchors);
         reply.header('Content-Type', 'application/json; charset=utf-8');
-        reply.header('Content-Disposition', `attachment; filename="${session.name.replace(/\s+/g, '_')}_matrix.json"`);
+        reply.header('Content-Disposition', attachmentDisposition(`${session.name}_matrix.json`));
         return reply.send(matrix);
       }
 

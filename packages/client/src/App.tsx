@@ -4,6 +4,7 @@ import {
   Room,
   RecordingSession,
   SquadMarker,
+  ClientKind,
 } from '@streamcollab/shared';
 import { ObsService } from './services/obs';
 import { StreamCollabSocketClient } from './services/socket';
@@ -41,6 +42,32 @@ export function App() {
   const [userName, setUserName] = useState<string>(() => {
     return localStorage.getItem('streamcollab_username') || `Player_${Math.floor(100 + Math.random() * 900)}`;
   });
+
+  // Draft values for the nav inputs; only committed (blur / Enter) values trigger a rejoin
+  const [roomDraft, setRoomDraft] = useState<string>(initialRoom);
+  const [nameDraft, setNameDraft] = useState<string>(userName);
+
+  const commitRoom = () => {
+    const next = roomDraft.trim();
+    if (next && next !== roomId) {
+      setRoomId(next);
+    } else {
+      setRoomDraft(roomId);
+    }
+  };
+
+  const commitName = () => {
+    const next = nameDraft.trim();
+    if (next && next !== userName) {
+      setUserName(next);
+      localStorage.setItem('streamcollab_username', next);
+    } else {
+      setNameDraft(userName);
+    }
+  };
+
+  // Only docks represent a squad member; HUD overlays and dashboards observe
+  const clientKind: ClientKind = currentView === 'hud' ? 'hud' : currentView === 'dashboard' ? 'dashboard' : 'dock';
 
   const memberId = useMemo(() => {
     let id = localStorage.getItem('streamcollab_member_id');
@@ -138,12 +165,12 @@ export function App() {
     };
 
     socketClient.connect();
-    socketClient.joinRoom(roomId, member);
+    socketClient.joinRoom(roomId, clientKind, member);
 
     return () => {
       socketClient.disconnect();
     };
-  }, [socketClient, roomId, member]);
+  }, [socketClient, roomId, member, clientKind]);
 
   // Handle URL hash changes
   useEffect(() => {
@@ -224,10 +251,11 @@ export function App() {
         <div className="flex items-center gap-2">
           <input
             type="text"
-            value={userName}
-            onChange={(e) => {
-              setUserName(e.target.value);
-              localStorage.setItem('streamcollab_username', e.target.value);
+            value={nameDraft}
+            onChange={(e) => setNameDraft(e.target.value)}
+            onBlur={commitName}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.currentTarget.blur();
             }}
             placeholder="Your streamer name"
             className="w-28 rounded border border-zinc-700 bg-zinc-950 px-2 py-0.5 text-xs text-zinc-200 focus:border-indigo-500 focus:outline-none"
@@ -236,9 +264,11 @@ export function App() {
 
           <input
             type="text"
-            value={roomId}
-            onChange={(e) => {
-              setRoomId(e.target.value);
+            value={roomDraft}
+            onChange={(e) => setRoomDraft(e.target.value)}
+            onBlur={commitRoom}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.currentTarget.blur();
             }}
             placeholder="Room ID"
             className="w-24 rounded border border-zinc-700 bg-zinc-950 px-2 py-0.5 text-xs font-mono text-zinc-200 focus:border-indigo-500 focus:outline-none"
@@ -270,7 +300,10 @@ export function App() {
             activeSession={activeSession}
             lastSession={lastSession}
             markers={markers}
-            onRoomChange={(newRoom) => setRoomId(newRoom)}
+            onRoomChange={(newRoom) => {
+              setRoomId(newRoom);
+              setRoomDraft(newRoom);
+            }}
           />
         )}
       </main>

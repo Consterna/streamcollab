@@ -28,6 +28,16 @@ import {
   Send,
 } from 'lucide-react';
 
+// Default marker labels, shared by the dock buttons, dock hotkeys and global OBS hotkeys
+type QuickMarkCategory = 'kill' | 'wipe' | 'clutch' | 'funny' | 'note';
+const QUICK_MARK_LABELS: Record<QuickMarkCategory, string> = {
+  kill: 'Kill Confirmed',
+  wipe: 'Squad Wipe',
+  clutch: 'Clutch Play',
+  funny: 'Funny Moment',
+  note: 'Timeline Note',
+};
+
 interface DockViewProps {
   socketClient: StreamCollabSocketClient;
   obsService: ObsService;
@@ -69,13 +79,21 @@ export const DockView: React.FC<DockViewProps> = ({
   // SNTP stats
   const [sntpStats, setSntpStats] = useState({ offset: 0, rtt: 0 });
 
-  // Connect OBS listener
+  // Latest OBS video settings / recording anchor for callbacks, without re-subscribing
+  // (and re-connecting to OBS) every time they change
+  const videoSettingsRef = useRef<ObsVideoSettings | null>(null);
+  const recordAnchorRef = useRef<{ startedAt: number | null; paused: boolean }>({ startedAt: null, paused: false });
+
+  // OBS listeners
   useEffect(() => {
     obsService.onStatusChange = (connected) => {
       setObsConnected(connected);
       if (connected) {
-        obsService.getVideoSettings().then(setVideoSettings);
-        obsService.queryRecordStatus().then(setRecordStatus);
+        obsService.getVideoSettings().then((settings) => {
+          videoSettingsRef.current = settings;
+          setVideoSettings(settings);
+        });
+        obsService.queryRecordStatus();
       }
     };
 
@@ -83,26 +101,46 @@ export const DockView: React.FC<DockViewProps> = ({
       setRecordStatus(status);
       setElapsedDurationMs(status.outputDuration);
 
+      // Where this recording file starts on the server clock. Re-anchor after a pause, since
+      // paused time is not part of the file and would otherwise shift later markers.
+      const anchor = recordAnchorRef.current;
+      if (!status.outputActive) {
+        anchor.startedAt = null;
+      } else if (!status.outputPaused && (anchor.startedAt === null || anchor.paused)) {
+        anchor.startedAt = Math.round(socketClient.getCalibratedNow() - status.outputDuration);
+      }
+      anchor.paused = status.outputActive && status.outputPaused;
+
       // Report OBS record status to StreamCollab server
       let obsStatus: 'recording' | 'paused' | 'stopped' = 'stopped';
       if (status.outputActive) {
         obsStatus = status.outputPaused ? 'paused' : 'recording';
       }
+      const settings = videoSettingsRef.current;
       socketClient.updateStatus(roomId, member.id, {
         obsStatus,
         outputDurationMs: status.outputDuration,
-        fps: videoSettings?.fps || 60,
+        fps: settings?.fps || 60,
+        fpsNumerator: settings?.fpsNumerator,
+        fpsDenominator: settings?.fpsDenominator,
+        recordStartedAt: anchor.startedAt,
       });
     };
-
-    // Auto-connect to OBS on load
-    obsService.connect(obsAddress, obsPassword);
 
     return () => {
       obsService.onStatusChange = undefined;
       obsService.onRecordChange = undefined;
     };
-  }, [obsService, socketClient, roomId, member.id, videoSettings?.fps]);
+  }, [obsService, socketClient, roomId, member.id]);
+
+  // Auto-connect to OBS once on load
+  useEffect(() => {
+    obsService.connect(obsAddress, obsPassword);
+    return () => {
+      obsService.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [obsService]);
 
   // Keep local duration ticking smoothly if recording
   useEffect(() => {
@@ -137,46 +175,52 @@ export const DockView: React.FC<DockViewProps> = ({
         category,
         label: defaultLabel,
         comment: comment.trim() || undefined,
+        // Exact position inside this streamer's own recording file, for per-POV exports
+        obsRecordMs: obsService.getEstimatedRecordMs(),
       });
 
       if (commentOverride === undefined) {
         setCustomComment('');
       }
     },
-    [socketClient, roomId, activeSession?.id, member.id, member.name, customComment]
+    [socketClient, obsService, roomId, activeSession?.id, member.id, member.name, customComment]
   );
 
-  // Global hotkeys (1: Kill, 2: Wipe, 3: Clutch, 4: Funny, 5: Note)
+  // Global OBS hotkeys (from obs-scripts/streamcollab-hotkeys.lua) work while the game has focus
+  const handleQuickMarkRef = useRef(handleQuickMark);
+  handleQuickMarkRef.current = handleQuickMark;
   useEffect(() => {
+    obsService.onHotkeySignal = ({ category }) => {
+      const label = (QUICK_MARK_LABELS as Record<string, string | undefined>)[category];
+      if (label) {
+        handleQuickMarkRef.current(category as QuickMarkCategory, label);
+      }
+    };
+    return () => {
+      obsService.onHotkeySignal = undefined;
+    };
+  }, [obsService]);
+
+  // Dock-focused hotkeys (1: Kill, 2: Wipe, 3: Clutch, 4: Funny, 5: Note)
+  useEffect(() => {
+    const keyToCategory: Record<string, QuickMarkCategory> = {
+      '1': 'kill',
+      '2': 'wipe',
+      '3': 'clutch',
+      '4': 'funny',
+      '5': 'note',
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't trigger if typing in an input
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
         return;
       }
 
-      switch (e.key) {
-        case '1':
-          e.preventDefault();
-          handleQuickMark('kill', 'Kill Confirmed');
-          break;
-        case '2':
-          e.preventDefault();
-          handleQuickMark('wipe', 'Squad Wipe');
-          break;
-        case '3':
-          e.preventDefault();
-          handleQuickMark('clutch', 'Clutch Play');
-          break;
-        case '4':
-          e.preventDefault();
-          handleQuickMark('funny', 'Funny Moment');
-          break;
-        case '5':
-          e.preventDefault();
-          handleQuickMark('note', 'Timeline Note');
-          break;
-        default:
-          break;
+      const category = keyToCategory[e.key];
+      if (category) {
+        e.preventDefault();
+        handleQuickMark(category, QUICK_MARK_LABELS[category]);
       }
     };
 

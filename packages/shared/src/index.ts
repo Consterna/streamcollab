@@ -5,3 +5,4 @@ export * from './exporters/xml.js';
 export * from './exporters/csv.js';
 export * from './exporters/youtube.js';
 export * from './exporters/matrix.js';
+export * from './exporters/perMember.js';

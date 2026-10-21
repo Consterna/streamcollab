@@ -55,7 +55,8 @@ export const HudView: React.FC<HudViewProps> = ({
 
   // Subscribe to new markers
   useEffect(() => {
-    socketClient.callbacks.onMarkerAdded = (marker: SquadMarker) => {
+    // Subscribe alongside App's own marker callback instead of overwriting it
+    return socketClient.on('onMarkerAdded', (marker: SquadMarker) => {
       // If OBS source is hidden, skip visual toast animation to save GPU
       if (!isVisibleInObs) return;
 
@@ -68,7 +69,7 @@ export const HudView: React.FC<HudViewProps> = ({
           expiresAt: Date.now() + 4500, // 4.5 seconds duration
         },
       ]);
-    };
+    });
   }, [socketClient, isVisibleInObs]);
 
   // Clean expired toasts

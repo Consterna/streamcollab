@@ -8,6 +8,7 @@ import {
   exportToCsv,
   exportToYouTubeChapters,
   generateMulticamSyncMatrix,
+  SessionMemberAnchor,
 } from '../src/index.js';
 
 const mockSession: RecordingSession = {
@@ -147,8 +148,14 @@ describe('NLE Exporters', () => {
   });
 
   describe('Multicam Sync Matrix JSON', () => {
-    it('computes member session alignments and sync matrix', () => {
-      const matrix = generateMulticamSyncMatrix(mockSession, mockMarkers, mockMembers);
+    it('computes member offsets from each recording anchor', () => {
+      const anchors: SessionMemberAnchor[] = [
+        // Shroud hit record 2.5s before the director started the session
+        { sessionId: 'sess-123', memberId: 'mem-1', recordStartedAt: 1700000000000 - 2500, framerateNumerator: 60, framerateDenominator: 1 },
+        // Tarik started 5.1s late, recording at 59.94
+        { sessionId: 'sess-123', memberId: 'mem-2', recordStartedAt: 1700000000000 + 5100, framerateNumerator: 60000, framerateDenominator: 1001 },
+      ];
+      const matrix = generateMulticamSyncMatrix(mockSession, mockMarkers, mockMembers, anchors);
 
       expect(matrix.sessionId).toBe('sess-123');
       expect(matrix.members.length).toBe(2);
@@ -156,13 +163,25 @@ describe('NLE Exporters', () => {
       const shroud = matrix.members.find((m) => m.name === 'Shroud');
       expect(shroud).toBeDefined();
       expect(shroud?.fps).toBe(60);
-      expect(shroud?.sessionOffsetMs).toBe(-2.5);
+      expect(shroud?.aligned).toBe(true);
+      expect(shroud?.sessionOffsetMs).toBe(-2500);
+      expect(shroud?.sessionOffsetFrames).toBe(-150);
+      expect(shroud?.clockOffsetMs).toBe(-2.5);
 
       const tarik = matrix.members.find((m) => m.name === 'Tarik');
       expect(tarik).toBeDefined();
       expect(tarik?.fps).toBe(59.94);
-      expect(tarik?.sessionOffsetMs).toBe(5.1);
+      expect(tarik?.sessionOffsetMs).toBe(5100);
+      // 5100ms at 60000/1001 fps = 305.69 -> 305 whole frames
+      expect(tarik?.sessionOffsetFrames).toBe(305);
       expect(matrix.markers.length).toBe(2);
+    });
+
+    it('flags members without a recording anchor as unaligned', () => {
+      const matrix = generateMulticamSyncMatrix(mockSession, mockMarkers, mockMembers);
+      expect(matrix.members.every((m) => m.aligned === false)).toBe(true);
+      expect(matrix.members.every((m) => m.sessionOffsetMs === 0)).toBe(true);
+      expect(matrix.members.every((m) => m.recordStartedAt === null)).toBe(true);
     });
 
     it('aligns 29.97 fps member with exact rational timecode and non-drift frame calculations', () => {
@@ -173,16 +192,20 @@ describe('NLE Exporters', () => {
         obsStatus: 'recording',
         fps: 29.97,
         outputDurationMs: 60000,
-        clockOffsetMs: 100.1,
+        clockOffsetMs: 3.2,
         rttMs: 15.0,
         lastHeartbeat: 1700000600000,
       };
+      const anchors: SessionMemberAnchor[] = [
+        { sessionId: 'sess-123', memberId: 'mem-ntsc', recordStartedAt: 1700000000000 + 1001, framerateNumerator: 30000, framerateDenominator: 1001 },
+      ];
 
-      const matrix = generateMulticamSyncMatrix(mockSession, mockMarkers, [ntscMember]);
+      const matrix = generateMulticamSyncMatrix(mockSession, mockMarkers, [ntscMember], anchors);
       expect(matrix.members[0].fps).toBe(29.97);
-      expect(matrix.members[0].sessionOffsetMs).toBe(100.1);
-      // 100.1ms at 29.97 (30000/1001) fps = 100.1 * 30000 / 1001000 = 3 frames
-      expect(matrix.members[0].sessionOffsetFrames).toBe(3);
+      expect(matrix.members[0].sessionOffsetMs).toBe(1001);
+      // 1001ms at 29.97 (30000/1001) fps = 1001 * 30000 / 1001000 = exactly 30 frames
+      expect(matrix.members[0].sessionOffsetFrames).toBe(30);
+      expect(matrix.members[0].startTimecode).toBe('00:00:00;00');
     });
   });
 });

@@ -4,8 +4,42 @@ import { RoomManager } from '../rooms/roomManager.js';
 import { SntpClockEngine } from '../sntp/clock.js';
 import { ClientMessage } from '@streamcollab/shared';
 
-export function registerWebSocketHandler(fastify: FastifyInstance, roomManager: RoomManager) {
+export const DEFAULT_HEARTBEAT_INTERVAL_MS = 15_000;
+
+export interface WebSocketHandlerOptions {
+  heartbeatIntervalMs?: number;
+}
+
+export function registerWebSocketHandler(
+  fastify: FastifyInstance,
+  roomManager: RoomManager,
+  options: WebSocketHandlerOptions = {}
+) {
+  // Heartbeat: every interval each socket must answer a ping, or it is terminated.
+  // Terminated sockets fire 'close', which removes them from their room.
+  const liveSockets = new Map<WebSocket, boolean>();
+  const heartbeat = setInterval(() => {
+    for (const [socket, isAlive] of liveSockets) {
+      if (!isAlive) {
+        socket.terminate();
+        continue;
+      }
+      liveSockets.set(socket, false);
+      socket.ping();
+    }
+  }, options.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS);
+  heartbeat.unref();
+
+  fastify.addHook('onClose', async () => {
+    clearInterval(heartbeat);
+  });
+
   fastify.get('/ws', { websocket: true }, (socket: WebSocket /*, req */) => {
+    liveSockets.set(socket, true);
+    socket.on('pong', () => {
+      liveSockets.set(socket, true);
+    });
+
     socket.on('message', (data: Buffer | string) => {
       try {
         const message: ClientMessage = JSON.parse(data.toString());
@@ -23,14 +57,8 @@ export function registerWebSocketHandler(fastify: FastifyInstance, roomManager: 
           }
 
           case 'JOIN_ROOM': {
-            const { roomId, member } = message.payload;
-            const fullMember = {
-              ...member,
-              lastHeartbeat: Date.now(),
-              clockOffsetMs: 0,
-              rttMs: 0,
-            };
-            roomManager.addClient(socket, roomId, fullMember);
+            const { roomId, member, clientKind } = message.payload;
+            roomManager.joinRoom(socket, roomId, clientKind ?? 'dock', member);
             break;
           }
 
@@ -41,10 +69,10 @@ export function registerWebSocketHandler(fastify: FastifyInstance, roomManager: 
           }
 
           case 'CREATE_MARKER': {
-            const { roomId, marker } = message.payload;
+            const { roomId, marker, clientTimestamp } = message.payload;
             roomManager.createMarker({
               roomId,
-              sessionId: marker.sessionId,
+              sessionId: marker.sessionId || undefined,
               memberId: marker.memberId,
               memberName: marker.memberName,
               category: marker.category,
@@ -52,6 +80,8 @@ export function registerWebSocketHandler(fastify: FastifyInstance, roomManager: 
               comment: marker.comment,
               color: marker.color,
               tags: marker.tags,
+              clientTimestamp,
+              obsRecordMs: marker.obsRecordMs,
             });
             break;
           }
@@ -86,12 +116,12 @@ export function registerWebSocketHandler(fastify: FastifyInstance, roomManager: 
       }
     });
 
-    socket.on('close', () => {
+    const cleanup = () => {
+      liveSockets.delete(socket);
       roomManager.removeClient(socket);
-    });
+    };
 
-    socket.on('error', () => {
-      roomManager.removeClient(socket);
-    });
+    socket.on('close', cleanup);
+    socket.on('error', cleanup);
   });
 }

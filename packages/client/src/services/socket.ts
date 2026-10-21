@@ -6,6 +6,7 @@ import {
   RecordingSession,
   Room,
   MarkerCategory,
+  ClientKind,
 } from '@streamcollab/shared';
 
 export interface SocketClientCallbacks {
@@ -33,9 +34,36 @@ export class StreamCollabSocketClient {
 
   // Current session/room context
   private currentRoomId = '';
-  private currentMember: Omit<SquadMember, 'lastHeartbeat' | 'clockOffsetMs' | 'rttMs'> | null = null;
+  private currentKind: ClientKind = 'dock';
+  private currentMember: Omit<SquadMember, 'lastHeartbeat' | 'clockOffsetMs' | 'rttMs'> | undefined;
 
+  // Single-slot callbacks (owned by App) plus any number of extra listeners (views)
   callbacks: SocketClientCallbacks = {};
+  private listeners: { [K in keyof SocketClientCallbacks]?: Set<NonNullable<SocketClientCallbacks[K]>> } = {};
+
+  /**
+   * Subscribe to a socket event without replacing the App-level callback.
+   * Returns an unsubscribe function for use in effect cleanups.
+   */
+  on<K extends keyof SocketClientCallbacks>(event: K, handler: NonNullable<SocketClientCallbacks[K]>): () => void {
+    let set = this.listeners[event] as Set<NonNullable<SocketClientCallbacks[K]>> | undefined;
+    if (!set) {
+      set = new Set();
+      (this.listeners as any)[event] = set;
+    }
+    set.add(handler);
+    return () => {
+      set!.delete(handler);
+    };
+  }
+
+  private emit<K extends keyof SocketClientCallbacks>(
+    event: K,
+    ...args: Parameters<NonNullable<SocketClientCallbacks[K]>>
+  ) {
+    (this.callbacks[event] as ((...a: any[]) => void) | undefined)?.(...args);
+    this.listeners[event]?.forEach((handler) => (handler as (...a: any[]) => void)(...args));
+  }
 
   constructor(serverUrl?: string) {
     if (serverUrl) {
@@ -77,12 +105,12 @@ export class StreamCollabSocketClient {
 
       this.ws.onopen = () => {
         this.isConnected = true;
-        this.callbacks.onConnectionChange?.(true);
+        this.emit('onConnectionChange', true);
         this.startSntpCalibration();
 
         // If we were already in a room, rejoin
-        if (this.currentRoomId && this.currentMember) {
-          this.joinRoom(this.currentRoomId, this.currentMember);
+        if (this.currentRoomId) {
+          this.joinRoom(this.currentRoomId, this.currentKind, this.currentMember);
         }
       };
 
@@ -109,7 +137,7 @@ export class StreamCollabSocketClient {
 
   private handleDisconnect() {
     this.isConnected = false;
-    this.callbacks.onConnectionChange?.(false);
+    this.emit('onConnectionChange', false);
     this.stopSntpCalibration();
 
     if (!this.reconnectTimeout) {
@@ -137,36 +165,36 @@ export class StreamCollabSocketClient {
           this.rttMs = this.rttMs * 0.7 + currentRtt * 0.3;
         }
 
-        this.callbacks.onClockSync?.(this.clockOffsetMs, this.rttMs);
+        this.emit('onClockSync', this.clockOffsetMs, this.rttMs);
         break;
       }
 
       case 'ROOM_STATE':
-        this.callbacks.onRoomState?.(msg.payload);
+        this.emit('onRoomState', msg.payload);
         break;
 
       case 'MEMBER_JOINED':
-        this.callbacks.onMemberJoined?.(msg.payload);
+        this.emit('onMemberJoined', msg.payload);
         break;
 
       case 'MEMBER_LEFT':
-        this.callbacks.onMemberLeft?.(msg.payload.memberId);
+        this.emit('onMemberLeft', msg.payload.memberId);
         break;
 
       case 'MEMBER_UPDATED':
-        this.callbacks.onMemberUpdated?.(msg.payload);
+        this.emit('onMemberUpdated', msg.payload);
         break;
 
       case 'MARKER_ADDED':
-        this.callbacks.onMarkerAdded?.(msg.payload);
+        this.emit('onMarkerAdded', msg.payload);
         break;
 
       case 'SESSION_STARTED':
-        this.callbacks.onSessionStarted?.(msg.payload);
+        this.emit('onSessionStarted', msg.payload);
         break;
 
       case 'SESSION_STOPPED':
-        this.callbacks.onSessionStopped?.(msg.payload);
+        this.emit('onSessionStopped', msg.payload);
         break;
 
       default:
@@ -206,12 +234,21 @@ export class StreamCollabSocketClient {
     }
   }
 
-  joinRoom(roomId: string, member: Omit<SquadMember, 'lastHeartbeat' | 'clockOffsetMs' | 'rttMs'>) {
+  /**
+   * Join a room. Docks join as squad members; HUD overlays and dashboards join as observers
+   * so they never replace or impersonate the streamer's dock connection.
+   */
+  joinRoom(
+    roomId: string,
+    clientKind: ClientKind,
+    member?: Omit<SquadMember, 'lastHeartbeat' | 'clockOffsetMs' | 'rttMs'>
+  ) {
     this.currentRoomId = roomId;
-    this.currentMember = member;
+    this.currentKind = clientKind;
+    this.currentMember = clientKind === 'dock' ? member : undefined;
     this.send({
       type: 'JOIN_ROOM',
-      payload: { roomId, member },
+      payload: { roomId, clientKind, member: this.currentMember },
     });
   }
 
@@ -240,11 +277,14 @@ export class StreamCollabSocketClient {
     comment?: string;
     color?: any;
     tags?: string[];
+    obsRecordMs?: number | null;
   }) {
     this.send({
       type: 'CREATE_MARKER',
       payload: {
         roomId: data.roomId,
+        // Stamp the keypress on the server clock now, so network latency doesn't shift the marker
+        clientTimestamp: this.getCalibratedNow(),
         marker: {
           roomId: data.roomId,
           sessionId: data.sessionId,
@@ -255,6 +295,7 @@ export class StreamCollabSocketClient {
           comment: data.comment,
           color: data.color || 'Blue',
           tags: data.tags,
+          obsRecordMs: data.obsRecordMs ?? undefined,
         },
       },
     });
@@ -291,8 +332,14 @@ export class StreamCollabSocketClient {
       this.reconnectTimeout = null;
     }
     if (this.ws) {
+      // Detach handlers first so an intentional close doesn't schedule a reconnect
+      this.ws.onopen = null;
+      this.ws.onmessage = null;
+      this.ws.onclose = null;
+      this.ws.onerror = null;
       this.ws.close();
       this.ws = null;
     }
+    this.isConnected = false;
   }
 }

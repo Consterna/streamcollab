@@ -7,7 +7,6 @@ import {
   exportToFcpXml,
   exportToCsv,
   exportToYouTubeChapters,
-  generateMulticamSyncMatrix,
 } from '@streamcollab/shared';
 import { Download, Copy, Check, X, FileText, Film, Table, Youtube, Layers } from 'lucide-react';
 
@@ -34,8 +33,38 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   const [copied, setCopied] = useState(false);
   const [content, setContent] = useState('');
 
+  // '' = master session timeline; otherwise a member id for that streamer's own recording file
+  const [povMemberId, setPovMemberId] = useState('');
+
   useEffect(() => {
     if (!isOpen || !session) return;
+
+    // Per-POV timelines and the sync matrix need the server's recording anchors
+    if (povMemberId || selectedFormat === 'matrix') {
+      const controller = new AbortController();
+      const params = new URLSearchParams({ sessionId: session.id });
+      if (povMemberId) params.set('memberId', povMemberId);
+      setContent('// Loading from server...');
+      fetch(`/api/rooms/${encodeURIComponent(roomId)}/export/${selectedFormat}?${params}`, { signal: controller.signal })
+        .then(async (res) => {
+          const text = await res.text();
+          if (!res.ok) {
+            let message = text;
+            try {
+              message = JSON.parse(text).error || text;
+            } catch {
+              // plain-text error body
+            }
+            setContent(`// ${message}`);
+            return;
+          }
+          setContent(selectedFormat === 'matrix' ? JSON.stringify(JSON.parse(text), null, 2) : text);
+        })
+        .catch((err) => {
+          if (err.name !== 'AbortError') setContent(`// Export failed: ${err.message}`);
+        });
+      return () => controller.abort();
+    }
 
     let text = '';
     switch (selectedFormat) {
@@ -51,12 +80,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       case 'youtube':
         text = exportToYouTubeChapters(session, markers);
         break;
-      case 'matrix':
-        text = JSON.stringify(generateMulticamSyncMatrix(session, markers, members), null, 2);
-        break;
     }
     setContent(text);
-  }, [isOpen, selectedFormat, session, markers, members]);
+  }, [isOpen, selectedFormat, session, markers, members, roomId, povMemberId]);
 
   if (!isOpen || !session) return null;
 
@@ -84,7 +110,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
     const ext = extensions[selectedFormat];
     const mime = mimeTypes[selectedFormat];
-    const filename = `${session.name.replace(/\s+/g, '_')}_markers.${ext}`;
+    const povName = members.find((m) => m.id === povMemberId)?.name;
+    const baseName = povName ? `${session.name}_${povName}` : session.name;
+    const filename = `${baseName.replace(/\s+/g, '_')}_markers.${ext}`;
 
     const blob = new Blob([content], { type: `${mime};charset=utf-8` });
     const url = URL.createObjectURL(blob);
@@ -149,6 +177,28 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             );
           })}
         </div>
+
+        {/* Timeline selector: master session or one streamer's own recording file */}
+        {members.length > 0 && (
+          <div className="flex items-center gap-2 border-b border-zinc-800 px-4 py-2 text-xs bg-zinc-950/50">
+            <span className="text-zinc-400 font-medium">Timeline:</span>
+            <select
+              value={povMemberId}
+              onChange={(e) => setPovMemberId(e.target.value)}
+              className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-200"
+            >
+              <option value="">Master session</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}'s recording (POV)
+                </option>
+              ))}
+            </select>
+            {povMemberId && (
+              <span className="text-zinc-500">Markers re-timed to the start of this streamer's OBS file</span>
+            )}
+          </div>
+        )}
 
         {/* Preview Code View */}
         <div className="flex-1 overflow-auto p-4 font-mono text-xs text-zinc-300 bg-zinc-950">

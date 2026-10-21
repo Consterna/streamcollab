@@ -6,8 +6,8 @@ import { RoomManager } from './rooms/roomManager.js';
 import { registerApiRoutes } from './routes/api.js';
 import { registerWebSocketHandler } from './websocket/handler.js';
 
-export async function createServer(options?: { dbPath?: string }) {
-  const fastify = Fastify({ logger: true });
+export async function createServer(options?: { dbPath?: string; logger?: boolean; heartbeatIntervalMs?: number }) {
+  const fastify = Fastify({ logger: options?.logger ?? true });
 
   await fastify.register(cors, {
     origin: '*',
@@ -20,7 +20,7 @@ export async function createServer(options?: { dbPath?: string }) {
   const roomManager = new RoomManager(db);
 
   registerApiRoutes(fastify, roomManager, db);
-  registerWebSocketHandler(fastify, roomManager);
+  registerWebSocketHandler(fastify, roomManager, { heartbeatIntervalMs: options?.heartbeatIntervalMs });
 
   return { fastify, db, roomManager };
 }

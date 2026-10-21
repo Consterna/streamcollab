@@ -18,13 +18,32 @@ export interface ObsRecordStatus {
   outputBytes: number;
 }
 
+// Name of the input the StreamCollab OBS Lua script updates when a global hotkey is pressed
+export const SIGNAL_INPUT_NAME = 'StreamCollab Signal';
+
+export interface ObsHotkeySignal {
+  category: string;
+  seq: number;
+}
+
+// obs-websocket v5 event subscription bits
+const EVENT_SUB_GENERAL = 1;
+const EVENT_SUB_INPUTS = 8;
+const EVENT_SUB_OUTPUTS = 64;
+
 export class ObsService {
   private obs: OBSWebSocket;
   private isConnected = false;
   private pollInterval: any = null;
 
+  // Last record status and when it was sampled, to extrapolate the in-file position at keypress time
+  private lastRecordStatus: ObsRecordStatus | null = null;
+  private lastRecordSampleAt = 0;
+  private lastSignalSeq: number | null = null;
+
   onStatusChange?: (connected: boolean) => void;
   onRecordChange?: (status: ObsRecordStatus) => void;
+  onHotkeySignal?: (signal: ObsHotkeySignal) => void;
 
   constructor() {
     this.obs = new OBSWebSocket();
@@ -35,9 +54,12 @@ export class ObsService {
   }
 
   async connect(address = 'ws://127.0.0.1:4455', password?: string): Promise<boolean> {
+    if (this.isConnected) {
+      await this.disconnect();
+    }
     try {
       await this.obs.connect(address, password || undefined, {
-        eventSubscriptions: 0x00000001 | 0x00000040, // General + Outputs
+        eventSubscriptions: EVENT_SUB_GENERAL | EVENT_SUB_INPUTS | EVENT_SUB_OUTPUTS,
       });
 
       this.isConnected = true;
@@ -69,8 +91,22 @@ export class ObsService {
   }
 
   private setupListeners() {
-    this.obs.on('RecordStateChanged', (data) => {
+    this.obs.removeAllListeners('RecordStateChanged');
+    this.obs.removeAllListeners('InputSettingsChanged');
+    this.obs.removeAllListeners('ConnectionClosed');
+
+    this.obs.on('RecordStateChanged', () => {
       this.queryRecordStatus();
+    });
+
+    // Global hotkeys: the Lua script bumps `sc_seq` on the signal input; each new seq is one press
+    this.obs.on('InputSettingsChanged', ({ inputName, inputSettings }) => {
+      if (inputName !== SIGNAL_INPUT_NAME) return;
+      const category = inputSettings?.sc_category;
+      const seq = Number(inputSettings?.sc_seq);
+      if (typeof category !== 'string' || !Number.isFinite(seq) || seq === this.lastSignalSeq) return;
+      this.lastSignalSeq = seq;
+      this.onHotkeySignal?.({ category, seq });
     });
 
     this.obs.on('ConnectionClosed', () => {
@@ -94,6 +130,17 @@ export class ObsService {
       clearInterval(this.pollInterval);
       this.pollInterval = null;
     }
+  }
+
+  /**
+   * Estimated position (ms) inside the current recording file right now, or null if not recording.
+   * Extrapolates from the last GetRecordStatus sample so it is accurate between 1s polls.
+   */
+  getEstimatedRecordMs(): number | null {
+    const status = this.lastRecordStatus;
+    if (!this.isConnected || !status?.outputActive) return null;
+    if (status.outputPaused) return status.outputDuration;
+    return Math.round(status.outputDuration + (performance.now() - this.lastRecordSampleAt));
   }
 
   async getVideoSettings(): Promise<ObsVideoSettings | null> {
@@ -127,6 +174,8 @@ export class ObsService {
         outputDuration: res.outputDuration,
         outputBytes: res.outputBytes,
       };
+      this.lastRecordStatus = status;
+      this.lastRecordSampleAt = performance.now();
       this.onRecordChange?.(status);
       return status;
     } catch (err) {
