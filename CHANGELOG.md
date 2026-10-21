@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-21
+
+### Added
+- **Native OBS recording chapters**: the Dock writes each marker as a chapter into the streamer's own recording via `CreateRecordChapter` (obs-websocket 5.5 / OBS 30.2+, Hybrid MP4). Support is detected from `GetVersion.availableRequests`; rejected chapters (e.g. non-Hybrid MP4 format) are reported in the Dock settings. Optional: also write squadmates' markers. Preferences persist per device.
+- **Undo**: `UNDO_LAST_MARKER` removes the dock's own most recent marker (resolved server-side). Dock Undo button, `0` / `Ctrl+Z`, a new "Undo my last marker" global hotkey in the OBS Lua script, and `POST /api/rooms/:id/markers/undo` for Stream Deck (member token).
+- **Edit / delete markers**: `UPDATE_MARKER` (label, comment, category, color; timing is immutable; a new category brings its default DaVinci color) and `DELETE_MARKER`, allowed for the author's dock or the room host. Broadcast as `MARKER_UPDATED` / `MARKER_DELETED`. Inline edit / delete on Director Panel timeline rows for the host.
+- **Session history**: `GET /api/rooms/:id/sessions` (newest first, with marker counts) and a Session History card in the Director Panel to review, edit and export past sessions.
+- `docs/stream-deck.md`: Stream Deck, Streamer.bot (C#), PowerShell and curl guide for quick-mark and undo.
+- Tests: `markers.test.ts` and the first client test suite `obs.test.ts` (101 total).
+
 ## [1.4.0] - 2026-10-20
 
 ### Changed
@@ -163,7 +173,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed exporter access after session stop to allow post-broadcast timeline generation.
 - Fixed route navigation handling for both query string (`?view=dock`) and hash routing (`#/dock`).
 
-[Unreleased]: https://github.com/Consterna/streamcollab/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/Consterna/streamcollab/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/Consterna/streamcollab/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/Consterna/streamcollab/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/Consterna/streamcollab/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/Consterna/streamcollab/compare/v1.1.0...v1.2.0
