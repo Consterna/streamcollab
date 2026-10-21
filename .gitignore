@@ -5,6 +5,15 @@ node_modules/
 
 # Production & Build outputs
 dist/
+
+# Playwright E2E artifacts
+e2e/.data/
+test-results/
+playwright-report/
+blob-report/
+
+# Local Claude Code launch configs
+.claude/
 build/
 out/
 .cache/

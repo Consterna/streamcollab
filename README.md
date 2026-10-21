@@ -23,11 +23,11 @@ StreamCollab allows competitive gaming squads, content creator groups, and espor
   - **Native OBS chapters**: each marker is also written as a chapter into your own recording (OBS 30.2+, Hybrid MP4), optionally including your squadmates' markers.
   - Live reverse-chronological marker history with SMPTE timecode.
 
-- **OBS Browser Source HUD (Transparent 60 FPS Overlay)**:
+- **OBS Browser Source HUD (Transparent Overlay)**:
   - Transparent gaming overlay (`bg-transparent`) optimized for OBS Studio Browser Sources.
-  - 60 FPS GPU-accelerated animated alert toasts that slide into the stream when any squadmate records a highlight.
+  - CSS-animated alert toasts that slide into the stream when any squadmate records a highlight.
   - Real-time squad status HUD badge showing each creator's live OBS recording health (🔴 REC, ⏸️ PAUSED, ⚪ IDLE).
-  - **Resource Optimization**: Hooks into OBS's native `obsSourceVisibleChanged` event to throttle timers and suspend heavy CSS animations when the source/scene is hidden, preserving 100% GPU performance for gaming.
+  - **Resource Optimization**: Listens to OBS's `obsSourceVisibleChanged` event and stops rendering and toast timers while the source / scene is hidden.
 
 - **High-Precision SMPTE Timecode Engine**:
   - Pure rational arithmetic avoiding floating-point drift over multi-hour broadcasts.
@@ -51,7 +51,7 @@ StreamCollab allows competitive gaming squads, content creator groups, and espor
 - **High-Concurrency Fastify Backend & SQLite WAL**:
   - Fastify v5 with `@fastify/websocket` v11 and `@fastify/cors`.
   - Native Node 24 `node:sqlite` (`DatabaseSync`) configured with Write-Ahead Logging (`PRAGMA journal_mode = WAL`) and normal synchronous mode for maximum throughput.
-  - **SNTP 4-Timestamp Engine**: Sub-millisecond RTT & clock offset calibration ($\theta = \frac{(T_2 - T_1) + (T_3 - T_4)}{2}$) between streamers' PCs and the server.
+  - **SNTP 4-Timestamp Engine**: Continuous RTT & clock offset calibration (smoothed every 5 s) ($\theta = \frac{(T_2 - T_1) + (T_3 - T_4)}{2}$) between streamers' PCs and the server.
 
 ---
 
@@ -134,7 +134,8 @@ All 101 unit and integration tests verify SMPTE drop frame boundaries, NLE XML/E
 ### Developer Workflow
 | Command | What it does |
 | --- | --- |
-| `npm.cmd run check` | Everything CI runs: lint, format check, typecheck and tests |
+| `npm.cmd run check` | Lint, format check, typecheck and unit / integration tests |
+| `npm.cmd run e2e` | Playwright end-to-end tests against the compiled server (run `build` first) |
 | `npm.cmd run lint` | ESLint 10 (TypeScript + React hooks / React Compiler rules) |
 | `npm.cmd run format` | Prettier (`format:check` to verify only) |
 | `npm.cmd run typecheck` | `tsc -b` (shared, server) + client `tsc --noEmit` |
@@ -338,6 +339,10 @@ npm.cmd test
 - `packages/server/test/deploy.test.ts`: Environment validation, serving the compiled client (SPA fallback, cache headers, no path traversal), security headers, API-only mode.
 - `packages/server/test/security.test.ts`: Host / member tokens, spoofing attempts, cross-room access, Zod validation errors, CORS, REST and WebSocket rate limits, oversized frames.
 - `packages/server/test/ws.test.ts`: Real-socket WebSocket rooms (Dock + HUD with the same member id), heartbeat, calibrated marker timestamps, recording anchors, per-POV exports, and in-place migration of v1.0.0 databases.
+
+**End-to-end (Playwright):** `npm.cmd run build` then `npm.cmd run e2e`. Starts the compiled server on port 3210 with a throwaway database and drives real Chromium windows as separate identities (host, streamer dock, HUD, viewer): session start, hotkeys and undo, HUD toasts, the HUD preview's way back, editing / deleting markers, session history and exports, wrong room codes. OBS's WebSocket is mocked, so the run never touches an OBS open on the same machine. `npx.cmd playwright install chromium` once before the first run.
+
+**With real OBS:** follow the checklist in [docs/local-testing.md](docs/local-testing.md) (no VPS needed).
 
 ---
 

@@ -526,8 +526,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </h3>
 
             <div>
-              <label className="text-xs font-semibold text-zinc-400 block mb-1">Session Name</label>
+              <label htmlFor="sessionName" className="text-xs font-semibold text-zinc-400 block mb-1">
+                Session Name
+              </label>
               <input
+                id="sessionName"
                 type="text"
                 required
                 value={sessionName}
@@ -537,8 +540,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-zinc-400 block mb-1">Timeline Framerate</label>
+              <label htmlFor="sessionFramerate" className="text-xs font-semibold text-zinc-400 block mb-1">
+                Timeline Framerate
+              </label>
               <select
+                id="sessionFramerate"
                 value={selectedFramerate}
                 onChange={(e) => {
                   setSelectedFramerate(e.target.value);
@@ -575,8 +581,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-zinc-400 block mb-1">Base Starting Timecode</label>
+              <label htmlFor="sessionBaseTimecode" className="text-xs font-semibold text-zinc-400 block mb-1">
+                Base Starting Timecode
+              </label>
               <input
+                id="sessionBaseTimecode"
                 type="text"
                 required
                 value={baseTimecode}

@@ -7,7 +7,7 @@ import globals from 'globals';
 import prettier from 'eslint-config-prettier';
 
 export default defineConfig([
-  globalIgnores(['**/dist/**', '**/node_modules/**', '**/coverage/**']),
+  globalIgnores(['**/dist/**', '**/node_modules/**', '**/coverage/**', 'test-results/**', 'playwright-report/**']),
 
   js.configs.recommended,
   tseslint.configs.recommended,
