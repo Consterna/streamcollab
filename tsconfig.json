@@ -1,0 +1,6 @@
+{
+  // Solution file: `tsc -b` builds shared, then server, in dependency order (incrementally).
+  // The client is type-checked separately (noEmit, bundler resolution) and bundled by Vite.
+  "files": [],
+  "references": [{ "path": "./packages/shared" }, { "path": "./packages/server" }]
+}

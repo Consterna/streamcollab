@@ -9,7 +9,7 @@ import {
   exportToYouTubeChapters,
 } from '@streamcollab/shared';
 import { apiUrl } from '../services/serverUrl';
-import { Download, Copy, Check, X, FileText, Film, Table, Youtube, Layers } from 'lucide-react';
+import { Download, Copy, Check, X, FileText, Film, Table, ListVideo, Layers } from 'lucide-react';
 
 interface ExportModalProps {
   isOpen: boolean;
@@ -130,7 +130,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     { id: 'edl', label: 'DaVinci Resolve', desc: 'CMX 3600 EDL (Color markers)', icon: Film },
     { id: 'xml', label: 'Premiere Pro', desc: 'Final Cut Pro 7 XML (xmeml v4)', icon: FileText },
     { id: 'csv', label: 'Universal CSV', desc: 'Excel, Sheets & Markerbox', icon: Table },
-    { id: 'youtube', label: 'YouTube Chapters', desc: 'Video description timestamp format', icon: Youtube },
+    { id: 'youtube', label: 'YouTube Chapters', desc: 'Video description timestamp format', icon: ListVideo },
     { id: 'matrix', label: 'Multicam Matrix', desc: 'Multi-POV sync matrix JSON', icon: Layers },
   ];
 

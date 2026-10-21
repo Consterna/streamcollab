@@ -9,7 +9,9 @@
     "packages/client"
   ],
   "scripts": {
-    "build": "npm run build --workspaces",
+    "build": "tsc -b && npm run build --workspace=packages/client",
+    "typecheck": "tsc -b && npm run typecheck --workspace=packages/client",
+    "clean": "tsc -b --clean",
     "test": "vitest run",
     "dev:server": "npm run dev --workspace=packages/server",
     "dev:client": "npm run dev --workspace=packages/client",
@@ -17,7 +19,8 @@
     "start": "npm run start --workspace=packages/server"
   },
   "devDependencies": {
-    "typescript": "^5.8.2",
-    "vitest": "^3.0.7"
+    "typescript": "~6.0.3",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.5"
   }
 }
