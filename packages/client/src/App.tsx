@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { SquadMember, Room, RecordingSession, SquadMarker, ClientKind } from '@streamcollab/shared';
 import { ObsService } from './services/obs';
 import { StreamCollabSocketClient } from './services/socket';
@@ -6,37 +6,77 @@ import { getLastRoom, saveLastRoom, saveHostToken } from './services/credentials
 import { DockView } from './views/DockView';
 import { HudView } from './views/HudView';
 import { DashboardView } from './views/DashboardView';
+import { HudPreviewBar } from './components/HudPreviewBar';
+import { viewUrl } from './services/serverUrl';
 import { Monitor, Tv, LayoutDashboard } from 'lucide-react';
 
 function newMemberId() {
   return 'mem_' + Math.random().toString(36).substring(2, 9);
 }
 
+type View = 'dock' | 'hud' | 'dashboard';
+const VIEWS: View[] = ['dock', 'hud', 'dashboard'];
+
+function asView(value: string | null | undefined): View | null {
+  const v = value?.toLowerCase();
+  return VIEWS.includes(v as View) ? (v as View) : null;
+}
+
+/**
+ * Keep the URL in sync with the view (`?view=`), so reloading stays on the same screen.
+ * `preview=1` marks a HUD opened from the app itself, which shows a way back; the HUD link
+ * used in OBS never carries it, so the real overlay stays clean.
+ */
+function writeViewToUrl(view: View, preview: boolean) {
+  const url = new URL(window.location.href);
+  url.searchParams.set('view', view);
+  if (preview) {
+    url.searchParams.set('preview', '1');
+  } else {
+    url.searchParams.delete('preview');
+  }
+  url.hash = '';
+  window.history.replaceState(null, '', url);
+}
+
 export function App() {
-  // Parse initial view from pathname, query parameters, or hash
-  const initialView = useMemo(() => {
+  // Parse initial view from query parameters, hash (legacy links) or pathname
+  const initialView = useMemo<View>(() => {
     const params = new URLSearchParams(window.location.search);
-    const viewParam = params.get('view')?.toLowerCase();
-    if (viewParam && ['dock', 'hud', 'dashboard'].includes(viewParam)) {
-      return viewParam;
-    }
-    const hash = window.location.hash.replace(/^#\/?/, '').toLowerCase();
-    if (['dock', 'hud', 'dashboard'].includes(hash)) {
-      return hash;
-    }
-    const path = window.location.pathname.replace(/^\//, '').toLowerCase();
-    if (['dock', 'hud', 'dashboard'].includes(path)) {
-      return path;
-    }
-    return 'dock';
+    return (
+      asView(params.get('view')) ??
+      asView(window.location.hash.replace(/^#\/?/, '')) ??
+      asView(window.location.pathname.replace(/^\//, '')) ??
+      'dock'
+    );
   }, []);
+  const initialHudPreview = useMemo(
+    () => initialView === 'hud' && new URLSearchParams(window.location.search).get('preview') === '1',
+    [initialView]
+  );
 
   const initialRoom = useMemo(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get('room') || getLastRoom() || '';
   }, []);
 
-  const [currentView, setCurrentView] = useState<string>(initialView);
+  const [currentView, setCurrentView] = useState<View>(initialView);
+  const [hudPreview, setHudPreview] = useState(initialHudPreview);
+  // Where "Back" returns from the HUD preview
+  const [returnView, setReturnView] = useState<View>('dock');
+
+  const navigateTo = useCallback(
+    (view: View) => {
+      const preview = view === 'hud';
+      if (preview && currentView !== 'hud') setReturnView(currentView);
+      writeViewToUrl(view, preview);
+      setCurrentView(view);
+      setHudPreview(preview);
+    },
+    [currentView]
+  );
+
+  const exitHudPreview = useCallback(() => navigateTo(returnView), [navigateTo, returnView]);
   const [roomId, setRoomId] = useState<string>(initialRoom);
   const [userName, setUserName] = useState<string>(() => {
     return localStorage.getItem('streamcollab_username') || `Player_${Math.floor(100 + Math.random() * 900)}`;
@@ -250,12 +290,14 @@ export function App() {
     };
   }, [socketClient, roomId, member, clientKind, joinKey]);
 
-  // Handle URL hash changes
+  // Legacy #/dock, #/hud, #/dashboard links typed into the address bar
   useEffect(() => {
     const handleHash = () => {
-      const h = window.location.hash.replace(/^#\/?/, '').toLowerCase();
-      if (['dock', 'hud', 'dashboard'].includes(h)) {
-        setCurrentView(h);
+      const view = asView(window.location.hash.replace(/^#\/?/, ''));
+      if (view) {
+        writeViewToUrl(view, false);
+        setCurrentView(view);
+        setHudPreview(false);
       }
     };
     window.addEventListener('hashchange', handleHash);
@@ -264,7 +306,12 @@ export function App() {
 
   // For HUD view in OBS Browser Source, render transparent without wrapper navigation
   if (currentView === 'hud') {
-    return <HudView socketClient={socketClient} members={room?.members || []} activeSession={activeSession} />;
+    return (
+      <>
+        <HudView socketClient={socketClient} members={room?.members || []} activeSession={activeSession} />
+        {hudPreview && <HudPreviewBar hudUrl={viewUrl('hud', roomId)} onExit={exitHudPreview} />}
+      </>
+    );
   }
 
   return (
@@ -273,10 +320,7 @@ export function App() {
       <nav className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900/90 px-4 py-2 text-xs">
         <div className="flex items-center gap-1">
           <button
-            onClick={() => {
-              setCurrentView('dock');
-              window.location.hash = '/dock';
-            }}
+            onClick={() => navigateTo('dock')}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1 font-semibold transition ${
               currentView === 'dock'
                 ? 'bg-indigo-600 text-white shadow-xs'
@@ -288,25 +332,16 @@ export function App() {
           </button>
 
           <button
-            onClick={() => {
-              setCurrentView('hud');
-              window.location.hash = '/hud';
-            }}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1 font-semibold transition ${
-              currentView === 'hud'
-                ? 'bg-indigo-600 text-white shadow-xs'
-                : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
-            }`}
+            onClick={() => navigateTo('hud')}
+            title="Preview the overlay (Esc or Back returns here)"
+            className="flex items-center gap-1.5 rounded-lg px-3 py-1 font-semibold transition text-zinc-400 hover:bg-zinc-800 hover:text-white"
           >
             <Monitor className="h-3.5 w-3.5" />
             OBS Overlay HUD
           </button>
 
           <button
-            onClick={() => {
-              setCurrentView('dashboard');
-              window.location.hash = '/dashboard';
-            }}
+            onClick={() => navigateTo('dashboard')}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1 font-semibold transition ${
               currentView === 'dashboard'
                 ? 'bg-indigo-600 text-white shadow-xs'

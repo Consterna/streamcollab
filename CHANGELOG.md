@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-10-21
+
+### Fixed
+- Opening **OBS Overlay HUD** from the app's navigation left no way back (the HUD hides the navigation so it stays clean in OBS). It now opens as a preview with a floating **Back** button (also `Esc`) and a **Copy OBS link** button; the link used in OBS (`?view=hud&room=...`) still renders the bare overlay.
+- Switching views now updates `?view=` in the URL instead of the `#` hash, so reloading keeps the current view and URLs like `?view=dock...#/hud` no longer contradict each other.
+
 ## [1.5.0] - 2026-10-21
 
 ### Added
@@ -173,7 +179,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed exporter access after session stop to allow post-broadcast timeline generation.
 - Fixed route navigation handling for both query string (`?view=dock`) and hash routing (`#/dock`).
 
-[Unreleased]: https://github.com/Consterna/streamcollab/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/Consterna/streamcollab/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/Consterna/streamcollab/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/Consterna/streamcollab/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/Consterna/streamcollab/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/Consterna/streamcollab/compare/v1.2.0...v1.3.0
