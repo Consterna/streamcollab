@@ -9,6 +9,7 @@ import {
   exportToYouTubeChapters,
 } from '@streamcollab/shared';
 import { apiUrl } from '../services/serverUrl';
+import type { LucideIcon } from 'lucide-react';
 import { Download, Copy, Check, X, FileText, Film, Table, ListVideo, Layers } from 'lucide-react';
 
 interface ExportModalProps {
@@ -125,7 +126,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, sessi
     URL.revokeObjectURL(url);
   };
 
-  const formats: { id: ExportType; label: string; desc: string; icon: any }[] = [
+  const formats: { id: ExportType; label: string; desc: string; icon: LucideIcon }[] = [
     { id: 'edl', label: 'DaVinci Resolve', desc: 'CMX 3600 EDL (Color markers)', icon: Film },
     { id: 'xml', label: 'Premiere Pro', desc: 'Final Cut Pro 7 XML (xmeml v4)', icon: FileText },
     { id: 'csv', label: 'Universal CSV', desc: 'Excel, Sheets & Markerbox', icon: Table },

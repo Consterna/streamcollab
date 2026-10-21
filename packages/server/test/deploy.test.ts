@@ -21,7 +21,10 @@ describe('Server configuration', () => {
       trustProxy: false,
       logLevel: 'info',
       clientDist: DEFAULT_CLIENT_DIST,
+      roomCreateLimitPerMinute: 10,
     });
+    expect(loadConfig({ ROOM_CREATE_LIMIT_PER_MINUTE: '50' }).roomCreateLimitPerMinute).toBe(50);
+    expect(() => loadConfig({ ROOM_CREATE_LIMIT_PER_MINUTE: '0' })).toThrow(/ROOM_CREATE_LIMIT_PER_MINUTE/);
     expect(config.adminToken).toBeUndefined();
     expect(config.databasePath).toBeUndefined();
   });

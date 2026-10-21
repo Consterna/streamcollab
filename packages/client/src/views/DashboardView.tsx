@@ -6,6 +6,7 @@ import { RoomSetupPanel } from '../components/RoomSetupPanel';
 import { MarkerRow } from '../components/MarkerRow';
 import { SessionHistory } from '../components/SessionHistory';
 import { apiUrl } from '../services/serverUrl';
+import { deleteSession } from '../services/api';
 import { Play, Square, Users, Film, Download, Radio, Search, Layers } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -17,6 +18,16 @@ interface DashboardViewProps {
   markers: SquadMarker[];
   isHost: boolean;
   onRoomChange: (newRoomId: string) => void;
+}
+
+/** "3m ago" style relative time for offline members */
+function formatAgo(timestamp: number): string {
+  const seconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
+  if (seconds < 60) return 'just now';
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  return hours < 48 ? `${hours}h ago` : `${Math.round(hours / 24)}d ago`;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -37,8 +48,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [history, setHistory] = useState<{ sessionId: string; markers: SquadMarker[] } | null>(null);
   const viewingHistory = Boolean(selectedSessionId && selectedSessionId !== liveSession?.id);
 
-  // Refresh the list when sessions start / stop or marker counts change
-  const sessionsKey = `${room?.id}|${activeSession?.id}|${lastSession?.stoppedAt}|${markers.length}`;
+  // Refresh the list when sessions start / stop / are deleted or marker counts change
+  const [deletedSessions, setDeletedSessions] = useState(0);
+  const sessionsKey = `${room?.id}|${activeSession?.id}|${lastSession?.stoppedAt}|${markers.length}|${deletedSessions}`;
   useEffect(() => {
     if (!room?.id) return;
     const controller = new AbortController();
@@ -80,11 +92,29 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           : prev
       )
     );
+    const offSessionDeleted = socketClient.on('onSessionDeleted', (sessionId) => {
+      setDeletedSessions((n) => n + 1);
+      setSelectedSessionId((current) => (current === sessionId ? null : current));
+    });
     return () => {
       offUpdated();
       offDeleted();
+      offSessionDeleted();
     };
   }, [socketClient]);
+
+  const handleDeleteSession = async (session: SessionSummary) => {
+    if (
+      !window.confirm(`Delete session "${session.name}" and its ${session.markerCount} markers? This cannot be undone.`)
+    ) {
+      return;
+    }
+    try {
+      await deleteSession(roomId, session.id);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Could not delete the session');
+    }
+  };
 
   const viewedSession: RecordingSession | null = viewingHistory
     ? (sessions.find((session) => session.id === selectedSessionId) ?? null)
@@ -153,7 +183,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     return matchCat && matchSearch;
   });
 
-  const members = room?.members || [];
+  // Online docks first, then offline members by most recently seen
+  const members = [...(room?.members || [])].sort(
+    (a, b) => Number(b.online !== false) - Number(a.online !== false) || b.lastHeartbeat - a.lastHeartbeat
+  );
+
+  const handleRemoveMember = (memberId: string, name: string) => {
+    if (window.confirm(`Remove ${name} from this room? Their markers stay; if they come back they rejoin as new.`)) {
+      socketClient.removeMember(memberId);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans select-none">
@@ -261,12 +300,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       <th className="pb-2">FPS</th>
                       <th className="pb-2">CLOCK OFFSET (Δ)</th>
                       <th className="pb-2">RTT</th>
+                      {isHost && <th className="pb-2" aria-label="Actions" />}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-800/60 font-mono">
                     {members.map((m) => {
                       const isRec = m.obsStatus === 'recording';
                       const isPaused = m.obsStatus === 'paused';
+                      const isOffline = m.online === false;
 
                       return (
                         <tr key={m.id} className="hover:bg-zinc-800/40 transition">
@@ -278,7 +319,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           </td>
                           <td className="py-2.5 font-sans capitalize text-zinc-400">{m.role}</td>
                           <td className="py-2.5 font-sans">
-                            {isRec ? (
+                            {isOffline ? (
+                              <span
+                                className="inline-flex items-center gap-1.5 rounded-full bg-zinc-900 px-2 py-0.5 text-[10px] font-medium text-zinc-500 border border-zinc-800"
+                                title={m.lastHeartbeat ? new Date(m.lastHeartbeat).toLocaleString() : undefined}
+                              >
+                                OFFLINE{m.lastHeartbeat ? ` · ${formatAgo(m.lastHeartbeat)}` : ''}
+                              </span>
+                            ) : isRec ? (
                               <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/20 px-2 py-0.5 text-[10px] font-bold text-red-400 border border-red-500/30">
                                 <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse" />
                                 RECORDING
@@ -309,6 +357,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             </span>
                           </td>
                           <td className="py-2.5 text-zinc-400">{m.rttMs.toFixed(1)}ms</td>
+                          {isHost && (
+                            <td className="py-2.5 text-right font-sans">
+                              {isOffline && (
+                                <button
+                                  onClick={() => handleRemoveMember(m.id, m.name)}
+                                  className="rounded-sm px-2 py-0.5 text-[11px] text-zinc-500 hover:bg-zinc-800 hover:text-red-400"
+                                  title="Remove this offline member from the room"
+                                >
+                                  Remove
+                                </button>
+                              )}
+                            </td>
+                          )}
                         </tr>
                       );
                     })}
@@ -386,6 +447,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             viewedSessionId={selectedSessionId}
             liveSessionId={liveSession?.id ?? null}
             onSelect={setSelectedSessionId}
+            onDelete={isHost ? handleDeleteSession : undefined}
           />
 
           {/* Session Overview Card */}

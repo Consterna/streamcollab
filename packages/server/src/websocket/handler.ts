@@ -11,7 +11,13 @@ export const WS_RATE_LIMIT = { burst: 40, refillPerSecond: 20 };
 
 export interface WebSocketHandlerOptions {
   heartbeatIntervalMs?: number;
+  // Unknown room codes tolerated per IP and window before joins from that IP are refused
+  joinFailureLimit?: { max: number; windowMs: number };
 }
+
+// Room codes are the invite, so stop clients that try many codes (they can't be throttled
+// per socket alone, since opening new sockets is free)
+export const DEFAULT_JOIN_FAILURE_LIMIT = { max: 20, windowMs: 60_000 };
 
 export function registerWebSocketHandler(
   fastify: FastifyInstance,
@@ -37,7 +43,39 @@ export function registerWebSocketHandler(
     clearInterval(heartbeat);
   });
 
-  fastify.get('/ws', { websocket: true }, (socket: WebSocket /*, req */) => {
+  const joinFailureLimit = options.joinFailureLimit ?? DEFAULT_JOIN_FAILURE_LIMIT;
+  const failedJoins = new Map<string, { count: number; windowStart: number }>();
+  const joinsBlocked = (ip: string) => {
+    const entry = failedJoins.get(ip);
+    if (!entry) return false;
+    if (Date.now() - entry.windowStart > joinFailureLimit.windowMs) {
+      failedJoins.delete(ip);
+      return false;
+    }
+    return entry.count >= joinFailureLimit.max;
+  };
+  const recordFailedJoin = (ip: string) => {
+    const now = Date.now();
+    const entry = failedJoins.get(ip);
+    if (!entry || now - entry.windowStart > joinFailureLimit.windowMs) {
+      failedJoins.set(ip, { count: 1, windowStart: now });
+    } else {
+      entry.count++;
+    }
+  };
+  const pruneFailedJoins = setInterval(() => {
+    const now = Date.now();
+    for (const [ip, entry] of failedJoins) {
+      if (now - entry.windowStart > joinFailureLimit.windowMs) failedJoins.delete(ip);
+    }
+  }, joinFailureLimit.windowMs);
+  pruneFailedJoins.unref();
+  fastify.addHook('onClose', async () => {
+    clearInterval(pruneFailedJoins);
+  });
+
+  fastify.get('/ws', { websocket: true }, (socket: WebSocket, req) => {
+    const ip = req.ip;
     liveSockets.set(socket, true);
     socket.on('pong', () => {
       liveSockets.set(socket, true);
@@ -89,8 +127,18 @@ export function registerWebSocketHandler(
         }
 
         if (message.type === 'JOIN_ROOM') {
+          if (joinsBlocked(ip)) {
+            sendError('RATE_LIMITED', 'Too many unknown room codes from your network; try again in a minute');
+            socket.close(1008, 'Too many failed joins');
+            return;
+          }
           const { roomId, member, clientKind, memberToken, hostToken } = message.payload;
-          roomManager.joinRoom(socket, roomId, clientKind, member, { memberToken, hostToken });
+          try {
+            roomManager.joinRoom(socket, roomId, clientKind, member, { memberToken, hostToken });
+          } catch (err) {
+            if (err instanceof RoomError && err.code === 'ROOM_NOT_FOUND') recordFailedJoin(ip);
+            throw err;
+          }
           return;
         }
 
@@ -174,8 +222,13 @@ export function registerWebSocketHandler(
             roomManager.undoLastMarker(client.roomId, client.memberId);
             break;
           }
+
+          case 'REMOVE_MEMBER': {
+            roomManager.removeMember(client, message.payload.memberId);
+            break;
+          }
         }
-      } catch (err: any) {
+      } catch (err) {
         if (err instanceof RoomError) {
           sendError(err.code, err.message);
         } else {

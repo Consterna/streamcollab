@@ -45,7 +45,13 @@ export interface ObsServiceEvents {
   record: (status: ObsRecordStatus) => void;
   hotkey: (signal: ObsHotkeySignal) => void;
   chapters: (support: ObsChapterSupport) => void;
+  // Next automatic reconnection attempt in `delayMs`, or null when not retrying
+  retry: (delayMs: number | null) => void;
 }
+
+// Automatic reconnection backoff: OBS may start after the dock, or be restarted mid-stream
+export const OBS_RECONNECT_MIN_MS = 2_000;
+export const OBS_RECONNECT_MAX_MS = 30_000;
 
 // obs-websocket v5 event subscription bits
 const EVENT_SUB_GENERAL = 1;
@@ -55,7 +61,13 @@ const EVENT_SUB_OUTPUTS = 64;
 export class ObsService {
   private obs: OBSWebSocket;
   private isConnected = false;
-  private pollInterval: any = null;
+  private pollInterval: ReturnType<typeof setInterval> | null = null;
+
+  // Last address / password used, and whether we should keep reconnecting to them
+  private target: { address: string; password?: string } | null = null;
+  private keepConnected = false;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconnectDelay = OBS_RECONNECT_MIN_MS;
 
   // Last record status and when it was sampled, to extrapolate the in-file position at keypress time
   private lastRecordStatus: ObsRecordStatus | null = null;
@@ -68,6 +80,7 @@ export class ObsService {
     record: new Set(),
     hotkey: new Set(),
     chapters: new Set(),
+    retry: new Set(),
   };
 
   /** Subscribe to OBS events; returns an unsubscribe function for effect cleanups */
@@ -90,10 +103,29 @@ export class ObsService {
     return this.isConnected;
   }
 
+  /**
+   * Connect to OBS and keep the connection alive: if OBS isn't running yet, or closes later,
+   * retry with exponential backoff until `disconnect()` is called.
+   */
   async connect(address = 'ws://127.0.0.1:4455', password?: string): Promise<boolean> {
+    this.target = { address, password };
+    // Closing the previous socket on purpose must not trigger the automatic reconnection
+    this.keepConnected = false;
+    this.cancelReconnect();
     if (this.isConnected) {
-      await this.disconnect();
+      await this.closeSocket();
     }
+    this.keepConnected = true;
+    return this.attemptConnect();
+  }
+
+  get retrying(): boolean {
+    return this.reconnectTimer !== null;
+  }
+
+  private async attemptConnect(): Promise<boolean> {
+    if (!this.target) return false;
+    const { address, password } = this.target;
     try {
       await this.obs.connect(address, password || undefined, {
         eventSubscriptions: EVENT_SUB_GENERAL | EVENT_SUB_INPUTS | EVENT_SUB_OUTPUTS,
@@ -106,16 +138,46 @@ export class ObsService {
       this.startPolling();
       void this.detectChapterSupport();
 
+      this.reconnectDelay = OBS_RECONNECT_MIN_MS;
+      this.emit('retry', null);
       return true;
     } catch (err) {
       console.warn('[ObsService] Failed to connect to OBS WebSocket:', err);
       this.isConnected = false;
       this.emit('status', false);
+      this.scheduleReconnect();
       return false;
     }
   }
 
+  private scheduleReconnect() {
+    if (!this.keepConnected || this.reconnectTimer) return;
+    const delay = this.reconnectDelay;
+    this.reconnectDelay = Math.min(this.reconnectDelay * 2, OBS_RECONNECT_MAX_MS);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      void this.attemptConnect();
+    }, delay);
+    this.emit('retry', delay);
+  }
+
+  private cancelReconnect() {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.reconnectDelay = OBS_RECONNECT_MIN_MS;
+    this.emit('retry', null);
+  }
+
+  /** Disconnect on purpose: stops automatic reconnection */
   async disconnect() {
+    this.keepConnected = false;
+    this.cancelReconnect();
+    await this.closeSocket();
+  }
+
+  private async closeSocket() {
     this.stopPolling();
     if (this.isConnected) {
       try {
@@ -151,6 +213,8 @@ export class ObsService {
       this.isConnected = false;
       this.stopPolling();
       this.emit('status', false);
+      // OBS closed or crashed: come back automatically once it is running again
+      this.scheduleReconnect();
     });
   }
 

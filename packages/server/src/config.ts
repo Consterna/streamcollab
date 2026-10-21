@@ -25,6 +25,7 @@ const envSchema = z.object({
     z.string().min(16, 'ADMIN_TOKEN must be at least 16 characters').optional()
   ),
   TRUST_PROXY: booleanFlag,
+  ROOM_CREATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).max(10_000).default(10),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
 
@@ -37,6 +38,7 @@ export interface ServerConfig {
   adminToken?: string;
   trustProxy: boolean;
   logLevel: string;
+  roomCreateLimitPerMinute: number;
 }
 
 const serverDir = path.dirname(fileURLToPath(import.meta.url));
@@ -79,6 +81,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     adminToken: e.ADMIN_TOKEN,
     trustProxy: e.TRUST_PROXY,
     logLevel: e.LOG_LEVEL,
+    roomCreateLimitPerMinute: e.ROOM_CREATE_LIMIT_PER_MINUTE,
   };
 }
 

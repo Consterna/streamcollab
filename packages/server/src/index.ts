@@ -18,10 +18,12 @@ export interface ServerOptions {
   dbPath?: string;
   logger?: boolean | { level: string };
   heartbeatIntervalMs?: number;
+  joinFailureLimit?: { max: number; windowMs: number };
   // Origins allowed to call the REST API cross-origin. Empty = same-origin only
   // (the client is served by the same host in production and proxied by Vite in dev).
   allowedOrigins?: string[];
   adminToken?: string;
+  roomCreateLimitPerMinute?: number;
   trustProxy?: boolean;
   // Compiled client (packages/client/dist) to serve at "/". Omit to serve the API only.
   clientDir?: string;
@@ -45,7 +47,7 @@ export async function createServer(options: ServerOptions = {}) {
   const allowedOrigins = options.allowedOrigins ?? [];
   await fastify.register(cors, {
     origin: allowedOrigins.length > 0 ? allowedOrigins : false,
-    methods: ['GET', 'POST', 'OPTIONS'],
+    methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
@@ -59,8 +61,14 @@ export async function createServer(options: ServerOptions = {}) {
   const db = new DatabaseService(options.dbPath);
   const roomManager = new RoomManager(db);
 
-  registerApiRoutes(fastify, roomManager, db, { adminToken: options.adminToken });
-  registerWebSocketHandler(fastify, roomManager, { heartbeatIntervalMs: options.heartbeatIntervalMs });
+  registerApiRoutes(fastify, roomManager, db, {
+    adminToken: options.adminToken,
+    roomCreateLimitPerMinute: options.roomCreateLimitPerMinute,
+  });
+  registerWebSocketHandler(fastify, roomManager, {
+    heartbeatIntervalMs: options.heartbeatIntervalMs,
+    joinFailureLimit: options.joinFailureLimit,
+  });
 
   if (options.clientDir) {
     await registerClientApp(fastify, options.clientDir);
@@ -77,8 +85,8 @@ async function start() {
   let config;
   try {
     config = loadConfig();
-  } catch (err: any) {
-    console.error(err.message);
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : err);
     process.exit(1);
   }
 
@@ -88,6 +96,7 @@ async function start() {
     allowedOrigins: config.allowedOrigins,
     adminToken: config.adminToken,
     trustProxy: config.trustProxy,
+    roomCreateLimitPerMinute: config.roomCreateLimitPerMinute,
     clientDir: config.clientDist,
   });
 

@@ -86,3 +86,77 @@ describe('ObsService native recording chapters', () => {
     expect((data as { chapterName: string }).chapterName).toHaveLength(120);
   });
 });
+
+describe('ObsService automatic reconnection', () => {
+  // A fake obs-websocket client whose connect() fails `failures` times before succeeding
+  function flakyObs(failures: number) {
+    const handlers: Record<string, () => void> = {};
+    let remaining = failures;
+    const fake = {
+      connect: vi.fn(async () => {
+        if (remaining > 0) {
+          remaining--;
+          throw new Error('connect ECONNREFUSED 127.0.0.1:4455');
+        }
+        return {};
+      }),
+      disconnect: vi.fn(async () => undefined),
+      call: vi.fn(async () => ({ obsVersion: '31.1.0', availableRequests: [] })),
+      on: vi.fn((event: string, handler: () => void) => {
+        handlers[event] = handler;
+      }),
+      removeAllListeners: vi.fn(),
+    };
+    const service = new ObsService();
+    (service as unknown as { obs: typeof fake }).obs = fake;
+    return { service, fake, handlers };
+  }
+
+  it('keeps retrying with exponential backoff until OBS is up', async () => {
+    vi.useFakeTimers();
+    try {
+      const { service, fake } = flakyObs(2);
+      const retries: Array<number | null> = [];
+      service.on('retry', (delay) => retries.push(delay));
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+      expect(await service.connect('ws://127.0.0.1:4455', 'secret')).toBe(false);
+      expect(service.retrying).toBe(true);
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(fake.connect).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(4_000);
+
+      expect(fake.connect).toHaveBeenCalledTimes(3);
+      expect(fake.connect).toHaveBeenLastCalledWith('ws://127.0.0.1:4455', 'secret', expect.anything());
+      expect(service.connected).toBe(true);
+      expect(service.retrying).toBe(false);
+      expect(retries.filter((d) => d !== null)).toEqual([2_000, 4_000]);
+      await service.disconnect();
+    } finally {
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('reconnects after OBS closes, but not after a manual disconnect', async () => {
+    vi.useFakeTimers();
+    try {
+      const { service, fake, handlers } = flakyObs(0);
+      expect(await service.connect('ws://127.0.0.1:4455')).toBe(true);
+
+      handlers.ConnectionClosed(); // OBS quit or crashed
+      expect(service.connected).toBe(false);
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(fake.connect).toHaveBeenCalledTimes(2);
+      expect(service.connected).toBe(true);
+
+      await service.disconnect();
+      handlers.ConnectionClosed();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(fake.connect).toHaveBeenCalledTimes(2);
+      expect(service.retrying).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

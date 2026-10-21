@@ -1,7 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef, useEffectEvent } from 'react';
 import { SquadMarker, SquadMember, RecordingSession, Room, MarkerCategory, SMPTETimecode } from '@streamcollab/shared';
 import { ObsService, ObsRecordStatus, ObsVideoSettings, ObsHotkeySignal, ObsChapterSupport } from '../services/obs';
-import { getBoolPreference, setBoolPreference } from '../services/preferences';
+import {
+  getBoolPreference,
+  setBoolPreference,
+  getStringPreference,
+  setStringPreference,
+} from '../services/preferences';
 import { StreamCollabSocketClient } from '../services/socket';
 import { getMemberToken } from '../services/credentials';
 import { ExportModal } from '../components/ExportModal';
@@ -54,8 +59,17 @@ export const DockView: React.FC<DockViewProps> = ({
   const sessionForExport = activeSession || lastSession || null;
   // OBS states
   const [obsConnected, setObsConnected] = useState(obsService.connected);
-  const [obsAddress, setObsAddress] = useState('ws://127.0.0.1:4455');
-  const [obsPassword, setObsPassword] = useState('');
+  // Remembered per OBS profile so the dock reconnects by itself on every OBS start
+  const [obsAddress, setObsAddress] = useState(() => getStringPreference('obsAddress', 'ws://127.0.0.1:4455'));
+  const [obsPassword, setObsPassword] = useState(() => getStringPreference('obsPassword', ''));
+  const [obsRetryMs, setObsRetryMs] = useState<number | null>(null);
+  useEffect(() => obsService.on('retry', setObsRetryMs), [obsService]);
+
+  const connectObs = () => {
+    setStringPreference('obsAddress', obsAddress);
+    setStringPreference('obsPassword', obsPassword);
+    void obsService.connect(obsAddress, obsPassword);
+  };
   const [showObsSettings, setShowObsSettings] = useState(false);
   const [recordStatus, setRecordStatus] = useState<ObsRecordStatus | null>(null);
   const [videoSettings, setVideoSettings] = useState<ObsVideoSettings | null>(null);
@@ -125,7 +139,7 @@ export const DockView: React.FC<DockViewProps> = ({
     };
   }, [obsService, socketClient, roomId, member.id]);
 
-  // Auto-connect to OBS once on load
+  // Auto-connect to OBS on load; the service keeps retrying until OBS is running
   useEffect(() => {
     obsService.connect(obsAddress, obsPassword);
     return () => {
@@ -295,7 +309,9 @@ export const DockView: React.FC<DockViewProps> = ({
                 obsConnected ? 'bg-emerald-500 shadow-xs shadow-emerald-500/50' : 'bg-red-500'
               }`}
             />
-            <span className="font-semibold text-[11px]">{obsConnected ? 'OBS Linked' : 'OBS Disconnected'}</span>
+            <span className="font-semibold text-[11px]">
+              {obsConnected ? 'OBS Linked' : obsRetryMs !== null ? 'OBS Disconnected · retrying' : 'OBS Disconnected'}
+            </span>
             {showObsSettings ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
           </button>
 
@@ -351,16 +367,20 @@ export const DockView: React.FC<DockViewProps> = ({
             <button
               onClick={() => {
                 if (obsConnected) {
-                  obsService.disconnect();
+                  void obsService.disconnect();
                 } else {
-                  obsService.connect(obsAddress, obsPassword);
+                  connectObs();
                 }
               }}
               className="rounded-sm bg-indigo-600 px-3 py-1 font-semibold text-white hover:bg-indigo-500 transition"
             >
-              {obsConnected ? 'Disconnect' : 'Connect'}
+              {obsConnected ? 'Disconnect' : obsRetryMs !== null ? 'Retry now' : 'Connect'}
             </button>
           </div>
+          <p className="pl-22 text-[10px] text-zinc-500">
+            Saved in this OBS profile only. While disconnected the dock retries automatically
+            {obsRetryMs !== null ? ` (next try in ${Math.round(obsRetryMs / 1000)}s)` : ''}.
+          </p>
           <div className="flex items-start gap-2">
             <span className="w-20 text-zinc-400 font-medium">Chapters:</span>
             <div className="flex-1 space-y-1">

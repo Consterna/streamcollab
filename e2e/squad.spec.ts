@@ -150,3 +150,49 @@ test.describe('Director tools', () => {
     await expect(dock.getByText(/Room NOPE-0000 not found/)).toBeVisible();
   });
 });
+
+test.describe('Room cleanup', () => {
+  test('the host removes offline members and deletes finished sessions', async ({ browser, request }) => {
+    const room = await createRoom(request);
+    const hostContext = await newIdentity(browser);
+    await becomeHost(hostContext, room);
+    const dashboard = await openView(hostContext, 'dashboard', room.id);
+
+    // A streamer joins, then closes their dock
+    const streamer = await newIdentity(browser);
+    const dock = await openView(streamer, 'dock', room.id);
+    await markersCaptured(dock, 0);
+    const streamerName = (await dock.locator('nav input').first().inputValue()).trim();
+    await expect(dashboard.getByText(streamerName)).toBeVisible();
+    await dock.close();
+
+    const memberRow = dashboard.locator('tr', { hasText: streamerName });
+    await expect(memberRow.getByText(/OFFLINE/)).toBeVisible();
+    await memberRow.getByRole('button', { name: 'Remove' }).click();
+    await expect(dashboard.getByText(streamerName)).toHaveCount(0);
+
+    // Two sessions; the finished one can be deleted from the history
+    await dashboard.getByRole('button', { name: 'Start New Session' }).click();
+    await dashboard.getByLabel(/Session Name/i).fill('Throwaway');
+    await dashboard.getByRole('button', { name: 'Start Recording' }).click();
+    await dashboard.getByRole('button', { name: 'Stop Session' }).click();
+    await dashboard.getByRole('button', { name: 'Start New Session' }).click();
+    await dashboard.getByLabel(/Session Name/i).fill('Keeper');
+    await dashboard.getByRole('button', { name: 'Start Recording' }).click();
+
+    const throwaway = dashboard.locator('li', { hasText: 'Throwaway' });
+    await expect(throwaway).toBeVisible();
+    await throwaway.hover();
+    await throwaway.getByRole('button', { name: 'Delete session Throwaway' }).click();
+    await expect(dashboard.locator('li', { hasText: 'Throwaway' })).toHaveCount(0);
+    await expect(dashboard.locator('li', { hasText: 'Keeper' })).toBeVisible();
+  });
+
+  test('room codes work in lower case', async ({ browser, request }) => {
+    const room = await createRoom(request);
+    const context = await newIdentity(browser);
+    const dock = await openView(context, 'dock', room.id.toLowerCase());
+    await markersCaptured(dock, 0);
+    await expect(dock.locator('nav input').nth(1)).toHaveValue(room.id);
+  });
+});

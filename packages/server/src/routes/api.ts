@@ -34,10 +34,12 @@ export function attachmentDisposition(filename: string): string {
 export interface ApiRouteOptions {
   // When set, GET /api/rooms lists every room for `Authorization: Bearer <adminToken>`
   adminToken?: string;
+  // Rooms one IP may create per minute (default 10)
+  roomCreateLimitPerMinute?: number;
 }
 
 // Room creation and HTTP markers are the only unauthenticated-ish writes; keep them cheap to abuse
-const CREATE_ROOM_RATE_LIMIT = { max: 10, timeWindow: '1 minute' };
+export const DEFAULT_ROOM_CREATE_LIMIT_PER_MINUTE = 10;
 const QUICK_MARK_RATE_LIMIT = { max: 60, timeWindow: '1 minute' };
 
 function badRequest(reply: FastifyReply, error: z.ZodError) {
@@ -57,6 +59,15 @@ export function registerApiRoutes(
   db: DatabaseService,
   options: ApiRouteOptions = {}
 ) {
+  // Room codes work in any letter case: rewrite `:id` to the stored spelling before handlers run
+  fastify.addHook('preHandler', async (req) => {
+    const params = req.params as { id?: string } | undefined;
+    if (params?.id && req.url.startsWith('/api/rooms/')) {
+      const canonical = db.resolveRoomId(params.id);
+      if (canonical) params.id = canonical;
+    }
+  });
+
   const requireRoom = (id: string, reply: FastifyReply) => {
     if (!roomIdSchema.safeParse(id).success || !db.roomExists(id)) {
       reply.status(404).send({ error: `Room ${id} not found` });
@@ -89,7 +100,14 @@ export function registerApiRoutes(
   // Create room: returns the room code (id) and a host token shown only once
   fastify.post(
     '/api/rooms',
-    { config: { rateLimit: CREATE_ROOM_RATE_LIMIT } },
+    {
+      config: {
+        rateLimit: {
+          max: options.roomCreateLimitPerMinute ?? DEFAULT_ROOM_CREATE_LIMIT_PER_MINUTE,
+          timeWindow: '1 minute',
+        },
+      },
+    },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const body = createRoomBodySchema.safeParse(req.body ?? {});
       if (!body.success) return badRequest(reply, body.error);
@@ -216,6 +234,32 @@ export function registerApiRoutes(
       }
     }
   );
+
+  // Delete a finished session (host only)
+  fastify.delete(
+    '/api/rooms/:id/sessions/:sessionId',
+    async (req: FastifyRequest<{ Params: { id: string; sessionId: string } }>, reply: FastifyReply) => {
+      const { id, sessionId } = req.params;
+      if (!requireRoom(id, reply) || !requireHost(id, req, reply)) return reply;
+      try {
+        roomManager.deleteSession(id, sessionId);
+        return reply.status(204).send();
+      } catch (err) {
+        if (err instanceof RoomError) {
+          return reply.status(err.code === 'NOT_FOUND' ? 404 : 409).send({ error: err.message });
+        }
+        throw err;
+      }
+    }
+  );
+
+  // Delete the whole room (host only)
+  fastify.delete('/api/rooms/:id', async (req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    const { id } = req.params;
+    if (!requireRoom(id, reply) || !requireHost(id, req, reply)) return reply;
+    roomManager.deleteRoom(id);
+    return reply.status(204).send();
+  });
 
   // Session history (newest first) with marker counts
   fastify.get(

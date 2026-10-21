@@ -219,6 +219,7 @@ The HUD and Director Panel never talk to OBS's WebSocket, so they can always be 
 | View room, markers, exports | Anyone with the room code |
 | Create markers, update OBS status | The streamer's own dock (member token) |
 | Start / stop sessions | The host (host token) |
+| Delete finished sessions, delete the room, remove offline members | The host (host token) |
 | List all rooms (`GET /api/rooms`) | Admin only (`ADMIN_TOKEN`), hidden otherwise |
 
 **HTTP quick-mark and undo (Stream Deck / Streamer.bot):** in the Dock, open the OBS settings panel and copy the *HTTP token*, then:
@@ -237,6 +238,9 @@ Content-Type: application/json
 - `ALLOWED_ORIGIN`: comma-separated origins allowed to call the REST API cross-origin. Leave empty when the client is served from the same host (default).
 - `ADMIN_TOKEN`: enables `GET /api/rooms` for `Authorization: Bearer <ADMIN_TOKEN>` (16+ characters).
 - `TRUST_PROXY`: `true` behind a reverse proxy (Caddy / Nginx) so rate limits use the real client IP.
+- `ROOM_CREATE_LIMIT_PER_MINUTE`: rooms one IP may create per minute (default 10).
+
+Room codes are accepted in any letter case (`kq7p-m3xd` joins `KQ7P-M3XD`). An IP that tries more than 20 unknown room codes in a minute is refused for the rest of that minute.
 
 Rooms created with v1.0/v1.1 have no host token: they stay readable and markable but sessions can't be started or stopped there. Create a new room.
 
@@ -257,7 +261,7 @@ Rooms created with v1.0/v1.1 have no host token: they stay readable and markable
 3. **URL**: the Dock link from the Director Panel, e.g. `http://localhost:5173/?view=dock&room=KQ7P-M3XD`
 4. Click **Apply**.
 5. The dock will open as a window inside OBS Studio. Drag and drop it into your OBS workspace (e.g. next to the Audio Mixer or Scene list).
-6. Click **OBS Disconnected** -> verify `ws://127.0.0.1:4455` -> click **Connect**.
+6. Click **OBS Disconnected** -> verify `ws://127.0.0.1:4455` (and the password, if authentication is enabled) -> click **Connect**. The address and password are saved in this OBS profile, and the dock reconnects by itself whenever OBS (or its WebSocket server) restarts.
 7. The status turns to a green **OBS Linked** dot, displaying your live canvas resolution, framerate, and recording status.
 
 ### 3. Global Hotkeys While Gaming (Recommended)

@@ -21,10 +21,12 @@ export const HudView: React.FC<HudViewProps> = ({ socketClient, members, activeS
 
   // OBS Browser Source visibility listener
   useEffect(() => {
-    const handleObsVisibility = (event: any) => {
+    // OBS dispatches a CustomEvent<{ visible: boolean }> on window
+    const handleObsVisibility = (event: Event) => {
+      const detail = (event as CustomEvent<{ visible?: unknown }>).detail;
       // OBS fires 'obsSourceVisibleChanged' on the window with detail.visible
-      if (typeof event.detail?.visible === 'boolean') {
-        setIsVisibleInObs(event.detail.visible);
+      if (typeof detail?.visible === 'boolean') {
+        setIsVisibleInObs(detail.visible);
       }
     };
 

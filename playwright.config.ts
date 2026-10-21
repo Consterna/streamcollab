@@ -44,6 +44,8 @@ export default defineConfig({
       HOST: '127.0.0.1',
       DATABASE_PATH: path.join(DATA_DIR, 'e2e.sqlite'),
       LOG_LEVEL: 'warn',
+      // Every test creates its own room from the same IP
+      ROOM_CREATE_LIMIT_PER_MINUTE: '500',
     },
   },
 });

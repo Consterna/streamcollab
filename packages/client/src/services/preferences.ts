@@ -10,6 +10,22 @@ export function getBoolPreference(key: string, fallback: boolean): boolean {
   }
 }
 
+export function getStringPreference(key: string, fallback: string): string {
+  try {
+    return localStorage.getItem(`streamcollab_pref:${key}`) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export function setStringPreference(key: string, value: string) {
+  try {
+    localStorage.setItem(`streamcollab_pref:${key}`, value);
+  } catch {
+    // ignore: preference only lasts for this page load
+  }
+}
+
 export function setBoolPreference(key: string, value: boolean) {
   try {
     localStorage.setItem(`streamcollab_pref:${key}`, String(value));

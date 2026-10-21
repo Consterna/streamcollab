@@ -27,8 +27,8 @@ export default defineConfig([
 
   {
     rules: {
-      // Gradually typed codebase: surface `any` without blocking CI
-      '@typescript-eslint/no-explicit-any': 'warn',
+      // Application code is fully typed; `any` is only tolerated in test files (below)
+      '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none' },
@@ -37,7 +37,7 @@ export default defineConfig([
   },
 
   {
-    files: ['packages/*/test/**/*.ts'],
+    files: ['packages/*/test/**/*.ts', 'e2e/**/*.ts'],
     rules: { '@typescript-eslint/no-explicit-any': 'off' },
   },
 

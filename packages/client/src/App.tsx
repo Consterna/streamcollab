@@ -10,6 +10,12 @@ import { HudPreviewBar } from './components/HudPreviewBar';
 import { viewUrl } from './services/serverUrl';
 import { Monitor, Tv, LayoutDashboard } from 'lucide-react';
 
+/** Generated room codes (e.g. KQ7P-M3XD) are shown in capitals; accept them typed in any case */
+export function normalizeRoomCode(input: string): string {
+  const code = input.trim();
+  return /^[a-z0-9]{4}-[a-z0-9]{4}$/i.test(code) ? code.toUpperCase() : code;
+}
+
 function newMemberId() {
   return 'mem_' + Math.random().toString(36).substring(2, 9);
 }
@@ -57,7 +63,7 @@ export function App() {
 
   const initialRoom = useMemo(() => {
     const params = new URLSearchParams(window.location.search);
-    return params.get('room') || getLastRoom() || '';
+    return normalizeRoomCode(params.get('room') || getLastRoom() || '');
   }, []);
 
   const [currentView, setCurrentView] = useState<View>(initialView);
@@ -79,7 +85,12 @@ export function App() {
   const exitHudPreview = useCallback(() => navigateTo(returnView), [navigateTo, returnView]);
   const [roomId, setRoomId] = useState<string>(initialRoom);
   const [userName, setUserName] = useState<string>(() => {
-    return localStorage.getItem('streamcollab_username') || `Player_${Math.floor(100 + Math.random() * 900)}`;
+    const saved = localStorage.getItem('streamcollab_username');
+    if (saved) return saved;
+    // Keep the generated name, otherwise the same streamer shows up under a new name on every load
+    const generated = `Player_${Math.floor(100 + Math.random() * 900)}`;
+    localStorage.setItem('streamcollab_username', generated);
+    return generated;
   });
 
   // Draft values for the nav inputs; only committed (blur / Enter) values trigger a rejoin
@@ -87,7 +98,8 @@ export function App() {
   const [nameDraft, setNameDraft] = useState<string>(userName);
 
   const commitRoom = () => {
-    const next = roomDraft.trim();
+    const next = normalizeRoomCode(roomDraft);
+    setRoomDraft(next);
     if (next && next !== roomId) {
       setRoomId(next);
     } else {
@@ -193,9 +205,17 @@ export function App() {
           if (!prev) return null;
           return {
             ...prev,
-            members: prev.members.map((m) => (m.id === leftMemberId ? { ...m, obsStatus: 'disconnected' } : m)),
+            members: prev.members.map((m) =>
+              m.id === leftMemberId ? { ...m, obsStatus: 'disconnected', online: false, lastHeartbeat: Date.now() } : m
+            ),
           };
         });
+      })
+    );
+
+    subscriptions.push(
+      socketClient.on('onMemberRemoved', (removedMemberId) => {
+        setRoom((prev) => (prev ? { ...prev, members: prev.members.filter((m) => m.id !== removedMemberId) } : prev));
       })
     );
 
@@ -244,6 +264,24 @@ export function App() {
       socketClient.on('onSessionStopped', (session) => {
         setActiveSession(null);
         setLastSession(session);
+      })
+    );
+
+    subscriptions.push(
+      socketClient.on('onSessionDeleted', (sessionId) => {
+        setLastSession((prev) => (prev?.id === sessionId ? null : prev));
+        setMarkers((prev) => prev.filter((m) => m.sessionId !== sessionId));
+      })
+    );
+
+    subscriptions.push(
+      socketClient.on('onRoomDeleted', (deletedRoomId) => {
+        saveHostToken(deletedRoomId, null);
+        setRoom(null);
+        setActiveSession(null);
+        setLastSession(null);
+        setMarkers([]);
+        setJoinError(`Room ${deletedRoomId} was deleted by its host.`);
       })
     );
 

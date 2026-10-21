@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Room } from '@streamcollab/shared';
 import { Check, Copy, KeyRound, Link as LinkIcon, Plus, ShieldCheck } from 'lucide-react';
-import { createRoom } from '../services/api';
+import { createRoom, deleteRoom } from '../services/api';
 import { getHostToken, saveHostToken } from '../services/credentials';
 import { StreamCollabSocketClient } from '../services/socket';
 import { viewUrl } from '../services/serverUrl';
@@ -58,10 +58,24 @@ export const RoomSetupPanel: React.FC<RoomSetupPanelProps> = ({ socketClient, ro
       const created = await createRoom(roomName.trim() || undefined);
       setRoomName('');
       onRoomChange(created.id);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not create the room');
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleDeleteRoom = async () => {
+    const answer = window.prompt(
+      `This permanently deletes room ${roomId} with all its sessions and markers.
+Type the room code to confirm:`
+    );
+    if (answer?.trim().toUpperCase() !== roomId.toUpperCase()) return;
+    try {
+      await deleteRoom(roomId);
+      onRoomChange('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not delete the room');
     }
   };
 
@@ -136,6 +150,13 @@ export const RoomSetupPanel: React.FC<RoomSetupPanelProps> = ({ socketClient, ro
                 <div className="flex items-center gap-2">
                   <span className="text-zinc-500">Host token (keep private):</span>
                   <CopyButton value={hostToken} label="Host token" />
+                  <button
+                    onClick={handleDeleteRoom}
+                    className="ml-auto rounded-sm border border-red-900/60 px-2 py-1 text-[11px] text-red-400 hover:bg-red-950/60 transition"
+                    title="Delete this room, its sessions and markers"
+                  >
+                    Delete room
+                  </button>
                 </div>
               ) : (
                 <form onSubmit={handleClaimHost} className="flex gap-2">

@@ -12,6 +12,7 @@ import {
   CATEGORY_TO_DAVINCI_COLOR,
   MarkerCategory,
   MarkerChanges,
+  DaVinciMarkerColor,
   SessionSummary,
   resolveMemberFramerate,
 } from '@streamcollab/shared';
@@ -71,7 +72,7 @@ export class RoomManager {
   createRoom(id?: string, name?: string): CreateRoomResponse {
     let roomId = id;
     if (roomId) {
-      if (this.db.roomExists(roomId)) {
+      if (this.db.resolveRoomId(roomId)) {
         throw new RoomError('FORBIDDEN', `Room ${roomId} already exists`);
       }
     } else {
@@ -93,8 +94,57 @@ export class RoomManager {
     return tokenMatches(token, this.db.getMemberTokenHash(memberId));
   }
 
+  /** Room with each member's live presence (`online` = a dock for them is connected) */
   getRoom(roomId: string): Room | null {
-    return this.db.getRoom(roomId);
+    const room = this.db.getRoom(roomId);
+    if (!room) return null;
+    return { ...room, members: room.members.map((m) => ({ ...m, online: this.isMemberOnline(roomId, m.id) })) };
+  }
+
+  isMemberOnline(roomId: string, memberId: string): boolean {
+    return [...(this.roomSockets.get(roomId) ?? [])].some((s) => {
+      const client = this.clients.get(s);
+      return client?.kind === 'dock' && client.memberId === memberId;
+    });
+  }
+
+  /** Delete a finished session and everything recorded in it (host-only, enforced by callers) */
+  deleteSession(roomId: string, sessionId: string) {
+    const session = this.db.getSession(sessionId);
+    if (!session || session.roomId !== roomId) {
+      throw new RoomError('NOT_FOUND', `Session ${sessionId} not found in this room`);
+    }
+    if (!session.stoppedAt) {
+      throw new RoomError('FORBIDDEN', 'Stop the session before deleting it');
+    }
+    this.db.deleteSession(sessionId);
+    this.broadcastToRoom(roomId, { type: 'SESSION_DELETED', payload: { sessionId } });
+  }
+
+  /** Delete the room and all its data; connected clients are told and detached (host-only) */
+  deleteRoom(roomId: string) {
+    this.broadcastToRoom(roomId, { type: 'ROOM_DELETED', payload: { roomId } });
+    for (const socket of [...(this.roomSockets.get(roomId) ?? [])]) {
+      this.clients.delete(socket);
+    }
+    this.roomSockets.delete(roomId);
+    this.db.deleteRoom(roomId);
+  }
+
+  /** Host only: forget an offline member (its row and member token). Markers keep their author name. */
+  removeMember(actor: { roomId: string; isHost: boolean }, memberId: string) {
+    if (!actor.isHost) {
+      throw new RoomError('FORBIDDEN', 'Only the room host can remove members');
+    }
+    const member = this.db.getRoomMembers(actor.roomId).find((m) => m.id === memberId);
+    if (!member) {
+      throw new RoomError('NOT_FOUND', `Member ${memberId} is not in this room`);
+    }
+    if (this.isMemberOnline(actor.roomId, memberId)) {
+      throw new RoomError('FORBIDDEN', 'This member is online; only offline members can be removed');
+    }
+    this.db.removeMember(memberId);
+    this.broadcastToRoom(actor.roomId, { type: 'MEMBER_REMOVED', payload: { memberId } });
   }
 
   listRooms(): Room[] {
@@ -113,10 +163,13 @@ export class RoomManager {
       throw new RoomError('INVALID_MESSAGE', 'Dock clients must provide member details to join a room');
     }
 
-    // The room code is the invite: rooms must be created first (POST /api/rooms)
-    if (!this.db.roomExists(roomId)) {
+    // The room code is the invite: rooms must be created first (POST /api/rooms).
+    // Codes are matched in any letter case and continue under their canonical spelling.
+    const canonicalRoomId = this.db.resolveRoomId(roomId);
+    if (!canonicalRoomId) {
       throw new RoomError('ROOM_NOT_FOUND', `Room ${roomId} not found. Ask your host for the room code.`);
     }
+    roomId = canonicalRoomId;
 
     const isHost = this.isHostToken(roomId, credentials.hostToken);
     if (credentials.hostToken && !isHost) {
@@ -167,7 +220,7 @@ export class RoomManager {
         roomId,
         {
           type: 'MEMBER_JOINED',
-          payload: fullMember,
+          payload: { ...fullMember, online: true },
         },
         socket
       );
@@ -179,7 +232,7 @@ export class RoomManager {
     });
 
     // Send complete current room state to the newly joined client
-    const room = this.db.getRoom(roomId);
+    const room = this.getRoom(roomId);
     const activeSession = this.db.getActiveSession(roomId);
     const markers = activeSession ? this.db.getSessionMarkers(activeSession.id) : this.db.getRoomMarkers(roomId);
 
@@ -263,7 +316,7 @@ export class RoomManager {
 
     this.broadcastToRoom(roomId, {
       type: 'MEMBER_UPDATED',
-      payload: updated,
+      payload: { ...updated, online: this.isMemberOnline(roomId, updated.id) },
     });
   }
 
@@ -348,7 +401,7 @@ export class RoomManager {
     category: MarkerCategory;
     label: string;
     comment?: string;
-    color?: string;
+    color?: DaVinciMarkerColor;
     tags?: string[];
     clientTimestamp?: number;
     obsRecordMs?: number;
@@ -380,7 +433,7 @@ export class RoomManager {
     const timecode = tc.relativeMsToTimecode(relativeTimeMs, session.baseTimecode);
     const frameNumber = tc.millisecondsToFrames(relativeTimeMs);
 
-    const markerColor = (data.color as any) || CATEGORY_TO_DAVINCI_COLOR[data.category] || 'Blue';
+    const markerColor: DaVinciMarkerColor = data.color || CATEGORY_TO_DAVINCI_COLOR[data.category] || 'Blue';
 
     const marker: SquadMarker = {
       id: crypto.randomUUID(),

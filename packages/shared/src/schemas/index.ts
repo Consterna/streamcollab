@@ -161,6 +161,7 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('DELETE_MARKER'), payload: z.object({ markerId: markerIdSchema }) }),
   z.object({ type: z.literal('UNDO_LAST_MARKER'), payload: z.object({}).optional() }),
+  z.object({ type: z.literal('REMOVE_MEMBER'), payload: z.object({ memberId: idSchema }) }),
 ]);
 
 // REST bodies

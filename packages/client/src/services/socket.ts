@@ -9,6 +9,7 @@ import {
   ClientKind,
   ErrorCode,
   MarkerChanges,
+  DaVinciMarkerColor,
 } from '@streamcollab/shared';
 import { getHostToken, getMemberToken, saveMemberToken } from './credentials';
 import { wsUrl } from './serverUrl';
@@ -25,12 +26,15 @@ export interface SocketClientCallbacks {
   onRoomState?: (state: { room: Room; activeSession: RecordingSession | null; markers: SquadMarker[] }) => void;
   onMemberJoined?: (member: SquadMember) => void;
   onMemberLeft?: (memberId: string) => void;
+  onMemberRemoved?: (memberId: string) => void;
   onMemberUpdated?: (member: SquadMember) => void;
   onMarkerAdded?: (marker: SquadMarker) => void;
   onMarkerUpdated?: (marker: SquadMarker) => void;
   onMarkerDeleted?: (deleted: { markerId: string; sessionId: string }) => void;
   onSessionStarted?: (session: RecordingSession) => void;
   onSessionStopped?: (session: RecordingSession) => void;
+  onSessionDeleted?: (sessionId: string) => void;
+  onRoomDeleted?: (roomId: string) => void;
   onClockSync?: (offsetMs: number, rttMs: number) => void;
   onConnectionChange?: (connected: boolean) => void;
 }
@@ -38,9 +42,9 @@ export interface SocketClientCallbacks {
 export class StreamCollabSocketClient {
   private ws: WebSocket | null = null;
   private serverUrl: string;
-  private sntpInterval: any = null;
+  private sntpInterval: ReturnType<typeof setInterval> | null = null;
   private isConnected = false;
-  private reconnectTimeout: any = null;
+  private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // SNTP Calibration state
   private clockOffsetMs = 0;
@@ -59,7 +63,7 @@ export class StreamCollabSocketClient {
     let set = this.listeners[event] as Set<NonNullable<SocketClientCallbacks[K]>> | undefined;
     if (!set) {
       set = new Set();
-      (this.listeners as any)[event] = set;
+      (this.listeners as Record<string, Set<unknown>>)[event] = set as Set<unknown>;
     }
     set.add(handler);
     return () => {
@@ -71,7 +75,7 @@ export class StreamCollabSocketClient {
     event: K,
     ...args: Parameters<NonNullable<SocketClientCallbacks[K]>>
   ) {
-    this.listeners[event]?.forEach((handler) => (handler as (...a: any[]) => void)(...args));
+    this.listeners[event]?.forEach((handler) => (handler as (...a: typeof args) => void)(...args));
   }
 
   constructor(serverUrl?: string) {
@@ -188,6 +192,10 @@ export class StreamCollabSocketClient {
         this.emit('onMemberLeft', msg.payload.memberId);
         break;
 
+      case 'MEMBER_REMOVED':
+        this.emit('onMemberRemoved', msg.payload.memberId);
+        break;
+
       case 'MEMBER_UPDATED':
         this.emit('onMemberUpdated', msg.payload);
         break;
@@ -206,6 +214,14 @@ export class StreamCollabSocketClient {
 
       case 'SESSION_STARTED':
         this.emit('onSessionStarted', msg.payload);
+        break;
+
+      case 'SESSION_DELETED':
+        this.emit('onSessionDeleted', msg.payload.sessionId);
+        break;
+
+      case 'ROOM_DELETED':
+        this.emit('onRoomDeleted', msg.payload.roomId);
         break;
 
       case 'SESSION_STOPPED':
@@ -317,7 +333,7 @@ export class StreamCollabSocketClient {
     category: MarkerCategory;
     label: string;
     comment?: string;
-    color?: any;
+    color?: DaVinciMarkerColor;
     tags?: string[];
     obsRecordMs?: number | null;
   }) {
@@ -350,6 +366,11 @@ export class StreamCollabSocketClient {
 
   deleteMarker(markerId: string) {
     this.send({ type: 'DELETE_MARKER', payload: { markerId } });
+  }
+
+  /** Host only: forget an offline member */
+  removeMember(memberId: string) {
+    this.send({ type: 'REMOVE_MEMBER', payload: { memberId } });
   }
 
   /** Remove this dock's most recent marker in the current session */

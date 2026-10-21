@@ -31,7 +31,8 @@ export interface SquadMember {
   outputDurationMs: number;
   clockOffsetMs: number;
   rttMs: number;
-  lastHeartbeat: number;
+  lastHeartbeat: number; // Last join / status update (shown as "last seen" while offline)
+  online?: boolean; // A dock for this member is connected right now (computed by the server)
   activeSessionId?: string;
   fpsNumerator?: number; // Exact OBS canvas framerate (e.g. 60000)
   fpsDenominator?: number; // Exact OBS canvas framerate (e.g. 1001)
@@ -155,7 +156,9 @@ export type ClientMessage =
   | { type: 'UPDATE_MARKER'; payload: { markerId: string; changes: MarkerChanges } }
   | { type: 'DELETE_MARKER'; payload: { markerId: string } }
   // Removes this dock's most recent marker in the active session (resolved server-side)
-  | { type: 'UNDO_LAST_MARKER'; payload?: Record<string, never> };
+  | { type: 'UNDO_LAST_MARKER'; payload?: Record<string, never> }
+  // Host only: forget a member that is offline (clean up old / test identities)
+  | { type: 'REMOVE_MEMBER'; payload: { memberId: string } };
 
 /** Editable marker fields. `comment: null` clears the comment. */
 export interface MarkerChanges {
@@ -175,12 +178,15 @@ export type ServerMessage =
   | { type: 'ROOM_STATE'; payload: { room: Room; activeSession: RecordingSession | null; markers: SquadMarker[] } }
   | { type: 'MEMBER_JOINED'; payload: SquadMember }
   | { type: 'MEMBER_LEFT'; payload: { memberId: string } }
+  | { type: 'MEMBER_REMOVED'; payload: { memberId: string } }
   | { type: 'MEMBER_UPDATED'; payload: SquadMember }
   | { type: 'MARKER_ADDED'; payload: SquadMarker }
   | { type: 'MARKER_UPDATED'; payload: SquadMarker }
   | { type: 'MARKER_DELETED'; payload: { markerId: string; sessionId: string } }
   | { type: 'SESSION_STARTED'; payload: RecordingSession }
   | { type: 'SESSION_STOPPED'; payload: RecordingSession }
+  | { type: 'SESSION_DELETED'; payload: { sessionId: string } }
+  | { type: 'ROOM_DELETED'; payload: { roomId: string } }
   | {
       type: 'JOINED';
       payload: {

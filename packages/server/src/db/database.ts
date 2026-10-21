@@ -102,6 +102,72 @@ const MIGRATIONS: string[] = [
   `,
 ];
 
+// Shapes of SQLite rows as returned by node:sqlite (snake_case columns)
+interface RoomRow {
+  id: string;
+  name: string;
+  created_at: number;
+  active_session_id: string | null;
+  host_token_hash: string | null;
+}
+
+interface MemberRow {
+  id: string;
+  room_id: string;
+  name: string;
+  avatar_url: string | null;
+  role: SquadMember['role'];
+  obs_status: string;
+  stream_url: string | null;
+  fps: number;
+  output_duration_ms: number;
+  clock_offset_ms: number;
+  rtt_ms: number;
+  last_heartbeat: number;
+  fps_num: number | null;
+  fps_den: number | null;
+  record_started_at: number | null;
+  token_hash: string | null;
+}
+
+interface SessionRow {
+  id: string;
+  room_id: string;
+  name: string;
+  started_at: number;
+  stopped_at: number | null;
+  base_timecode: string;
+  framerate_num: number;
+  framerate_den: number;
+  drop_frame: number;
+}
+
+interface MarkerRow {
+  id: string;
+  room_id: string;
+  session_id: string;
+  member_id: string;
+  member_name: string;
+  timestamp: number;
+  relative_time_ms: number;
+  timecode: string;
+  frame_number: number;
+  category: string;
+  label: string;
+  comment: string | null;
+  color: string;
+  tags: string | null;
+  obs_record_ms: number | null;
+}
+
+interface AnchorRow {
+  session_id: string;
+  member_id: string;
+  record_started_at: number;
+  framerate_num: number;
+  framerate_den: number;
+}
+
 export const SCHEMA_VERSION = MIGRATIONS.length;
 
 export class DatabaseService {
@@ -176,7 +242,7 @@ export class DatabaseService {
   }
 
   getRoom(id: string): Room | null {
-    const row = this.stmt('SELECT * FROM rooms WHERE id = ?').get(id) as any;
+    const row = this.stmt('SELECT * FROM rooms WHERE id = ?').get(id) as RoomRow | undefined;
     if (!row) return null;
 
     return {
@@ -189,7 +255,7 @@ export class DatabaseService {
   }
 
   listRooms(): Room[] {
-    const rows = this.stmt('SELECT * FROM rooms ORDER BY created_at DESC').all() as any[];
+    const rows = this.stmt('SELECT * FROM rooms ORDER BY created_at DESC').all() as unknown as RoomRow[];
     return rows.map((row) => ({
       id: row.id,
       name: row.name,
@@ -203,8 +269,16 @@ export class DatabaseService {
     return Boolean(this.stmt('SELECT 1 FROM rooms WHERE id = ?').get(roomId));
   }
 
+  /** Canonical id of a room typed in any letter case (room codes are shared by voice / chat) */
+  resolveRoomId(input: string): string | null {
+    const row = this.stmt('SELECT id FROM rooms WHERE id = ? COLLATE NOCASE LIMIT 1').get(input) as
+      { id: string } | undefined;
+    return row?.id ?? null;
+  }
+
   getRoomHostTokenHash(roomId: string): string | null {
-    const row = this.stmt('SELECT host_token_hash FROM rooms WHERE id = ?').get(roomId) as any;
+    const row = this.stmt('SELECT host_token_hash FROM rooms WHERE id = ?').get(roomId) as
+      Pick<RoomRow, 'host_token_hash'> | undefined;
     return row?.host_token_hash ?? null;
   }
 
@@ -257,7 +331,8 @@ export class DatabaseService {
   }
 
   getMemberTokenHash(memberId: string): string | null {
-    const row = this.stmt('SELECT token_hash FROM members WHERE id = ?').get(memberId) as any;
+    const row = this.stmt('SELECT token_hash FROM members WHERE id = ?').get(memberId) as
+      Pick<MemberRow, 'token_hash'> | undefined;
     return row?.token_hash ?? null;
   }
 
@@ -265,17 +340,27 @@ export class DatabaseService {
     this.stmt('UPDATE members SET token_hash = ? WHERE id = ?').run(tokenHash, memberId);
   }
 
+  /** Deletes the session with its markers and recording anchors (FK cascade) */
+  deleteSession(sessionId: string): boolean {
+    return Number(this.stmt('DELETE FROM recording_sessions WHERE id = ?').run(sessionId).changes) > 0;
+  }
+
+  /** Deletes the room with its members, sessions, markers and anchors (FK cascade) */
+  deleteRoom(roomId: string): boolean {
+    return Number(this.stmt('DELETE FROM rooms WHERE id = ?').run(roomId).changes) > 0;
+  }
+
   removeMember(memberId: string) {
     this.stmt('DELETE FROM members WHERE id = ?').run(memberId);
   }
 
   getRoomMembers(roomId: string): SquadMember[] {
-    const rows = this.stmt('SELECT * FROM members WHERE room_id = ?').all(roomId) as any[];
+    const rows = this.stmt('SELECT * FROM members WHERE room_id = ?').all(roomId) as unknown as MemberRow[];
     return rows.map((r) => ({
       id: r.id,
       name: r.name,
       avatarUrl: r.avatar_url || undefined,
-      role: r.role as any,
+      role: r.role,
       obsStatus: r.obs_status as ObsRecordingStatus,
       streamUrl: r.stream_url || undefined,
       fps: Number(r.fps),
@@ -324,7 +409,7 @@ export class DatabaseService {
     return session;
   }
 
-  private mapSession(row: any): RecordingSession {
+  private mapSession(row: SessionRow): RecordingSession {
     return {
       id: row.id,
       roomId: row.room_id,
@@ -339,12 +424,13 @@ export class DatabaseService {
   }
 
   getSession(sessionId: string): RecordingSession | null {
-    const row = this.stmt('SELECT * FROM recording_sessions WHERE id = ?').get(sessionId) as any;
+    const row = this.stmt('SELECT * FROM recording_sessions WHERE id = ?').get(sessionId) as SessionRow | undefined;
     return row ? this.mapSession(row) : null;
   }
 
   getActiveSession(roomId: string): RecordingSession | null {
-    const row = this.stmt('SELECT active_session_id FROM rooms WHERE id = ?').get(roomId) as any;
+    const row = this.stmt('SELECT active_session_id FROM rooms WHERE id = ?').get(roomId) as
+      Pick<RoomRow, 'active_session_id'> | undefined;
     if (!row || !row.active_session_id) return null;
     return this.getSession(row.active_session_id);
   }
@@ -352,7 +438,7 @@ export class DatabaseService {
   getLatestSession(roomId: string): RecordingSession | null {
     const row = this.stmt('SELECT * FROM recording_sessions WHERE room_id = ? ORDER BY started_at DESC LIMIT 1').get(
       roomId
-    ) as any;
+    ) as SessionRow | undefined;
     return row ? this.mapSession(row) : null;
   }
 
@@ -361,7 +447,7 @@ export class DatabaseService {
     const rows = this.stmt(
       `SELECT s.*, (SELECT COUNT(*) FROM markers m WHERE m.session_id = s.id) AS marker_count
        FROM recording_sessions s WHERE s.room_id = ? ORDER BY s.started_at DESC`
-    ).all(roomId) as any[];
+    ).all(roomId) as unknown as (SessionRow & { marker_count: number })[];
     return rows.map((row) => ({ ...this.mapSession(row), markerCount: Number(row.marker_count) }));
   }
 
@@ -386,7 +472,9 @@ export class DatabaseService {
   }
 
   getSessionAnchors(sessionId: string): SessionMemberAnchor[] {
-    const rows = this.stmt('SELECT * FROM session_members WHERE session_id = ?').all(sessionId) as any[];
+    const rows = this.stmt('SELECT * FROM session_members WHERE session_id = ?').all(
+      sessionId
+    ) as unknown as AnchorRow[];
     return rows.map((r) => ({
       sessionId: r.session_id,
       memberId: r.member_id,
@@ -432,7 +520,7 @@ export class DatabaseService {
     return marker;
   }
 
-  private mapMarker(r: any): SquadMarker {
+  private mapMarker(r: MarkerRow): SquadMarker {
     return {
       id: r.id,
       roomId: r.room_id,
@@ -455,12 +543,12 @@ export class DatabaseService {
   getSessionMarkers(sessionId: string): SquadMarker[] {
     const rows = this.stmt('SELECT * FROM markers WHERE session_id = ? ORDER BY relative_time_ms ASC').all(
       sessionId
-    ) as any[];
+    ) as unknown as MarkerRow[];
     return rows.map((r) => this.mapMarker(r));
   }
 
   getMarker(markerId: string): SquadMarker | null {
-    const row = this.stmt('SELECT * FROM markers WHERE id = ?').get(markerId) as any;
+    const row = this.stmt('SELECT * FROM markers WHERE id = ?').get(markerId) as MarkerRow | undefined;
     return row ? this.mapMarker(row) : null;
   }
 
@@ -484,12 +572,14 @@ export class DatabaseService {
   getLatestMemberMarker(sessionId: string, memberId: string): SquadMarker | null {
     const row = this.stmt(
       'SELECT * FROM markers WHERE session_id = ? AND member_id = ? ORDER BY timestamp DESC LIMIT 1'
-    ).get(sessionId, memberId) as any;
+    ).get(sessionId, memberId) as MarkerRow | undefined;
     return row ? this.mapMarker(row) : null;
   }
 
   getRoomMarkers(roomId: string): SquadMarker[] {
-    const rows = this.stmt('SELECT * FROM markers WHERE room_id = ? ORDER BY timestamp ASC').all(roomId) as any[];
+    const rows = this.stmt('SELECT * FROM markers WHERE room_id = ? ORDER BY timestamp ASC').all(
+      roomId
+    ) as unknown as MarkerRow[];
     return rows.map((r) => this.mapMarker(r));
   }
 
