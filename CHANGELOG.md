@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-20
+
+### Added
+- **Room codes and host tokens**: `POST /api/rooms` generates an unguessable code (e.g. `KQ7P-M3XD`) and returns a host token once; only its SHA-256 hash is stored. Starting / stopping sessions (WebSocket and REST) requires the host token.
+- **Member tokens**: the first dock to claim a member id receives a member token (`JOINED` message); later joins with that id must present it. The HTTP `quick-mark` endpoint requires `Authorization: Bearer <memberToken>`.
+- **Shared Zod schemas** (`@streamcollab/shared` `schemas/`) for every WebSocket message and REST body: category / DaVinci color enums, timecode format, length limits.
+- Rate limits: `@fastify/rate-limit` on room creation (10/min) and quick-mark (60/min); per-socket token bucket on WebSocket messages (burst 40, 20/s).
+- `maxPayload` 16 KB for WebSocket frames and 64 KB REST body limit.
+- Director Panel *room setup*: create room, copy Dock / HUD invite links, copy or paste the host token. Dock settings: copy the HTTP marker token.
+- New server messages `JOINED` and coded `ERROR`s (`ROOM_NOT_FOUND`, `FORBIDDEN`, `HOST_TOKEN_INVALID`, `MEMBER_TOKEN_INVALID`, `INVALID_MESSAGE`, `NOT_JOINED`, `RATE_LIMITED`), surfaced in a client banner.
+- Env vars `ALLOWED_ORIGIN`, `ADMIN_TOKEN`, `TRUST_PROXY`. Schema migration v3 (`host_token_hash`, `token_hash`).
+- `security.test.ts` (18 tests, 80 total).
+
+### Changed
+- **Breaking:** joining an unknown room returns `ROOM_NOT_FOUND` instead of creating it; the client no longer defaults to `squad-1` and remembers the last room instead.
+- **Breaking:** CORS is same-origin only unless `ALLOWED_ORIGIN` is set (was `*`). `GET /api/rooms` is hidden unless `ADMIN_TOKEN` is configured.
+- WebSocket actions use the identity proven at join time: `roomId` / `memberId` / `memberName` in payloads are ignored, and HUD / dashboard observers can't create markers or update status.
+- Internal error details are no longer echoed to WebSocket clients.
+
+### Fixed
+- A session id from another room could be stopped, exported or listed through a different room's endpoints.
+- Closing sockets during server shutdown wrote to an already-closed database.
+- A dock that lost its member token now continues under a fresh member id instead of being locked out.
+
 ## [1.1.0] - 2026-10-20
 
 ### Added
@@ -102,7 +126,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed exporter access after session stop to allow post-broadcast timeline generation.
 - Fixed route navigation handling for both query string (`?view=dock`) and hash routing (`#/dock`).
 
-[Unreleased]: https://github.com/Consterna/streamcollab/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/Consterna/streamcollab/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/Consterna/streamcollab/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/Consterna/streamcollab/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Consterna/streamcollab/releases/tag/v1.0.0
 

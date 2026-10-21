@@ -41,6 +41,11 @@ StreamCollab allows competitive gaming squads, content creator groups, and espor
   - 🛰️ **Multicam Sync Matrix JSON**: Where each creator's OBS file starts relative to the session (ms and frames), from SNTP-calibrated recording anchors.
   - 🎥 **Per-POV timelines**: Any format can be exported re-timed to one creator's own recording file (`?memberId=`), so markers land on the right frame of that clip.
 
+- **Private Rooms & Host Control**:
+  - Rooms are created explicitly and identified by an unguessable join code (e.g. `KQ7P-M3XD`).
+  - Only the host (holder of the room's host token) can start or stop sessions; each streamer's dock is bound to its own member token, so nobody can mark or update status in someone else's name.
+  - Every WebSocket message and REST body is validated with shared Zod schemas; per-socket and per-route rate limits.
+
 - **High-Concurrency Fastify Backend & SQLite WAL**:
   - Fastify v5 with `@fastify/websocket` v11 and `@fastify/cors`.
   - Native Node 24 `node:sqlite` (`DatabaseSync`) configured with Write-Ahead Logging (`PRAGMA journal_mode = WAL`) and normal synchronous mode for maximum throughput.
@@ -115,7 +120,7 @@ npm.cmd run build
 ```powershell
 npm.cmd test
 ```
-All 61 unit and integration tests verify SMPTE drop frame boundaries, NLE XML/EDL formatting, CSV escaping, and Fastify SQLite WAL routes.
+All 80 unit and integration tests verify SMPTE drop frame boundaries, NLE XML/EDL formatting, CSV escaping, and Fastify SQLite WAL routes.
 
 ### 4. Start Development Servers
 In two terminal windows:
@@ -140,6 +145,38 @@ npm.cmd start
 
 ---
 
+## 🔐 Rooms, Hosts & Security
+
+1. **The host creates a room** in the Director Panel (`/?view=dashboard`) -> **New room** -> **Create**. The server returns a room code and a **host token**; the token is stored in that browser and only its SHA-256 hash is kept on the server.
+2. **Invite the squad** with the copy buttons: the Dock URL (`/?view=dock&room=<CODE>`) and HUD URL (`/?view=hud&room=<CODE>`). The room code is the invite, so share it only with your squad.
+3. **Moving host control** to another device: copy the host token from *You are the host* and paste it in *Viewing only -> Unlock* on the other device.
+4. **Streamer identity**: the first time a dock joins, the server issues a member token bound to that dock's member id (stored in the OBS browser profile). If a dock loses it, it rejoins automatically under a new member id.
+
+| Action | Who can do it |
+| --- | --- |
+| View room, markers, exports | Anyone with the room code |
+| Create markers, update OBS status | The streamer's own dock (member token) |
+| Start / stop sessions | The host (host token) |
+| List all rooms (`GET /api/rooms`) | Admin only (`ADMIN_TOKEN`), hidden otherwise |
+
+**HTTP quick-mark (Stream Deck / Streamer.bot):** in the Dock, open the OBS settings panel and copy the *HTTP token*, then:
+```http
+POST /api/rooms/<CODE>/quick-mark
+Authorization: Bearer <member token>
+Content-Type: application/json
+
+{ "memberId": "<your member id>", "category": "kill", "label": "Ace" }
+```
+
+**Server environment variables** (see `.env.example`):
+- `ALLOWED_ORIGIN`: comma-separated origins allowed to call the REST API cross-origin. Leave empty when the client is served from the same host (default).
+- `ADMIN_TOKEN`: enables `GET /api/rooms` for `Authorization: Bearer <ADMIN_TOKEN>`.
+- `TRUST_PROXY`: `true` behind a reverse proxy (Caddy / Nginx) so rate limits use the real client IP.
+
+Rooms created with v1.0/v1.1 have no host token: they stay readable and markable but sessions can't be started or stopped there. Create a new room.
+
+---
+
 ## 🎥 OBS Studio Setup Guide
 
 ### 1. Enable OBS WebSocket Server
@@ -152,7 +189,7 @@ npm.cmd start
 ### 2. Add the OBS Custom Browser Dock
 1. In OBS Studio top menu, click **Docks** -> **Custom Browser Docks...**
 2. **Dock Name**: `StreamCollab Squad Marker`
-3. **URL**: `http://localhost:5173/?view=dock` (or `http://localhost:5173/#/dock`)
+3. **URL**: the Dock link from the Director Panel, e.g. `http://localhost:5173/?view=dock&room=KQ7P-M3XD`
 4. Click **Apply**.
 5. The dock will open as a window inside OBS Studio. Drag and drop it into your OBS workspace (e.g. next to the Audio Mixer or Scene list).
 6. Click **OBS Disconnected** -> verify `ws://127.0.0.1:4455` -> click **Connect**.
@@ -170,7 +207,7 @@ The script creates the `StreamCollab Signal` input automatically. It is never ad
 1. In your active OBS Scene, click **Add Source (+)** -> **Browser**.
 2. Name it `StreamCollab HUD`.
 3. Configure settings:
-   - **URL**: `http://localhost:5173/?view=hud` (or `http://localhost:5173/#/hud`)
+   - **URL**: the HUD link from the Director Panel, e.g. `http://localhost:5173/?view=hud&room=KQ7P-M3XD`
    - **Width**: `1920`
    - **Height**: `1080`
    - **Custom CSS**: (leave default or clear, background is already transparent)
@@ -180,6 +217,7 @@ The script creates the `StreamCollab Signal` input automatically. It is never ad
 
 ### 5. Tournament Director Panel
 - Access via any browser: `http://localhost:5173/?view=dashboard`
+- Create the room (you become its host) and copy the Dock / HUD invite links.
 - Start master recording sessions, customize base timecodes and framerates (60, 59.94 DF, 50, 30, 24 fps), monitor all squad members' recording duration and clock calibration, and export NLE timelines in 1 click.
 
 ---
@@ -228,6 +266,7 @@ npm.cmd test
 - `packages/shared/test/edge-cases.test.ts`: Zero markers, XML/CSV escaping, YouTube 10s chapter clustering, >24h timecode rollover.
 - `packages/shared/test/perMember.test.ts`: Per-POV timeline rebasing and EDL locators on the creator's own file.
 - `packages/server/test/server.test.ts`: Fastify routes, Node 24 native `node:sqlite` WAL mode, SNTP 4-timestamp clock offset and RTT engine.
+- `packages/server/test/security.test.ts`: Host / member tokens, spoofing attempts, cross-room access, Zod validation errors, CORS, REST and WebSocket rate limits, oversized frames.
 - `packages/server/test/ws.test.ts`: Real-socket WebSocket rooms (Dock + HUD with the same member id), heartbeat, calibrated marker timestamps, recording anchors, per-POV exports, and in-place migration of v1.0.0 databases.
 
 ---
