@@ -200,4 +200,6 @@ npm.cmd test
 ---
 
 ## 📜 License
-MIT License. Created for the stream and video editing community.
+
+Distributed under the MIT License. See [`LICENSE`](./LICENSE) for more information.
+
