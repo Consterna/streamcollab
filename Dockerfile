@@ -13,7 +13,7 @@ COPY packages/server/package.json packages/server/
 COPY packages/client/package.json packages/client/
 RUN npm ci
 
-COPY tsconfig.base.json ./
+COPY tsconfig.base.json tsconfig.json ./
 COPY packages ./packages
 RUN npm run build
 

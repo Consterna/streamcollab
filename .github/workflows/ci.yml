@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+  docker:
+    name: Docker image smoke test
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: false
+          load: true
+          tags: streamcollab:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run container and check health, client and graceful shutdown
+        run: |
+          docker run -d --name streamcollab -p 3000:3000 streamcollab:ci
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:3000/api/health && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3000/api/health
+          curl -fsS -H 'Accept: text/html' http://127.0.0.1:3000/dashboard | grep -q '<div id="root">'
+          curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:3000/api/rooms | grep -q hostToken
+          docker stop streamcollab
+          docker logs streamcollab | tail -n 20
+          test "$(docker inspect -f '{{.State.ExitCode}}' streamcollab)" = "0"
