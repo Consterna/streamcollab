@@ -26,10 +26,25 @@ export interface ObsHotkeySignal {
   seq: number;
 }
 
+/**
+ * Native recording chapters (obs-websocket 5.5+ / OBS 30.2+, Hybrid MP4 only).
+ * - unknown: not connected yet
+ * - unsupported: this OBS has no CreateRecordChapter request
+ * - available: supported; `lastError` is set if OBS rejected the last chapter (e.g. not Hybrid MP4)
+ */
+export interface ObsChapterSupport {
+  state: 'unknown' | 'unsupported' | 'available';
+  obsVersion?: string;
+  lastError?: string;
+}
+
+export type ChapterResult = 'created' | 'not-recording' | 'unsupported' | 'failed';
+
 export interface ObsServiceEvents {
   status: (connected: boolean) => void;
   record: (status: ObsRecordStatus) => void;
   hotkey: (signal: ObsHotkeySignal) => void;
+  chapters: (support: ObsChapterSupport) => void;
 }
 
 // obs-websocket v5 event subscription bits
@@ -46,11 +61,13 @@ export class ObsService {
   private lastRecordStatus: ObsRecordStatus | null = null;
   private lastRecordSampleAt = 0;
   private lastSignalSeq: number | null = null;
+  private chapterSupport: ObsChapterSupport = { state: 'unknown' };
 
   private listeners: { [K in keyof ObsServiceEvents]: Set<ObsServiceEvents[K]> } = {
     status: new Set(),
     record: new Set(),
     hotkey: new Set(),
+    chapters: new Set(),
   };
 
   /** Subscribe to OBS events; returns an unsubscribe function for effect cleanups */
@@ -87,6 +104,7 @@ export class ObsService {
 
       this.setupListeners();
       this.startPolling();
+      void this.detectChapterSupport();
 
       return true;
     } catch (err) {
@@ -161,6 +179,46 @@ export class ObsService {
     if (!this.isConnected || !status?.outputActive) return null;
     if (status.outputPaused) return status.outputDuration;
     return Math.round(status.outputDuration + (performance.now() - this.lastRecordSampleAt));
+  }
+
+  get chapters(): ObsChapterSupport {
+    return this.chapterSupport;
+  }
+
+  private setChapterSupport(support: ObsChapterSupport) {
+    this.chapterSupport = support;
+    this.emit('chapters', support);
+  }
+
+  private async detectChapterSupport() {
+    try {
+      const version = await this.obs.call('GetVersion');
+      const supported = version.availableRequests.includes('CreateRecordChapter');
+      this.setChapterSupport({ state: supported ? 'available' : 'unsupported', obsVersion: version.obsVersion });
+    } catch {
+      this.setChapterSupport({ state: 'unknown' });
+    }
+  }
+
+  /**
+   * Drop a native chapter marker into the file OBS is recording right now, so editors see it
+   * even without importing an EDL. Never throws: the squad marker matters more than the chapter.
+   */
+  async createChapter(name: string): Promise<ChapterResult> {
+    if (!this.isConnected || !this.lastRecordStatus?.outputActive) return 'not-recording';
+    if (this.chapterSupport.state !== 'available') return 'unsupported';
+    try {
+      await this.obs.call('CreateRecordChapter', { chapterName: name.slice(0, 120) });
+      if (this.chapterSupport.lastError) {
+        this.setChapterSupport({ ...this.chapterSupport, lastError: undefined });
+      }
+      return 'created';
+    } catch (err) {
+      // Typically the recording format is not Hybrid MP4
+      const message = err instanceof Error && err.message ? err.message : 'OBS rejected the chapter';
+      this.setChapterSupport({ ...this.chapterSupport, lastError: message });
+      return 'failed';
+    }
   }
 
   async getVideoSettings(): Promise<ObsVideoSettings | null> {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useEffectEvent } from 'react';
 import { SquadMarker, SquadMember, RecordingSession, Room, MarkerCategory, SMPTETimecode } from '@streamcollab/shared';
-import { ObsService, ObsRecordStatus, ObsVideoSettings, ObsHotkeySignal } from '../services/obs';
+import { ObsService, ObsRecordStatus, ObsVideoSettings, ObsHotkeySignal, ObsChapterSupport } from '../services/obs';
+import { getBoolPreference, setBoolPreference } from '../services/preferences';
 import { StreamCollabSocketClient } from '../services/socket';
 import { getMemberToken } from '../services/credentials';
 import { ExportModal } from '../components/ExportModal';
@@ -16,6 +17,7 @@ import {
   Download,
   Activity,
   Send,
+  Undo2,
 } from 'lucide-react';
 
 // Default marker labels, shared by the dock buttons, dock hotkeys and global OBS hotkeys
@@ -161,6 +163,36 @@ export const DockView: React.FC<DockViewProps> = ({
     [socketClient]
   );
 
+  // Native OBS recording chapters (Hybrid MP4): written into this streamer's own file
+  const [chapterSupport, setChapterSupport] = useState<ObsChapterSupport>(obsService.chapters);
+  const [chaptersEnabled, setChaptersEnabled] = useState(() => getBoolPreference('chapters', true));
+  const [squadChapters, setSquadChapters] = useState(() => getBoolPreference('squadChapters', false));
+  useEffect(() => obsService.on('chapters', setChapterSupport), [obsService]);
+
+  const writeChapter = useCallback(
+    (marker: { category: string; label: string; comment?: string; memberName: string }) => {
+      if (!chaptersEnabled) return;
+      const comment = marker.comment ? ` - ${marker.comment}` : '';
+      void obsService.createChapter(
+        `${marker.category.toUpperCase()}: ${marker.label}${comment} (${marker.memberName})`
+      );
+    },
+    [obsService, chaptersEnabled]
+  );
+
+  // Squadmates' markers can also become chapters in this streamer's file (opt-in)
+  const onSquadMarker = useEffectEvent((marker: SquadMarker) => {
+    if (squadChapters && marker.memberId !== member.id) {
+      writeChapter(marker);
+    }
+  });
+  useEffect(() => socketClient.on('onMarkerAdded', (marker) => onSquadMarker(marker)), [socketClient]);
+
+  // Remove this streamer's last marker (server picks it, so a fast double press can't race)
+  const handleUndo = useCallback(() => {
+    socketClient.undoLastMarker();
+  }, [socketClient]);
+
   // Trigger quick marker
   const handleQuickMark = useCallback(
     (category: MarkerCategory, defaultLabel: string, commentOverride?: string) => {
@@ -179,17 +211,22 @@ export const DockView: React.FC<DockViewProps> = ({
         // Exact position inside this streamer's own recording file, for per-POV exports
         obsRecordMs: obsService.getEstimatedRecordMs(),
       });
+      writeChapter({ category, label: defaultLabel, comment: comment.trim() || undefined, memberName: member.name });
 
       if (commentOverride === undefined) {
         setCustomComment('');
       }
     },
-    [socketClient, obsService, roomId, activeSession?.id, member.id, member.name, customComment]
+    [socketClient, obsService, roomId, activeSession?.id, member.id, member.name, customComment, writeChapter]
   );
 
   // Global OBS hotkeys (from obs-scripts/streamcollab-hotkeys.lua) work while the game has focus
   // useEffectEvent always sees the latest handleQuickMark without re-subscribing
   const onHotkeySignal = useEffectEvent(({ category }: ObsHotkeySignal) => {
+    if (category === 'undo') {
+      handleUndo();
+      return;
+    }
     const label = (QUICK_MARK_LABELS as Record<string, string | undefined>)[category];
     if (label) {
       handleQuickMark(category as QuickMarkCategory, label);
@@ -197,7 +234,7 @@ export const DockView: React.FC<DockViewProps> = ({
   });
   useEffect(() => obsService.on('hotkey', (signal) => onHotkeySignal(signal)), [obsService]);
 
-  // Dock-focused hotkeys (1: Kill, 2: Wipe, 3: Clutch, 4: Funny, 5: Note)
+  // Dock-focused hotkeys (1: Kill, 2: Wipe, 3: Clutch, 4: Funny, 5: Note, 0 / Ctrl+Z: Undo)
   useEffect(() => {
     const keyToCategory: Record<string, QuickMarkCategory> = {
       '1': 'kill',
@@ -213,6 +250,12 @@ export const DockView: React.FC<DockViewProps> = ({
         return;
       }
 
+      if (e.key === '0' || (e.key.toLowerCase() === 'z' && (e.ctrlKey || e.metaKey))) {
+        e.preventDefault();
+        handleUndo();
+        return;
+      }
+
       const category = keyToCategory[e.key];
       if (category) {
         e.preventDefault();
@@ -222,7 +265,7 @@ export const DockView: React.FC<DockViewProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleQuickMark]);
+  }, [handleQuickMark, handleUndo]);
 
   // Calculate formatted timecode for display
   const tc = new SMPTETimecode({
@@ -317,6 +360,53 @@ export const DockView: React.FC<DockViewProps> = ({
             >
               {obsConnected ? 'Disconnect' : 'Connect'}
             </button>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="w-20 text-zinc-400 font-medium">Chapters:</span>
+            <div className="flex-1 space-y-1">
+              <div className="text-[11px]">
+                {chapterSupport.state === 'unknown' && (
+                  <span className="text-zinc-500">Connect OBS to check support</span>
+                )}
+                {chapterSupport.state === 'unsupported' && (
+                  <span className="text-amber-400">
+                    Needs OBS 30.2+ (obs-websocket 5.5)
+                    {chapterSupport.obsVersion ? `; you have ${chapterSupport.obsVersion}` : ''}
+                  </span>
+                )}
+                {chapterSupport.state === 'available' && !chapterSupport.lastError && (
+                  <span className="text-emerald-400">Native chapters available (record in Hybrid MP4)</span>
+                )}
+                {chapterSupport.state === 'available' && chapterSupport.lastError && (
+                  <span className="text-amber-400">
+                    OBS rejected the last chapter: set Settings - Output - Recording Format to Hybrid MP4
+                  </span>
+                )}
+              </div>
+              <label className="flex items-center gap-1.5 text-[11px] text-zinc-300">
+                <input
+                  type="checkbox"
+                  checked={chaptersEnabled}
+                  onChange={(e) => {
+                    setChaptersEnabled(e.target.checked);
+                    setBoolPreference('chapters', e.target.checked);
+                  }}
+                />
+                Write my markers as chapters into my recording
+              </label>
+              <label className="flex items-center gap-1.5 text-[11px] text-zinc-300">
+                <input
+                  type="checkbox"
+                  checked={squadChapters}
+                  disabled={!chaptersEnabled}
+                  onChange={(e) => {
+                    setSquadChapters(e.target.checked);
+                    setBoolPreference('squadChapters', e.target.checked);
+                  }}
+                />
+                Also add my squadmates' markers
+              </label>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <span className="w-20 text-zinc-400 font-medium">HTTP token:</span>
@@ -497,6 +587,17 @@ export const DockView: React.FC<DockViewProps> = ({
             <Send className="h-3.5 w-3.5" />
             <span>Mark</span>
           </button>
+
+          <button
+            type="button"
+            onClick={handleUndo}
+            disabled={!markers.some((m) => m.memberId === member.id)}
+            title="Undo your last marker (0 or Ctrl+Z). Chapters already written to the recording stay."
+            className="flex items-center gap-1 rounded-sm bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-zinc-700 disabled:opacity-40 transition"
+          >
+            <Undo2 className="h-3.5 w-3.5" />
+            <span>Undo</span>
+          </button>
         </form>
       </div>
 
@@ -512,7 +613,7 @@ export const DockView: React.FC<DockViewProps> = ({
             <Radio className="h-8 w-8 text-zinc-700 mb-2 animate-pulse" />
             <p>No markers yet in this session.</p>
             <p className="text-[11px] text-zinc-600 mt-1">
-              Press hotkeys [1] - [5] or click buttons above to mark events.
+              Press hotkeys [1] - [5] or click buttons above to mark events. [0] undoes your last one.
             </p>
           </div>
         ) : (

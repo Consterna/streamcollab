@@ -1,10 +1,11 @@
 --[[
 StreamCollab global hotkeys for OBS Studio.
 
-Registers five frontend hotkeys (Settings -> Hotkeys -> "StreamCollab: ...") that work
-while your game has focus. Each press writes { sc_category, sc_seq } into the settings of an
-input named "StreamCollab Signal"; obs-websocket emits InputSettingsChanged and the
-StreamCollab Dock turns it into a squad marker.
+Registers six frontend hotkeys (Settings -> Hotkeys -> "StreamCollab: ...") that work
+while your game has focus: five marker categories plus "Undo my last marker".
+Each press writes { sc_category, sc_seq } into the settings of an input named
+"StreamCollab Signal"; obs-websocket emits InputSettingsChanged and the StreamCollab
+Dock turns it into a squad marker (or an undo).
 
 Install: Tools -> Scripts -> "+" -> select this file. Then bind keys in Settings -> Hotkeys.
 The script only touches its own "StreamCollab Signal" input (created if missing, never
@@ -22,6 +23,8 @@ local MARKERS = {
   { category = "clutch", description = "StreamCollab: Clutch Play" },
   { category = "funny",  description = "StreamCollab: Funny Moment" },
   { category = "note",   description = "StreamCollab: Timeline Note" },
+  -- Not a marker: tells the Dock to remove this streamer's most recent marker
+  { category = "undo",   description = "StreamCollab: Undo my last marker" },
 }
 
 local hotkey_ids = {}
@@ -62,7 +65,8 @@ end
 
 function script_description()
   return [[<b>StreamCollab Global Hotkeys</b><br/>
-Mark kills, wipes, clutches, funny moments and notes while the game has focus.<br/>
+Mark kills, wipes, clutches, funny moments and notes while the game has focus,<br/>
+and undo your last marker.<br/>
 Bind the keys in <i>Settings &rarr; Hotkeys</i> (search "StreamCollab").<br/>
 The StreamCollab Dock must be open and linked to OBS.]]
 end
