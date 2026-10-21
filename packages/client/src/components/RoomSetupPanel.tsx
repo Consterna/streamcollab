@@ -4,6 +4,7 @@ import { Check, Copy, KeyRound, Link as LinkIcon, Plus, ShieldCheck } from 'luci
 import { createRoom } from '../services/api';
 import { getHostToken, saveHostToken } from '../services/credentials';
 import { StreamCollabSocketClient } from '../services/socket';
+import { viewUrl } from '../services/serverUrl';
 
 interface RoomSetupPanelProps {
   socketClient: StreamCollabSocketClient;
@@ -45,9 +46,8 @@ export const RoomSetupPanel: React.FC<RoomSetupPanelProps> = ({ socketClient, ro
   const [error, setError] = useState<string | null>(null);
   const [hostTokenDraft, setHostTokenDraft] = useState('');
 
-  const origin = window.location.origin;
-  const dockUrl = `${origin}/?view=dock&room=${encodeURIComponent(roomId)}`;
-  const hudUrl = `${origin}/?view=hud&room=${encodeURIComponent(roomId)}`;
+  const dockUrl = viewUrl('dock', roomId);
+  const hudUrl = viewUrl('hud', roomId);
   const hostToken = isHost ? getHostToken(roomId) : undefined;
 
   const handleCreate = async (e: React.FormEvent) => {

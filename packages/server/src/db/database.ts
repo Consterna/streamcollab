@@ -380,8 +380,9 @@ export class DatabaseService {
     }));
   }
 
-  checkpoint() {
-    this.db.exec('PRAGMA wal_checkpoint(PASSIVE);');
+  // PASSIVE never blocks writers; TRUNCATE (used at shutdown) also empties the -wal file
+  checkpoint(mode: 'PASSIVE' | 'TRUNCATE' = 'PASSIVE') {
+    this.db.exec(`PRAGMA wal_checkpoint(${mode});`);
   }
 
   // Marker methods

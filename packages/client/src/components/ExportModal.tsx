@@ -8,6 +8,7 @@ import {
   exportToCsv,
   exportToYouTubeChapters,
 } from '@streamcollab/shared';
+import { apiUrl } from '../services/serverUrl';
 import { Download, Copy, Check, X, FileText, Film, Table, Youtube, Layers } from 'lucide-react';
 
 interface ExportModalProps {
@@ -45,7 +46,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       const params = new URLSearchParams({ sessionId: session.id });
       if (povMemberId) params.set('memberId', povMemberId);
       setContent('// Loading from server...');
-      fetch(`/api/rooms/${encodeURIComponent(roomId)}/export/${selectedFormat}?${params}`, { signal: controller.signal })
+      fetch(apiUrl(`/api/rooms/${encodeURIComponent(roomId)}/export/${selectedFormat}?${params}`), { signal: controller.signal })
         .then(async (res) => {
           const text = await res.text();
           if (!res.ok) {

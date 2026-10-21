@@ -1,12 +1,13 @@
 import { CreateRoomResponse } from '@streamcollab/shared';
 import { saveHostToken } from './credentials';
+import { apiUrl } from './serverUrl';
 
 /**
  * Create a room on the server. The host token is returned only once, so it is stored
  * right away for this browser; the room id is the code the squad joins with.
  */
 export async function createRoom(name?: string): Promise<CreateRoomResponse> {
-  const res = await fetch('/api/rooms', {
+  const res = await fetch(apiUrl('/api/rooms'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(name ? { name } : {}),

@@ -10,6 +10,7 @@ import {
 import { StreamCollabSocketClient } from '../services/socket';
 import { ExportModal } from '../components/ExportModal';
 import { RoomSetupPanel } from '../components/RoomSetupPanel';
+import { apiUrl } from '../services/serverUrl';
 import {
   Play,
   Square,
@@ -405,7 +406,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </h2>
             <div className="space-y-2">
               <a
-                href={sessionForExport ? `/api/rooms/${roomId}/export/edl?sessionId=${sessionForExport.id}` : '#'}
+                href={sessionForExport ? apiUrl(`/api/rooms/${roomId}/export/edl?sessionId=${sessionForExport.id}`) : '#'}
                 download
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
                   !sessionForExport ? 'pointer-events-none opacity-40' : ''
@@ -416,7 +417,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </a>
 
               <a
-                href={sessionForExport ? `/api/rooms/${roomId}/export/xml?sessionId=${sessionForExport.id}` : '#'}
+                href={sessionForExport ? apiUrl(`/api/rooms/${roomId}/export/xml?sessionId=${sessionForExport.id}`) : '#'}
                 download
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
                   !sessionForExport ? 'pointer-events-none opacity-40' : ''
@@ -427,7 +428,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </a>
 
               <a
-                href={sessionForExport ? `/api/rooms/${roomId}/export/csv?sessionId=${sessionForExport.id}` : '#'}
+                href={sessionForExport ? apiUrl(`/api/rooms/${roomId}/export/csv?sessionId=${sessionForExport.id}`) : '#'}
                 download
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
                   !sessionForExport ? 'pointer-events-none opacity-40' : ''
@@ -438,7 +439,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </a>
 
               <a
-                href={sessionForExport ? `/api/rooms/${roomId}/export/youtube?sessionId=${sessionForExport.id}` : '#'}
+                href={sessionForExport ? apiUrl(`/api/rooms/${roomId}/export/youtube?sessionId=${sessionForExport.id}`) : '#'}
                 download
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
                   !sessionForExport ? 'pointer-events-none opacity-40' : ''
@@ -449,7 +450,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </a>
 
               <a
-                href={sessionForExport ? `/api/rooms/${roomId}/export/matrix?sessionId=${sessionForExport.id}` : '#'}
+                href={sessionForExport ? apiUrl(`/api/rooms/${roomId}/export/matrix?sessionId=${sessionForExport.id}`) : '#'}
                 download
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
                   !sessionForExport ? 'pointer-events-none opacity-40' : ''

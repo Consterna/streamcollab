@@ -10,6 +10,7 @@ import {
   ErrorCode,
 } from '@streamcollab/shared';
 import { getHostToken, getMemberToken, saveMemberToken } from './credentials';
+import { wsUrl } from './serverUrl';
 
 export interface JoinedInfo {
   roomId: string;
@@ -79,10 +80,8 @@ export class StreamCollabSocketClient {
     if (serverUrl) {
       this.serverUrl = serverUrl;
     } else {
-      const loc = window.location;
-      const proto = loc.protocol === 'https:' ? 'wss:' : 'ws:';
-      // Connect through Vite proxy (/ws) on dev server or direct host in production
-      this.serverUrl = `${proto}//${loc.host}/ws`;
+      // Same origin (Vite proxy in dev, Fastify in production) unless ?server= points elsewhere
+      this.serverUrl = wsUrl();
     }
   }
 

@@ -2,29 +2,29 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
 import rateLimit from '@fastify/rate-limit';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 import { LIMITS } from '@streamcollab/shared';
 import { DatabaseService } from './db/database.js';
 import { RoomManager } from './rooms/roomManager.js';
 import { registerApiRoutes } from './routes/api.js';
 import { registerWebSocketHandler } from './websocket/handler.js';
+import { registerClientApp } from './static/clientApp.js';
+import { loadConfig, loadDotEnv, parseOriginList } from './config.js';
+
+export { parseOriginList };
 
 export interface ServerOptions {
   dbPath?: string;
-  logger?: boolean;
+  logger?: boolean | { level: string };
   heartbeatIntervalMs?: number;
   // Origins allowed to call the REST API cross-origin. Empty = same-origin only
   // (the client is served by the same host in production and proxied by Vite in dev).
   allowedOrigins?: string[];
   adminToken?: string;
   trustProxy?: boolean;
-}
-
-/** Parse a comma-separated env var like "https://a.com, https://b.com" */
-export function parseOriginList(value: string | undefined): string[] {
-  return (value ?? '')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
+  // Compiled client (packages/client/dist) to serve at "/". Omit to serve the API only.
+  clientDir?: string;
 }
 
 export async function createServer(options: ServerOptions = {}) {
@@ -32,6 +32,14 @@ export async function createServer(options: ServerOptions = {}) {
     logger: options.logger ?? true,
     bodyLimit: 64 * 1024,
     trustProxy: options.trustProxy ?? false,
+  });
+
+  // Baseline hardening headers for every response (API and app)
+  fastify.addHook('onSend', async (_req, reply, payload) => {
+    reply.header('X-Content-Type-Options', 'nosniff');
+    reply.header('Referrer-Policy', 'no-referrer');
+    reply.header('X-Frame-Options', 'SAMEORIGIN');
+    return payload;
   });
 
   const allowedOrigins = options.allowedOrigins ?? [];
@@ -54,31 +62,73 @@ export async function createServer(options: ServerOptions = {}) {
   registerApiRoutes(fastify, roomManager, db, { adminToken: options.adminToken });
   registerWebSocketHandler(fastify, roomManager, { heartbeatIntervalMs: options.heartbeatIntervalMs });
 
+  if (options.clientDir) {
+    await registerClientApp(fastify, options.clientDir);
+  }
+
   return { fastify, db, roomManager };
 }
 
-async function start() {
-  const port = parseInt(process.env.PORT || '3000', 10);
-  const host = process.env.HOST || '0.0.0.0';
+const SHUTDOWN_TIMEOUT_MS = 10_000;
 
-  const { fastify } = await createServer({
-    dbPath: process.env.DATABASE_PATH,
-    allowedOrigins: parseOriginList(process.env.ALLOWED_ORIGIN),
-    adminToken: process.env.ADMIN_TOKEN || undefined,
-    trustProxy: process.env.TRUST_PROXY === 'true',
+async function start() {
+  const envFile = loadDotEnv();
+
+  let config;
+  try {
+    config = loadConfig();
+  } catch (err: any) {
+    console.error(err.message);
+    process.exit(1);
+  }
+
+  const { fastify, db } = await createServer({
+    dbPath: config.databasePath,
+    logger: { level: config.logLevel },
+    allowedOrigins: config.allowedOrigins,
+    adminToken: config.adminToken,
+    trustProxy: config.trustProxy,
+    clientDir: config.clientDist,
   });
 
+  if (envFile) {
+    fastify.log.info({ envFile }, 'Loaded environment file');
+  }
+
+  // Graceful shutdown (docker stop / Ctrl+C): stop accepting traffic, close sockets,
+  // then fold the WAL back into the main database file before exiting
+  let shuttingDown = false;
+  const shutdown = async (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    fastify.log.info({ signal }, 'Shutting down');
+    const forceExit = setTimeout(() => {
+      fastify.log.error('Shutdown timed out, forcing exit');
+      process.exit(1);
+    }, SHUTDOWN_TIMEOUT_MS);
+    forceExit.unref();
+
+    try {
+      await fastify.close();
+      db.checkpoint('TRUNCATE');
+      db.close();
+      process.exit(0);
+    } catch (err) {
+      fastify.log.error({ err }, 'Error during shutdown');
+      process.exit(1);
+    }
+  };
+  process.once('SIGTERM', () => void shutdown('SIGTERM'));
+  process.once('SIGINT', () => void shutdown('SIGINT'));
+
   try {
-    const address = await fastify.listen({ port, host });
-    console.log(`[StreamCollab Server] Listening on ${address}`);
+    const address = await fastify.listen({ port: config.port, host: config.host });
+    fastify.log.info(`[StreamCollab Server] Listening on ${address}`);
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);
   }
 }
-
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
 
 // Start if executed directly
 if (process.argv[1]) {
@@ -92,4 +142,3 @@ if (process.argv[1]) {
     // Ignore URL parse errors
   }
 }
-
