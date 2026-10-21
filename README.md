@@ -87,6 +87,9 @@ streamcollab/
 ├── obs-scripts/
 │   └── streamcollab-hotkeys.lua  # OBS global hotkeys → Dock (via obs-websocket)
 │
+├── deploy/Caddyfile       # HTTPS reverse proxy for docker-compose
+├── Dockerfile             # Multi-stage production image
+├── docker-compose.yml     # App + Caddy (automatic HTTPS / WSS)
 ├── .env.example           # Environment template (PORT, HOST, DATABASE_PATH)
 ├── package.json           # npm workspaces monorepo configuration
 ├── tsconfig.base.json
@@ -120,7 +123,7 @@ npm.cmd run build
 ```powershell
 npm.cmd test
 ```
-All 80 unit and integration tests verify SMPTE drop frame boundaries, NLE XML/EDL formatting, CSV escaping, and Fastify SQLite WAL routes.
+All 90 unit and integration tests verify SMPTE drop frame boundaries, NLE XML/EDL formatting, CSV escaping, and Fastify SQLite WAL routes.
 
 ### 4. Start Development Servers
 In two terminal windows:
@@ -139,9 +142,47 @@ npm.cmd run dev:client
 
 ### 5. Production Server (Optional)
 ```powershell
-# Run compiled backend server in production mode
+# Build once, then run the compiled server: it serves the API, the WebSocket hub
+# and the compiled client from a single origin (http://localhost:3000)
+npm.cmd run build
 npm.cmd start
 ```
+The server reads a `.env` file from the repository root if present, validates every variable at startup and exits with a clear message if something is wrong.
+
+---
+
+## 🚢 Deploy on a VPS (Docker + HTTPS)
+
+The repository ships a multi-stage `Dockerfile` (Node 24, production dependencies only, non-root user, healthcheck on `/api/health`) and a `docker-compose.yml` that puts [Caddy](https://caddyserver.com) in front for automatic HTTPS and WSS.
+
+1. Point a DNS record (e.g. `collab.example.com`) at the VPS and open ports 80 and 443.
+2. On the VPS:
+   ```bash
+   git clone <your repo> streamcollab && cd streamcollab
+   cp .env.example .env    # set DOMAIN=collab.example.com (and ADMIN_TOKEN if you want the room list)
+   docker compose up -d --build
+   ```
+3. Open `https://collab.example.com/dashboard`, create a room and share the Dock / HUD links.
+
+Operations:
+- **Data**: SQLite lives in the `streamcollab-data` volume (`/data/streamcollab.sqlite`). To back it up, stop the app (the graceful shutdown folds the WAL into the main file) and copy it out:
+  ```bash
+  docker compose stop streamcollab
+  docker compose cp streamcollab:/data/streamcollab.sqlite ./streamcollab-backup.sqlite
+  docker compose start streamcollab
+  ```
+- **Updates**: `git pull && docker compose up -d --build`. Schema migrations run automatically on startup.
+- **Shutdown**: `docker compose stop` sends SIGTERM; the server closes sockets, checkpoints the SQLite WAL and exits (15 s grace period).
+- **Logs**: `docker compose logs -f streamcollab` (`LOG_LEVEL` controls verbosity).
+
+### If the Dock can't reach OBS (Chrome "Local Network Access")
+The Dock talks to OBS on `ws://127.0.0.1:4455` from your PC. Recent Chrome versions ask for permission when a public HTTPS site opens connections to `localhost`, and an OBS Custom Browser Dock may not be able to show that prompt once OBS ships a Chromium with this rule. If the Dock loaded from your domain stays on **OBS Disconnected**:
+1. Serve the Dock locally next to OBS (for example `npm.cmd run build` then `npm.cmd run preview --workspace=packages/client`, which serves `http://localhost:4173`).
+2. Use the Dock URL with a `server` parameter so it still joins the room on your VPS:
+   `http://localhost:4173/?view=dock&room=<CODE>&server=https://collab.example.com`
+3. Add that local origin to `ALLOWED_ORIGIN` on the server (e.g. `ALLOWED_ORIGIN=http://localhost:4173`).
+
+The HUD and Director Panel never talk to OBS's WebSocket, so they can always be loaded from the public domain.
 
 ---
 
@@ -170,7 +211,7 @@ Content-Type: application/json
 
 **Server environment variables** (see `.env.example`):
 - `ALLOWED_ORIGIN`: comma-separated origins allowed to call the REST API cross-origin. Leave empty when the client is served from the same host (default).
-- `ADMIN_TOKEN`: enables `GET /api/rooms` for `Authorization: Bearer <ADMIN_TOKEN>`.
+- `ADMIN_TOKEN`: enables `GET /api/rooms` for `Authorization: Bearer <ADMIN_TOKEN>` (16+ characters).
 - `TRUST_PROXY`: `true` behind a reverse proxy (Caddy / Nginx) so rate limits use the real client IP.
 
 Rooms created with v1.0/v1.1 have no host token: they stay readable and markable but sessions can't be started or stopped there. Create a new room.
@@ -266,6 +307,7 @@ npm.cmd test
 - `packages/shared/test/edge-cases.test.ts`: Zero markers, XML/CSV escaping, YouTube 10s chapter clustering, >24h timecode rollover.
 - `packages/shared/test/perMember.test.ts`: Per-POV timeline rebasing and EDL locators on the creator's own file.
 - `packages/server/test/server.test.ts`: Fastify routes, Node 24 native `node:sqlite` WAL mode, SNTP 4-timestamp clock offset and RTT engine.
+- `packages/server/test/deploy.test.ts`: Environment validation, serving the compiled client (SPA fallback, cache headers, no path traversal), security headers, API-only mode.
 - `packages/server/test/security.test.ts`: Host / member tokens, spoofing attempts, cross-room access, Zod validation errors, CORS, REST and WebSocket rate limits, oversized frames.
 - `packages/server/test/ws.test.ts`: Real-socket WebSocket rooms (Dock + HUD with the same member id), heartbeat, calibrated marker timestamps, recording anchors, per-POV exports, and in-place migration of v1.0.0 databases.
 

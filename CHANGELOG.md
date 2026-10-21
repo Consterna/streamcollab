@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-20
+
+### Added
+- **Single-origin production server**: Fastify serves the compiled client (`@fastify/static`) at `/`, `/dock`, `/hud` and `/dashboard` with an SPA fallback for browser navigations; hashed assets are cached 30 days (`immutable`) and `index.html` is always revalidated.
+- **Docker deployment**: multi-stage `Dockerfile` (Node 24 slim, production dependencies of the server workspace only, non-root, `/data` volume, healthcheck) and `docker-compose.yml` with Caddy for automatic HTTPS / WSS (`deploy/Caddyfile`). `.dockerignore` and `.gitattributes` (LF for container files).
+- **Validated configuration** (`src/config.ts`): every env var is checked at startup with Zod and invalid values stop the server with a readable list. New `CLIENT_DIST`, `LOG_LEVEL`, `DOMAIN`. A root `.env` is loaded automatically (never overriding real env vars).
+- **Graceful shutdown** on SIGTERM / SIGINT: close sockets, `wal_checkpoint(TRUNCATE)`, close SQLite, 10 s safety timeout.
+- **`?server=` client parameter** to run the Dock from a local page while the room server lives on a VPS (fallback for Chrome Local Network Access restrictions on `ws://127.0.0.1`).
+- Security headers on every response (`X-Content-Type-Options`, `Referrer-Policy: no-referrer`, `X-Frame-Options: SAMEORIGIN`).
+- `deploy.test.ts` (10 tests, 90 total).
+
+### Changed
+- Invite links always point at `/?view=…` regardless of the page they were copied from.
+- Removed the unused `OBS_WS_URL` / `OBS_WS_PASSWORD` entries from `.env.example` (OBS credentials stay in each Dock).
+
+### Security
+- Uses `@fastify/static` 10.1.6, which fixes two high-severity advisories present in ≤10.1.1 (GHSA-8pvw-jcv7-9cmj, GHSA-83w8-p2f5-377r).
+
 ## [1.2.0] - 2026-10-20
 
 ### Added
@@ -126,7 +144,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed exporter access after session stop to allow post-broadcast timeline generation.
 - Fixed route navigation handling for both query string (`?view=dock`) and hash routing (`#/dock`).
 
-[Unreleased]: https://github.com/Consterna/streamcollab/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/Consterna/streamcollab/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/Consterna/streamcollab/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/Consterna/streamcollab/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/Consterna/streamcollab/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Consterna/streamcollab/releases/tag/v1.0.0
