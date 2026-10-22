@@ -1,7 +1,19 @@
 {
   "name": "streamcollab",
-  "version": "1.6.0",
-  "description": "StreamCollab HUD + OBS Squad-Marker Monorepo",
+  "version": "1.6.1",
+  "description": "Collaborative squad markers for OBS Studio with SMPTE timecode NLE exports (DaVinci Resolve, Premiere Pro, YouTube chapters)",
+  "license": "MIT",
+  "homepage": "https://github.com/Consterna/streamcollab#readme",
+  "bugs": {
+    "url": "https://github.com/Consterna/streamcollab/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Consterna/streamcollab.git"
+  },
+  "engines": {
+    "node": ">=24"
+  },
   "private": true,
   "workspaces": [
     "packages/shared",
@@ -27,6 +39,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.0",
     "@playwright/test": "^1.64.1",
+    "@vitest/coverage-v8": "^5.0.5",
     "eslint": "^10.13.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",

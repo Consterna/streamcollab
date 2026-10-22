@@ -4,7 +4,9 @@
 ARG NODE_VERSION=24
 
 # ---- Build: install everything and compile shared, server and client ----
-FROM node:${NODE_VERSION}-bookworm-slim AS build
+# Runs on the builder's native platform: its output (dist/) is plain JS, so multi-arch
+# builds only emulate the small runtime stage below instead of the whole toolchain.
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS build
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -19,6 +21,12 @@ RUN npm run build
 
 # ---- Runtime: production dependencies of the server workspace only ----
 FROM node:${NODE_VERSION}-bookworm-slim AS runtime
+# Static OCI metadata for local builds; the release workflow adds version, revision and created
+LABEL org.opencontainers.image.title="StreamCollab" \
+      org.opencontainers.image.description="Collaborative squad markers for OBS Studio with SMPTE timecode NLE exports" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.source="https://github.com/Consterna/streamcollab" \
+      org.opencontainers.image.url="https://github.com/Consterna/streamcollab"
 ENV NODE_ENV=production \
     PORT=3000 \
     HOST=0.0.0.0 \

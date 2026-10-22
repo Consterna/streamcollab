@@ -2,14 +2,16 @@
 #
 #   1. Point a DNS A/AAAA record (e.g. collab.example.com) at the VPS.
 #   2. cp .env.example .env  and set DOMAIN (plus ADMIN_TOKEN if you want the room list).
-#   3. docker compose up -d --build
+#   3. docker compose pull && docker compose up -d
+#      (uses the published multi-arch image; pin another release with STREAMCOLLAB_TAG in .env)
+#      or: docker compose up -d --build   to compile the image locally from this checkout
 #
 # SQLite data persists in the "streamcollab-data" volume; certificates in "caddy-data".
 
 services:
   streamcollab:
     build: .
-    image: streamcollab:1.6.0
+    image: ghcr.io/consterna/streamcollab:${STREAMCOLLAB_TAG:-1.6.1}
     restart: unless-stopped
     env_file:
       - path: .env

@@ -1,0 +1,45 @@
+# Weekly dependency updates. Minor / patch bumps arrive as one PR per ecosystem;
+# majors stay separate so each breaking change gets its own review and CI run.
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      # @vitest/coverage-v8 pins vitest exactly (peer dependency), so they must move together
+      vitest:
+        patterns:
+          - vitest
+          - '@vitest/*'
+      npm-minor-patch:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions-minor-patch:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      docker-minor-patch:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
