@@ -12,9 +12,18 @@ y este proyecto se adhiere al [Versionado Semántico](https://semver.org/lang/es
 ## [1.6.1] - 2026-10-22
 
 ### Añadido
+- Pruebas basadas en propiedades (property-based testing) con `fast-check` verificando la biyectividad del timecode SMPTE en las 8 tasas estándar (60, 59.94, 50, 30, 29.97, 25, 24, 23.976 fps), precisión sub-milisegundo, cambio de ciclo de 24 horas y límites de minutos en drop frame.
+- Pruebas estrictas de conformidad para exportadores: EDL CMX 3600 (saltos de línea CRLF, localizadores de color de DaVinci Resolve), XML Final Cut Pro 7 (validez estricta de esquema XML 1.0 con DOMParser) y fuzzing de inyección de fórmulas CSV.
+- Pruebas de estrés y concurrencia de base de datos (20 workers concurrentes, 2.000 escrituras/s durante backups en caliente, conciliación de sesiones huérfanas en el arranque).
+- Pruebas de caos y resiliencia WebSocket (ráfagas de límite de tasa, tormentas de reconexión con 30 sockets, cargas útiles de 16KB, fuzzing de JSON malformado, timeout de 15s para sockets sin sala).
+- Suite de integración simulada de OBS WebSocket v5 verificando el ciclo completo de grabación (start/pause/resume/stop), cambios dinámicos de FPS en el lienzo, deduplicación de señales de hotkey Lua y respaldo ante errores de formato de capítulos nativos.
+- Suite E2E extendida en Playwright (`e2e/squad-extended.spec.ts`) validando la sincronización multi-streamer, descarga de los 5 formatos de exportación (.edl, .xml, .csv, .txt, .json) y docks OBS ultra-estrechos (300px y 360px) en español sin desbordamiento.
 - Política de seguridad (`SECURITY.md`), guía para contribuir (`CONTRIBUTING.md`) y plantillas de issues y pull requests de GitHub.
 
 ### Cambiado
+- **Rendimiento HUD en OBS CEF:** Optimizado el intervalo del limpiador de toasts en `HudView.tsx` para preservar la identidad de la referencia cuando ningún toast expira, eliminando por completo 5 re-renderizados por segundo en reposo en fuentes del navegador OBS CEF.
+- **Resiliencia WebSocket:** Ráfaga inicial de 4 pings SNTP al conectar, descarte de picos extremos de jitter (> 2.5x base y > 100ms), backoff exponencial en el cliente hasta 15s y deduplicación de avisos `onConnectionChange` garantizando avisos en fallo inicial.
+- **Concurrencia SQLite y recuperación:** `PRAGMA busy_timeout = 5000;` en todas las conexiones y copias en caliente para erradicar errores de contención `SQLITE_BUSY`, transacciones multi-sentencia atómicas con protección contra reentrada y conciliación automática de sesiones huérfanas al iniciar.
 - **Imagen Docker en GHCR:** `ghcr.io/consterna/streamcollab` (`linux/amd64`, `linux/arm64`). `docker-compose.yml` la usa por defecto (`STREAMCOLLAB_TAG`, con `build: .` como respaldo).
 - Las GitHub Releases incluyen el script Lua de OBS (`streamcollab-hotkeys.lua`), `SHA256SUMS` y una attestation de procedencia de la compilación.
 - Documentación en inglés y español (`README`, `CHANGELOG`, `docs/`); el README incorpora un inicio rápido para usuarios (Docker, VPS) antes de la guía de desarrollo.
@@ -22,6 +31,8 @@ y este proyecto se adhiere al [Versionado Semántico](https://semver.org/lang/es
 - Quitar a un miembro desconectado (`REMOVE_MEMBER`) ahora solo lo saca de esa sala: su member id sigue ligado a su Dock, así que ningún otro dispositivo puede reclamarlo después.
 
 ### Corregido
+- **Timecode dropFrame en EDL y XML:** Corregido `tc.dropFrame` en `packages/shared/src/exporters/edl.ts` y `xml.ts` para usar la configuración drop-frame del timecode.
+- **Limpieza de caracteres de control en XML:** Eliminados caracteres de control no permitidos en XML 1.0 (`[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]`) en `escapeXml` para evitar exportaciones FCP XML corruptas.
 - **La identidad de miembro era global entre salas:** cuando una Dock entraba en otra sala, su streamer desaparecía de la sala anterior, de la matriz de sincronización multicámara de esa sala y de su quick-mark HTTP. La pertenencia ahora es por sala (migración del esquema v4); la identidad de la Dock y su member token se comparten en todas las salas a las que entra.
 - **Capítulos de YouTube:** el primer capítulo podía empezar después de `00:00` (YouTube exige el primer capítulo en 00:00, al menos 3 marcas de tiempo y capítulos de 10 s o más). La exportación ahora siempre empieza en `00:00` y el diálogo de exportación avisa cuando hay menos de 3 capítulos.
 - **Los títulos EDL** perdían las letras acentuadas ("Sesión" → "Sesin"); ahora se simplifican a ASCII ("Sesion").
@@ -39,7 +50,7 @@ y este proyecto se adhiere al [Versionado Semántico](https://semver.org/lang/es
 - Accesos a `localStorage` sin proteger en perfiles de OBS con el almacenamiento del navegador bloqueado.
 
 ### Seguridad
-- Las celdas CSV que empiezan por `=`, `+`, `-` o `@` (o por un tabulador / retorno de carro), que Excel y Google Sheets ejecutarían como fórmulas, ahora llevan `'` delante.
+- Expresión regular de fórmulas CSV endurecida a `/^\s*[=+\-@|]|[\t\r]/`, previniendo inyección de fórmulas en hojas de cálculo Excel y Google Sheets.
 
 ## [1.6.0] - 2026-10-21
 

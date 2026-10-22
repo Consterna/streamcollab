@@ -12,9 +12,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.6.1] - 2026-10-22
 
 ### Added
+- Property-based testing with `fast-check` covering SMPTE timecode bijectivity across all 8 standard framerates (60, 59.94, 50, 30, 29.97, 25, 24, 23.976 fps), sub-ms rational math, 24-hour rollover, and drop-frame minute boundaries.
+- Strict exporter conformance tests for CMX 3600 EDL (CRLF line endings, DaVinci Resolve color locators), Final Cut Pro 7 XML (XML 1.0 schema validity via DOMParser), and CSV formula injection fuzzing.
+- High-concurrency database stress tests (20 concurrent workers, 2,000 writes/sec during hot backup, unstopped orphan session reconciliation on restart).
+- WebSocket resilience and chaos testing (rate limit burst flooding, reconnect storms with 30 sockets, 16KB payloads, malformed JSON fuzzing, 15s unjoined connection timeout).
+- Mock OBS WebSocket v5 integration suite testing full recording lifecycle (start/pause/resume/stop), dynamic canvas framerate changes, Lua hotkey signal deduplication, and chapter format error fallback.
+- Extended Playwright E2E suite (`e2e/squad-extended.spec.ts`) validating multi-streamer squad synchronization, all 5 export format downloads (.edl, .xml, .csv, .txt, .json), and ultra-narrow OBS dock viewports (300px and 360px) in Spanish locale without overflow.
 - Security policy (`SECURITY.md`), contributing guide (`CONTRIBUTING.md`) and GitHub issue / pull request templates.
 
 ### Changed
+- **OBS CEF HUD performance:** Optimized toast cleaner state interval in `HudView.tsx` to preserve reference identity when no toasts expire, completely eliminating 5 idle re-renders per second in OBS CEF browser sources.
+- **WebSocket resilience:** Added 4-ping initial SNTP calibration burst on connect, jitter spike outlier rejection (> 2.5x baseline and > 100ms), client exponential backoff up to 15s, and deduplicated `onConnectionChange` notifications while guaranteeing initial failure alerts.
+- **SQLite concurrency & recovery:** Added `PRAGMA busy_timeout = 5000;` on all database connections and hot backup handles to eliminate `SQLITE_BUSY` contention, atomic multi-statement transactions with re-entrancy protection, and automatic orphan session reconciliation on server startup.
 - **Docker image on GHCR:** `ghcr.io/consterna/streamcollab` (`linux/amd64`, `linux/arm64`). `docker-compose.yml` uses it by default (`STREAMCOLLAB_TAG`, with `build: .` as a fallback).
 - GitHub Releases ship the OBS Lua script (`streamcollab-hotkeys.lua`), `SHA256SUMS` and a build provenance attestation.
 - Documentation in English and Spanish (`README`, `CHANGELOG`, `docs/`); the README gains a user quick start (Docker, VPS) before the development guide.
@@ -22,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removing an offline member (`REMOVE_MEMBER`) now only takes them out of that room: their member id stays bound to their Dock, so no other device can claim it afterwards.
 
 ### Fixed
+- **Timecode dropFrame in EDL and XML:** Fixed `tc.dropFrame` in `packages/shared/src/exporters/edl.ts` and `xml.ts` to use timecode drop-frame settings.
+- **XML control character stripping:** Stripped XML 1.0 disallowed control characters (`[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]`) in `escapeXml` to prevent corrupt Final Cut Pro XML exports.
 - **Member identity was global across rooms:** when a Dock joined another room, its streamer disappeared from the previous room, from that room's multicam sync matrix and from its HTTP quick-mark. Membership is now per room (schema migration v4); the Dock's identity and member token are shared by every room it joins.
 - **YouTube chapters:** the first chapter could start after `00:00` (YouTube requires the first chapter at 00:00, at least 3 timestamps and chapters of 10 s or more). The export now always opens at `00:00`, and the Export dialog warns when there are fewer than 3 chapters.
 - **EDL titles** lost accented letters ("Sesión" → "Sesin"); they are now folded to ASCII ("Sesion").
@@ -39,7 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unguarded `localStorage` access in OBS profiles where browser storage is blocked.
 
 ### Security
-- CSV cells that start with `=`, `+`, `-` or `@` (or a tab / carriage return), which Excel and Google Sheets would run as formulas, are now prefixed with `'`.
+- CSV formula trigger regex hardened to `/^\s*[=+\-@|]|[\t\r]/`, preventing spreadsheet formula injection in Excel and Google Sheets.
 
 ## [1.6.0] - 2026-10-21
 
