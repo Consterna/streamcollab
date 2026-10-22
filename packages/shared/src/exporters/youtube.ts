@@ -25,6 +25,15 @@ export function formatYouTubeTimestamp(ms: number): string {
   return `${mm}:${ss}`;
 }
 
+// YouTube only shows chapters when the description lists at least this many timestamps
+// (the first at 00:00, each chapter 10 s or longer): https://support.google.com/youtube/answer/9884579
+export const YOUTUBE_MIN_CHAPTERS = 3;
+
+/** Number of chapters in exported YouTube chapters text (one per non-empty line) */
+export function countYouTubeChapters(text: string): number {
+  return text.split('\n').filter((line) => line.trim() !== '').length;
+}
+
 /**
  * Clean YouTube chapter generator adhering to YouTube video description requirements
  */
@@ -55,14 +64,15 @@ export function exportToYouTubeChapters(
   for (const marker of sortedMarkers) {
     // Prevent chapters clustered closer than minIntervalMs
     if (marker.relativeTimeMs - lastTimeMs >= minIntervalMs || chapters.length === 0) {
-      const ts = formatYouTubeTimestamp(marker.relativeTimeMs);
+      // A marker in the first 2 s becomes the opening chapter, which YouTube only accepts at 00:00
+      const timeMs = chapters.length === 0 ? 0 : marker.relativeTimeMs;
       const title = marker.comment ? `${marker.label} - ${marker.comment}` : marker.label;
       chapters.push({
-        timestamp: ts,
+        timestamp: formatYouTubeTimestamp(timeMs),
         title: title.replace(/[\r\n]/g, ' ').trim(),
-        timeMs: marker.relativeTimeMs,
+        timeMs,
       });
-      lastTimeMs = marker.relativeTimeMs;
+      lastTimeMs = timeMs;
     }
   }
 

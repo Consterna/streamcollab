@@ -39,6 +39,12 @@ export function resolveMemberFramerate(
     }
   }
 
+  // Stored rates from older versions were not validated: never build a timecode below 1 fps
+  if (!(num / den >= 1)) {
+    num = 60;
+    den = 1;
+  }
+
   // Drop-frame only applies to the NTSC 29.97 / 59.94 rates
   const nominal = Math.round(num / den);
   const dropFrame = den === 1001 && (nominal === 30 || nominal === 60);

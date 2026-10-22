@@ -15,6 +15,14 @@ export const CATEGORY_TO_DAVINCI_COLOR: Record<string, DaVinciMarkerColor> = {
   custom: 'Green',
 };
 
+/** EDL header fields are plain ASCII: fold accents ("Sesión" -> "Sesion") before dropping other symbols */
+function toEdlAscii(text: string): string {
+  return text
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^\w\s-]/g, '');
+}
+
 /**
  * Generate DaVinci Resolve CMX 3600 EDL format with strict CRLF line endings
  */
@@ -25,8 +33,8 @@ export function exportToEdl(session: RecordingSession, markers: SquadMarker[], o
     dropFrame: session.dropFrame,
   });
 
-  const title = (options?.title || session.name || 'StreamCollab Session').replace(/[^\w\s-]/g, '');
-  const clipName = (options?.clipName || 'StreamCollab').replace(/[^\w\s-]/g, '');
+  const title = toEdlAscii(options?.title || session.name || 'StreamCollab Session');
+  const clipName = toEdlAscii(options?.clipName || 'StreamCollab');
   const fcm = session.dropFrame ? 'DROP FRAME' : 'NON-DROP FRAME';
 
   const lines: string[] = [`TITLE: ${title}`, `FCM: ${fcm}`, ''];

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { STANDARD_FRAMERATES } from '../timecode/index.js';
 
 /**
  * Runtime validation for everything that crosses the network. The server parses every
@@ -64,31 +65,47 @@ export const markerColorSchema = z.enum(DAVINCI_MARKER_COLORS);
 export const clientKindSchema = z.enum(CLIENT_KINDS);
 export const obsStatusSchema = z.enum(['recording', 'streaming', 'paused', 'stopped', 'disconnected']);
 
-export const joinMemberSchema = z.object({
-  id: idSchema,
-  name: text(LIMITS.memberName).min(1),
-  avatarUrl: z.url().max(500).optional(),
-  role: z.enum(['host', 'player', 'observer']).default('player'),
-  obsStatus: obsStatusSchema.default('disconnected'),
-  streamUrl: z.url().max(500).optional(),
-  fps: z.number().positive().max(1000).default(60),
-  outputDurationMs: epochMs.default(0),
-  fpsNumerator: positiveInt.optional(),
-  fpsDenominator: positiveInt.optional(),
-  recordStartedAt: epochMs.nullable().optional(),
-});
+// The exact OBS canvas rate a dock reports must describe 1..1000 fps (it times that streamer's exports)
+function refineObsFramerate(value: { fpsNumerator?: number; fpsDenominator?: number }, ctx: z.RefinementCtx) {
+  const { fpsNumerator: num, fpsDenominator: den } = value;
+  if (num !== undefined && den !== undefined && !(num / den >= 1 && num / den <= 1000)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['fpsNumerator'],
+      message: 'fpsNumerator / fpsDenominator must be 1-1000 fps',
+    });
+  }
+}
+
+export const joinMemberSchema = z
+  .object({
+    id: idSchema,
+    name: text(LIMITS.memberName).min(1),
+    avatarUrl: z.url().max(500).optional(),
+    role: z.enum(['host', 'player', 'observer']).default('player'),
+    obsStatus: obsStatusSchema.default('disconnected'),
+    streamUrl: z.url().max(500).optional(),
+    fps: z.number().min(1).max(1000).default(60),
+    outputDurationMs: epochMs.default(0),
+    fpsNumerator: positiveInt.optional(),
+    fpsDenominator: positiveInt.optional(),
+    recordStartedAt: epochMs.nullable().optional(),
+  })
+  .superRefine(refineObsFramerate);
 
 // Fields a dock may change about itself. Identity (id/name/role) is fixed at join time.
-export const memberStatusSchema = z.object({
-  obsStatus: obsStatusSchema.optional(),
-  fps: z.number().positive().max(1000).optional(),
-  fpsNumerator: positiveInt.optional(),
-  fpsDenominator: positiveInt.optional(),
-  outputDurationMs: epochMs.optional(),
-  clockOffsetMs: z.number().finite().min(-86_400_000).max(86_400_000).optional(),
-  rttMs: z.number().finite().nonnegative().max(60_000).optional(),
-  recordStartedAt: epochMs.nullable().optional(),
-});
+export const memberStatusSchema = z
+  .object({
+    obsStatus: obsStatusSchema.optional(),
+    fps: z.number().min(1).max(1000).optional(),
+    fpsNumerator: positiveInt.optional(),
+    fpsDenominator: positiveInt.optional(),
+    outputDurationMs: epochMs.optional(),
+    clockOffsetMs: z.number().finite().min(-86_400_000).max(86_400_000).optional(),
+    rttMs: z.number().finite().nonnegative().max(60_000).optional(),
+    recordStartedAt: epochMs.nullable().optional(),
+  })
+  .superRefine(refineObsFramerate);
 
 export const markerInputSchema = z.object({
   category: markerCategorySchema,
@@ -113,13 +130,35 @@ export const markerChangesSchema = z
     message: 'Provide at least one field to change',
   });
 
-export const sessionSettingsSchema = z.object({
-  name: text(LIMITS.sessionName).optional(),
-  baseTimecode: timecodeSchema.optional(),
-  framerateNumerator: positiveInt.optional(),
-  framerateDenominator: positiveInt.optional(),
-  dropFrame: z.boolean().optional(),
-});
+// Session timelines use the broadcast rates the timecode engine supports (missing values default to 60/1)
+const SESSION_FRAMERATES = Object.values(STANDARD_FRAMERATES);
+const findSessionFramerate = (numerator = 60, denominator = 1) =>
+  SESSION_FRAMERATES.find((rate) => rate.numerator === numerator && rate.denominator === denominator);
+
+export const sessionSettingsSchema = z
+  .object({
+    name: text(LIMITS.sessionName).optional(),
+    baseTimecode: timecodeSchema.optional(),
+    framerateNumerator: positiveInt.optional(),
+    framerateDenominator: positiveInt.optional(),
+    dropFrame: z.boolean().optional(),
+  })
+  .superRefine((session, ctx) => {
+    const rate = findSessionFramerate(session.framerateNumerator, session.framerateDenominator);
+    if (!rate) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['framerateNumerator'],
+        message: `Unsupported framerate; use one of ${SESSION_FRAMERATES.map((r) => `${r.numerator}/${r.denominator}`).join(', ')}`,
+      });
+    } else if (session.dropFrame && !rate.isDropFrameSupported) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['dropFrame'],
+        message: 'Drop-frame timecode only exists for 29.97 (30000/1001) and 59.94 (60000/1001) fps',
+      });
+    }
+  });
 
 export const clientMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('SNTP_PING'), payload: z.object({ t1: z.number().finite() }) }),

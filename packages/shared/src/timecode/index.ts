@@ -95,8 +95,9 @@ export class SMPTETimecode {
     this.denominator = den;
     this.nominalFps = Math.round(num / den);
 
-    // Determine drop-frame validity
-    if (options?.dropFrame) {
+    // Drop-frame only exists for the NTSC rates (29.97 / 59.94): an integer 30 or 60 fps never drops frames
+    const isNtscRate = Math.abs(num / den - this.nominalFps) > 1e-6;
+    if (options?.dropFrame && isNtscRate) {
       if (this.nominalFps === 30) {
         this.dropFrame = true;
         this.dropFramesPerMinute = 2;

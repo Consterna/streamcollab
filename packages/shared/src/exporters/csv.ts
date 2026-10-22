@@ -1,9 +1,13 @@
 import { SquadMarker, RecordingSession } from '../types/index.js';
 import { SMPTETimecode } from '../timecode/index.js';
 
+// Text a spreadsheet would run as a formula (CSV / formula injection, see OWASP)
+const FORMULA_TRIGGER = /^[=+\-@\t\r]/;
+
 function escapeCsvField(val: string | number | undefined | null): string {
   if (val === undefined || val === null) return '';
-  const str = String(val);
+  // Labels, comments and names are typed by squad members: a leading ' makes Excel / Sheets show them as text
+  const str = typeof val === 'string' && FORMULA_TRIGGER.test(val) ? `'${val}` : String(val);
   if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
     return `"${str.replace(/"/g, '""')}"`;
   }
