@@ -36,7 +36,7 @@ StreamCollab permite que squads de juego competitivo, grupos de creadores y dire
   - Sonidos de aviso opcionales por categoría (`&sound=1&volume=0.6` en el enlace del HUD), sintetizados en la propia página, sin archivos de audio.
   - En la lista del squad en pantalla solo aparecen los compañeros con la Dock conectada.
   - Indicador del squad en tiempo real con el estado de grabación de OBS de cada creador (🔴 REC, ⏸️ PAUSA, ⚪ INACTIVO).
-  - **Ahorro de recursos**: escucha el evento `obsSourceVisibleChanged` de OBS y deja de renderizar y de contar los avisos mientras la fuente o la escena están ocultas.
+  - **Ahorro de recursos**: escucha el evento `obsSourceVisibleChanged` de OBS y deja de renderizar y de contar los avisos mientras la fuente o la escena están ocultas. El intervalo del limpiador de avisos preserva la identidad de referencia cuando no caducan avisos, eliminando re-renderizados innecesarios en OBS CEF.
 
 - **Motor de timecode SMPTE de alta precisión**:
   - Aritmética racional pura, sin la deriva de la coma flotante en emisiones de varias horas.
@@ -45,9 +45,9 @@ StreamCollab permite que squads de juego competitivo, grupos de creadores y dire
   - Timecode base configurable (p. ej. `01:00:00:00` o `00:00:00:00`).
 
 - **Exportadores para editores (NLE)**:
-  - 🎬 **EDL CMX 3600 para DaVinci Resolve**: saltos de línea CRLF estrictos, eventos de edición de 1 fotograma numerados (`001`, `002`...) y localizadores `* LOC:` con los colores nativos de marcador de DaVinci (Red, Fuchsia, Yellow, Cyan, Blue, Green).
-  - 🎞️ **XML FCP 7 (`xmeml` v4) para Adobe Premiere Pro**: XML de Final Cut Pro 7 válido, con bloques `<format><samplecharacteristics>` completos y etiquetas `<marker>` en la pista con el identificador de la categoría delante.
-  - 📊 **CSV universal**: CSV conforme a RFC 4180, compatible con Google Sheets, Microsoft Excel y Markerbox. Las celdas que una hoja de cálculo ejecutaría como fórmula se neutralizan.
+  - 🎬 **EDL CMX 3600 para DaVinci Resolve**: saltos de línea CRLF estrictos, eventos de edición de 1 fotograma numerados (`001`, `002`...) y localizadores `* LOC:` con los colores nativos de marcador de DaVinci (Red, Fuchsia, Yellow, Cyan, Blue, Green), acotados contra duraciones negativas de fotogramas.
+  - 🎞️ **XML FCP 7 (`xmeml` v4) para Adobe Premiere Pro**: XML de Final Cut Pro 7 válido con eliminación de caracteres de control, con bloques `<format><samplecharacteristics>` completos y etiquetas `<marker>` en la pista con el identificador de la categoría delante.
+  - 📊 **CSV universal**: CSV conforme a RFC 4180, compatible con Google Sheets, Microsoft Excel y Markerbox. Patrones de inyección de fórmulas (`/^\s*[=+\-@|]|[\t\r]/`) neutralizados de forma segura.
   - 📺 **Capítulos de YouTube**: formato limpio para la descripción (`00:00 Intro\n01:23 First Blood`) que siempre empieza en `00:00` y respeta la duración mínima de 10 segundos por capítulo de YouTube.
   - 🛰️ **Matriz de sincronización multicámara (JSON)**: dónde empieza el archivo de OBS de cada creador respecto a la sesión (en ms y fotogramas), a partir de anclas de grabación calibradas con SNTP.
   - 🎥 **Líneas de tiempo por POV**: cualquier formato se puede exportar reajustado a la grabación de un creador concreto (`?memberId=`), para que los marcadores caigan en el fotograma correcto de ese clip.
@@ -60,8 +60,8 @@ StreamCollab permite que squads de juego competitivo, grupos de creadores y dire
 
 - **Backend Fastify de alta concurrencia y SQLite en modo WAL**:
   - Fastify v5 con `@fastify/websocket` v11 y `@fastify/cors`.
-  - `node:sqlite` nativo de Node 24 (`DatabaseSync`) con Write-Ahead Logging (`PRAGMA journal_mode = WAL`) y sincronización normal para el máximo rendimiento.
-  - **Motor SNTP de 4 marcas de tiempo**: calibración continua del RTT y del desfase de reloj (suavizada cada 5 s) ($\theta = \frac{(T_2 - T_1) + (T_3 - T_4)}{2}$) entre los PCs de los streamers y el servidor.
+  - `node:sqlite` nativo de Node 24 (`DatabaseSync`) con Write-Ahead Logging (`PRAGMA journal_mode = WAL`), `busy_timeout = 5000ms`, transacciones atómicas y recuperación automática de sesiones huérfanas tras caída en el arranque.
+  - **Motor SNTP de 4 marcas de tiempo**: calibración continua del RTT y del desfase de reloj con ráfaga inicial de 4 pings, descarte de picos de jitter (> 2.5x línea base) y suavizado exponencial cada 5s ($\theta = \frac{(T_2 - T_1) + (T_3 - T_4)}{2}$) entre los PCs de los streamers y el servidor.
 
 ---
 
@@ -407,9 +407,10 @@ streamcollab/
 
 ### 🧪 Tests y verificación
 
-El proyecto incluye tests unitarios y de integración en todo el monorepo:
+StreamCollab mantiene una suite de pruebas automatizada de **216 tests** (201 tests unitarios y de integración con Vitest en 23 suites + 15 tests end-to-end con Playwright simulando flujos reales multi-streamer):
 ```bash
-npm test
+npm test       # 201 tests en Vitest en 23 suites
+npm run e2e    # 15 tests E2E con Playwright (flujo real multi-ventana en Chromium)
 ```
 - `packages/shared/test/timecode.test.ts`: aritmética SMPTE, 60 fps NDF, 29.97 DF, 59.94 DF, 24 fps, salto de fotogramas en cada minuto.
 - `packages/shared/test/timecode-proptest.test.ts`: tests basados en propiedades (`fast-check`) verificando biyectividad en los 8 framerates estándar, límites de minutos drop-frame, precisión submilisegundo y desbordamiento 24h.

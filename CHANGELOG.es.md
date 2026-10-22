@@ -12,6 +12,7 @@ y este proyecto se adhiere al [Versionado Semántico](https://semver.org/lang/es
 ## [1.6.1] - 2026-10-22
 
 ### Añadido
+- Cobertura de pruebas integral alcanzando 216 tests en total (201 tests unitarios y de integración con Vitest en 23 suites + 15 tests E2E con Playwright).
 - Pruebas basadas en propiedades (property-based testing) con `fast-check` verificando la biyectividad del timecode SMPTE en las 8 tasas estándar (60, 59.94, 50, 30, 29.97, 25, 24, 23.976 fps), precisión sub-milisegundo, cambio de ciclo de 24 horas y límites de minutos en drop frame.
 - Pruebas estrictas de conformidad para exportadores: EDL CMX 3600 (saltos de línea CRLF, localizadores de color de DaVinci Resolve), XML Final Cut Pro 7 (validez estricta de esquema XML 1.0 con DOMParser) y fuzzing de inyección de fórmulas CSV.
 - Pruebas de estrés y concurrencia de base de datos (20 workers concurrentes, 2.000 escrituras/s durante backups en caliente, conciliación de sesiones huérfanas en el arranque).
@@ -48,6 +49,10 @@ y este proyecto se adhiere al [Versionado Semántico](https://semver.org/lang/es
 - Los archivos sin hash del build del cliente (como el favicon) se cacheaban como inmutables durante 30 días; ahora solo los `/assets/` con hash, y el resto se revalida.
 - Los códigos de error `FORBIDDEN`, `NOT_FOUND` e `INVALID_MESSAGE` no estaban traducidos.
 - Accesos a `localStorage` sin proteger en perfiles de OBS con el almacenamiento del navegador bloqueado.
+- **Rechazo de jitter 0ms en SNTP:** Gestión adecuada de calibraciones con jitter cero en red local/bucle sin falsos positivos de descarte.
+- **Acotación de marcas en recuperación tras caídas:** Límites de tiempo acotados dentro del rango de la sesión al conciliar sesiones huérfanas en el arranque.
+- **Acotación de duraciones en exportadores:** Prevención de fotogramas negativos en exportaciones EDL y XML ante desajustes de reloj.
+- **Creación atómica de sesiones:** `startSession` envuelto en una transacción atómica de SQLite para evitar condiciones de carrera en inicios concurrentes.
 
 ### Seguridad
 - Expresión regular de fórmulas CSV endurecida a `/^\s*[=+\-@|]|[\t\r]/`, previniendo inyección de fórmulas en hojas de cálculo Excel y Google Sheets.

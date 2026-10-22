@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.6.1] - 2026-10-22
 
 ### Added
+- Automated test coverage reaching 216 total tests (201 Vitest unit and integration tests across 23 test suites + 15 Playwright E2E tests).
 - Property-based testing with `fast-check` covering SMPTE timecode bijectivity across all 8 standard framerates (60, 59.94, 50, 30, 29.97, 25, 24, 23.976 fps), sub-ms rational math, 24-hour rollover, and drop-frame minute boundaries.
 - Strict exporter conformance tests for CMX 3600 EDL (CRLF line endings, DaVinci Resolve color locators), Final Cut Pro 7 XML (XML 1.0 schema validity via DOMParser), and CSV formula injection fuzzing.
 - High-concurrency database stress tests (20 concurrent workers, 2,000 writes/sec during hot backup, unstopped orphan session reconciliation on restart).
@@ -48,6 +49,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Un-hashed files of the client build (such as the favicon) were cached as immutable for 30 days; only hashed `/assets/` are now, the rest are revalidated.
 - The error codes `FORBIDDEN`, `NOT_FOUND` and `INVALID_MESSAGE` were not translated.
 - Unguarded `localStorage` access in OBS profiles where browser storage is blocked.
+- **SNTP 0ms jitter rejection:** Handled zero-jitter local/LAN network calibrations gracefully without false positive outlier rejection.
+- **Crash recovery session clamping:** Clamped start/stop timestamps within session boundaries during startup orphan session reconciliation.
+- **Exporter duration clamping:** Ensured EDL and XML export duration calculations never produce negative frame counts on clock skew.
+- **Atomic session creation:** Wrapped `startSession` in an atomic SQLite transaction to prevent race conditions during concurrent initialization.
 
 ### Security
 - CSV formula trigger regex hardened to `/^\s*[=+\-@|]|[\t\r]/`, preventing spreadsheet formula injection in Excel and Google Sheets.

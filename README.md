@@ -36,7 +36,7 @@ StreamCollab allows competitive gaming squads, content creator groups, and espor
   - Optional alert sounds per category (`&sound=1&volume=0.6` on the HUD link), synthesized in the page; no audio files.
   - Only squadmates whose dock is connected appear in the on-stream squad list.
   - Real-time squad status HUD badge showing each creator's live OBS recording health (🔴 REC, ⏸️ PAUSED, ⚪ IDLE).
-  - **Resource Optimization**: Listens to OBS's `obsSourceVisibleChanged` event and stops rendering and toast timers while the source / scene is hidden.
+  - **Resource Optimization**: Listens to OBS's `obsSourceVisibleChanged` event and stops rendering and toast timers while the source / scene is hidden. Toast cleaner interval preserves reference identity when no toasts expire, preventing unnecessary re-renders in OBS CEF.
 
 - **High-Precision SMPTE Timecode Engine**:
   - Pure rational arithmetic avoiding floating-point drift over multi-hour broadcasts.
@@ -45,9 +45,9 @@ StreamCollab allows competitive gaming squads, content creator groups, and espor
   - Configurable base timecode offsets (e.g. `01:00:00:00` or `00:00:00:00`).
 
 - **NLE Exporter Suite**:
-  - 🎬 **DaVinci Resolve CMX 3600 EDL**: Strict CRLF line endings, sequential 1-frame edit events (`001`, `002`...), and `* LOC:` locator syntax mapped to native DaVinci marker colors (Red, Fuchsia, Yellow, Cyan, Blue, Green).
-  - 🎞️ **Adobe Premiere Pro FCP 7 XML (`xmeml` v4)**: Valid Final Cut Pro 7 XML with complete `<format><samplecharacteristics>` video format blocks and track-level `<marker>` tags prefixed with category identifiers.
-  - 📊 **Universal CSV**: RFC 4180 compliant CSV compatible with Google Sheets, Microsoft Excel, and Markerbox. Cells that a spreadsheet would run as a formula are neutralized.
+  - 🎬 **DaVinci Resolve CMX 3600 EDL**: Strict CRLF line endings, sequential 1-frame edit events (`001`, `002`...), and `* LOC:` locator syntax mapped to native DaVinci marker colors (Red, Fuchsia, Yellow, Cyan, Blue, Green), clamped against negative frame durations.
+  - 🎞️ **Adobe Premiere Pro FCP 7 XML (`xmeml` v4)**: Valid Final Cut Pro 7 XML with stripped control characters, complete `<format><samplecharacteristics>` video format blocks and track-level `<marker>` tags prefixed with category identifiers.
+  - 📊 **Universal CSV**: RFC 4180 compliant CSV compatible with Google Sheets, Microsoft Excel, and Markerbox. Formula injection triggers (`/^\s*[=+\-@|]|[\t\r]/`) are safely neutralized.
   - 📺 **YouTube Video Chapters**: Clean description chapter format (`00:00 Intro\n01:23 First Blood`) that always starts at `00:00` and keeps YouTube's 10-second minimum chapter length.
   - 🛰️ **Multicam Sync Matrix JSON**: Where each creator's OBS file starts relative to the session (ms and frames), from SNTP-calibrated recording anchors.
   - 🎥 **Per-POV timelines**: Any format can be exported re-timed to one creator's own recording file (`?memberId=`), so markers land on the right frame of that clip.
@@ -60,8 +60,8 @@ StreamCollab allows competitive gaming squads, content creator groups, and espor
 
 - **High-Concurrency Fastify Backend & SQLite WAL**:
   - Fastify v5 with `@fastify/websocket` v11 and `@fastify/cors`.
-  - Native Node 24 `node:sqlite` (`DatabaseSync`) configured with Write-Ahead Logging (`PRAGMA journal_mode = WAL`) and normal synchronous mode for maximum throughput.
-  - **SNTP 4-Timestamp Engine**: Continuous RTT & clock offset calibration (smoothed every 5 s) ($\theta = \frac{(T_2 - T_1) + (T_3 - T_4)}{2}$) between streamers' PCs and the server.
+  - Native Node 24 `node:sqlite` (`DatabaseSync`) configured with Write-Ahead Logging (`PRAGMA journal_mode = WAL`), `busy_timeout = 5000ms`, atomic transactions, and automatic orphan session crash recovery on startup.
+  - **SNTP 4-Timestamp Engine**: Continuous RTT & clock offset calibration with initial 4-ping burst, outlier jitter rejection (> 2.5x baseline), and 5s exponential smoothing ($\theta = \frac{(T_2 - T_1) + (T_3 - T_4)}{2}$) between streamers' PCs and the server.
 
 ---
 
@@ -405,9 +405,10 @@ streamcollab/
 
 ### 🧪 Testing & Verification
 
-The project includes unit and integration tests across the monorepo:
+StreamCollab maintains an automated suite of **216 tests** (201 Vitest unit/integration tests across 23 test suites + 15 Playwright end-to-end tests across real multi-streamer flows):
 ```bash
-npm test
+npm test       # 201 Vitest tests across 23 suites
+npm run e2e    # 15 Playwright E2E tests (real multi-window Chromium flow)
 ```
 - `packages/shared/test/timecode.test.ts`: SMPTE arithmetic, 60 fps NDF, 29.97 DF, 59.94 DF, 24 fps, minute-mark frame skipping.
 - `packages/shared/test/timecode-proptest.test.ts`: Property-based testing (`fast-check`) verifying bijectivity across all 8 standard framerates, drop-frame minute boundaries, sub-ms rational math, and 24h rollover.
