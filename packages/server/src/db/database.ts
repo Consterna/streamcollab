@@ -100,6 +100,56 @@ const MIGRATIONS: string[] = [
     ALTER TABLE rooms ADD COLUMN host_token_hash TEXT;
     ALTER TABLE members ADD COLUMN token_hash TEXT;
   `,
+  // v4 — membership per room (v1.6.1). A member id is a device identity (with its token) that can
+  // belong to several rooms; before this, joining a second room moved the member out of the first.
+  // Also closes sessions orphaned by starting a new one while another was running.
+  `
+    CREATE TABLE member_identities (
+      id TEXT PRIMARY KEY,
+      token_hash TEXT,
+      created_at INTEGER NOT NULL
+    );
+    INSERT INTO member_identities (id, token_hash, created_at)
+      SELECT id, token_hash, last_heartbeat FROM members;
+
+    CREATE TABLE members_v4 (
+      id TEXT NOT NULL,
+      room_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      avatar_url TEXT,
+      role TEXT NOT NULL DEFAULT 'player',
+      obs_status TEXT NOT NULL DEFAULT 'disconnected',
+      stream_url TEXT,
+      fps REAL NOT NULL DEFAULT 60.0,
+      output_duration_ms INTEGER NOT NULL DEFAULT 0,
+      clock_offset_ms REAL NOT NULL DEFAULT 0.0,
+      rtt_ms REAL NOT NULL DEFAULT 0.0,
+      last_heartbeat INTEGER NOT NULL,
+      fps_num INTEGER,
+      fps_den INTEGER,
+      record_started_at INTEGER,
+      PRIMARY KEY (room_id, id),
+      FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
+    );
+    INSERT INTO members_v4 (
+      id, room_id, name, avatar_url, role, obs_status, stream_url, fps, output_duration_ms,
+      clock_offset_ms, rtt_ms, last_heartbeat, fps_num, fps_den, record_started_at
+    )
+      SELECT id, room_id, name, avatar_url, role, obs_status, stream_url, fps, output_duration_ms,
+        clock_offset_ms, rtt_ms, last_heartbeat, fps_num, fps_den, record_started_at
+      FROM members;
+    DROP TABLE members;
+    ALTER TABLE members_v4 RENAME TO members;
+    CREATE INDEX IF NOT EXISTS idx_members_room ON members(room_id);
+
+    UPDATE recording_sessions
+      SET stopped_at = COALESCE(
+        (SELECT MAX(m.timestamp) FROM markers m WHERE m.session_id = recording_sessions.id),
+        started_at
+      )
+      WHERE stopped_at IS NULL
+        AND id NOT IN (SELECT active_session_id FROM rooms WHERE active_session_id IS NOT NULL);
+  `,
 ];
 
 // Shapes of SQLite rows as returned by node:sqlite (snake_case columns)
@@ -127,7 +177,6 @@ interface MemberRow {
   fps_num: number | null;
   fps_den: number | null;
   record_started_at: number | null;
-  token_hash: string | null;
 }
 
 interface SessionRow {
@@ -295,8 +344,7 @@ export class DatabaseService {
         fps, output_duration_ms, clock_offset_ms, rtt_ms, last_heartbeat,
         fps_num, fps_den, record_started_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        room_id = excluded.room_id,
+      ON CONFLICT(room_id, id) DO UPDATE SET
         name = excluded.name,
         avatar_url = excluded.avatar_url,
         role = excluded.role,
@@ -330,14 +378,18 @@ export class DatabaseService {
     );
   }
 
+  // A member id is a device identity shared by every room that device joins; its token proves it
   getMemberTokenHash(memberId: string): string | null {
-    const row = this.stmt('SELECT token_hash FROM members WHERE id = ?').get(memberId) as
-      Pick<MemberRow, 'token_hash'> | undefined;
+    const row = this.stmt('SELECT token_hash FROM member_identities WHERE id = ?').get(memberId) as
+      { token_hash: string | null } | undefined;
     return row?.token_hash ?? null;
   }
 
   setMemberTokenHash(memberId: string, tokenHash: string) {
-    this.stmt('UPDATE members SET token_hash = ? WHERE id = ?').run(tokenHash, memberId);
+    this.stmt(
+      `INSERT INTO member_identities (id, token_hash, created_at) VALUES (?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET token_hash = excluded.token_hash`
+    ).run(memberId, tokenHash, Date.now());
   }
 
   /** Deletes the session with its markers and recording anchors (FK cascade) */
@@ -350,8 +402,9 @@ export class DatabaseService {
     return Number(this.stmt('DELETE FROM rooms WHERE id = ?').run(roomId).changes) > 0;
   }
 
-  removeMember(memberId: string) {
-    this.stmt('DELETE FROM members WHERE id = ?').run(memberId);
+  /** Removes the member from this room only; its identity (and token) stays with the device */
+  removeMember(roomId: string, memberId: string) {
+    this.stmt('DELETE FROM members WHERE room_id = ? AND id = ?').run(roomId, memberId);
   }
 
   getRoomMembers(roomId: string): SquadMember[] {

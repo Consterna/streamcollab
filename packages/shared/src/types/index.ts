@@ -175,7 +175,16 @@ export interface SessionSummary extends RecordingSession {
 
 export type ServerMessage =
   | { type: 'SNTP_PONG'; payload: SntpPongPayload }
-  | { type: 'ROOM_STATE'; payload: { room: Room; activeSession: RecordingSession | null; markers: SquadMarker[] } }
+  | {
+      type: 'ROOM_STATE';
+      payload: {
+        room: Room;
+        activeSession: RecordingSession | null;
+        // The running session, or else the most recent one; `markers` belong to it (absent before v1.6.1)
+        latestSession?: RecordingSession | null;
+        markers: SquadMarker[];
+      };
+    }
   | { type: 'MEMBER_JOINED'; payload: SquadMember }
   | { type: 'MEMBER_LEFT'; payload: { memberId: string } }
   | { type: 'MEMBER_REMOVED'; payload: { memberId: string } }

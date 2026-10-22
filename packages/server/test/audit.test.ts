@@ -141,7 +141,14 @@ describe('Audit fixes: room codes, presence, deletion, join limits', () => {
     host.send({ type: 'REMOVE_MEMBER', payload: { memberId: 'mem-ghost' } });
     await viewer.waitFor((m) => m.type === 'MEMBER_REMOVED' && m.payload.memberId === 'mem-ghost');
     expect(db.getRoomMembers(room.id)).toHaveLength(0);
-    expect(db.getMemberTokenHash('mem-ghost')).toBeNull();
+    // Only the membership goes: the id stays bound to its device, so nobody else can claim it now
+    expect(db.getMemberTokenHash('mem-ghost')).not.toBeNull();
+    const claimer = await connect();
+    claimer.send({
+      type: 'JOIN_ROOM',
+      payload: { roomId: room.id, clientKind: 'dock', member: dockMember('mem-ghost') },
+    });
+    expect((await claimer.waitFor((m) => m.type === 'ERROR')).payload.code).toBe('MEMBER_TOKEN_INVALID');
   });
 
   it('lets the host delete finished sessions (with their markers) but not the live one', async () => {

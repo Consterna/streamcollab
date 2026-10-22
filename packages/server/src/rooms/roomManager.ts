@@ -143,7 +143,7 @@ export class RoomManager {
     if (this.isMemberOnline(actor.roomId, memberId)) {
       throw new RoomError('FORBIDDEN', 'This member is online; only offline members can be removed');
     }
-    this.db.removeMember(memberId);
+    this.db.removeMember(actor.roomId, memberId);
     this.broadcastToRoom(actor.roomId, { type: 'MEMBER_REMOVED', payload: { memberId } });
   }
 
@@ -231,10 +231,12 @@ export class RoomManager {
       payload: { roomId, clientKind: kind, isHost, memberToken: issuedMemberToken },
     });
 
-    // Send complete current room state to the newly joined client
+    // Send the current room state: the running session, or else the most recent one, so a reloaded
+    // client can still review and export it (never every marker the room ever had)
     const room = this.getRoom(roomId);
     const activeSession = this.db.getActiveSession(roomId);
-    const markers = activeSession ? this.db.getSessionMarkers(activeSession.id) : this.db.getRoomMarkers(roomId);
+    const latestSession = activeSession ?? this.db.getLatestSession(roomId);
+    const markers = latestSession ? this.db.getSessionMarkers(latestSession.id) : [];
 
     if (room) {
       this.sendToSocket(socket, {
@@ -242,6 +244,7 @@ export class RoomManager {
         payload: {
           room,
           activeSession,
+          latestSession,
           markers,
         },
       });
@@ -343,6 +346,12 @@ export class RoomManager {
       dropFrame?: boolean;
     }
   ): RecordingSession {
+    // One running session per room: a new start closes the previous one instead of orphaning it
+    const previous = this.db.getActiveSession(roomId);
+    if (previous) {
+      this.stopSession(roomId, previous.id);
+    }
+
     const sessionId = crypto.randomUUID();
     const session: RecordingSession = {
       id: sessionId,
