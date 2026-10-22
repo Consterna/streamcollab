@@ -1,0 +1,59 @@
+name: Feature request / Propuesta
+description: Suggest an idea or an improvement / Sugiere una idea o una mejora
+title: '[Feature]: '
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea! Please search the existing issues first. / ¡Gracias por la idea! Busca antes entre los issues existentes.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Problema
+      description: What are you trying to do, and what gets in the way? / ¿Qué intentas hacer y qué te lo impide?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution / Solución propuesta
+      description: How would you like it to work? / ¿Cómo te gustaría que funcionara?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives / Alternativas
+      description: Workarounds or other options you considered / Soluciones provisionales u otras opciones que hayas considerado
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area / Área
+      multiple: true
+      options:
+        - Dock
+        - HUD (Browser Source)
+        - Director Panel / Panel del director
+        - Exports / Exportaciones (EDL, XML, CSV, YouTube, matrix)
+        - OBS Lua hotkeys script / Script Lua de atajos de OBS
+        - HTTP quick-mark (Stream Deck, Streamer.bot)
+        - Server, Docker or deployment / Servidor, Docker o despliegue
+        - Documentation / Documentación
+        - Other / Otro
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: StreamCollab version / Versión de StreamCollab
+      placeholder: '1.6.1'
+    validations:
+      required: false

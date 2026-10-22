@@ -1,0 +1,104 @@
+name: Bug / Error
+description: Something doesn't work as expected / Algo no funciona como debería
+title: '[Bug]: '
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please search the existing issues first. / ¡Gracias por avisar! Busca antes entre los issues existentes.
+
+        **Security vulnerabilities:** don't open an issue, report them privately as described in [SECURITY.md](https://github.com/Consterna/streamcollab/blob/main/SECURITY.md). / **Vulnerabilidades de seguridad:** no abras un issue, infórmalas en privado como se explica en [SECURITY.md](https://github.com/Consterna/streamcollab/blob/main/SECURITY.md).
+
+        Never paste host tokens, member tokens or OBS passwords. / No pegues nunca host tokens, member tokens ni contraseñas de OBS.
+
+  - type: input
+    id: version
+    attributes:
+      label: StreamCollab version / Versión de StreamCollab
+      description: Release or Docker image tag, or the commit if you run from source / Versión o etiqueta de la imagen Docker, o el commit si lo ejecutas desde el código
+      placeholder: '1.6.1'
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: How do you run it? / ¿Cómo lo ejecutas?
+      options:
+        - Docker (docker run)
+        - Docker Compose + Caddy (VPS)
+        - From source / Desde el código (npm start)
+        - Development / Desarrollo (npm run dev)
+        - Other / Otro
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where does it happen? / ¿Dónde ocurre?
+      multiple: true
+      options:
+        - Dock
+        - HUD (Browser Source)
+        - Director Panel / Panel del director
+        - Exports / Exportaciones (EDL, XML, CSV, YouTube, matrix)
+        - OBS Lua hotkeys script / Script Lua de atajos de OBS
+        - HTTP quick-mark (Stream Deck, Streamer.bot)
+        - Server, Docker or deployment / Servidor, Docker o despliegue
+        - Other / Otro
+    validations:
+      required: true
+
+  - type: input
+    id: obs-version
+    attributes:
+      label: OBS Studio version / Versión de OBS Studio
+      description: Help → About, if OBS is involved / Ayuda → Acerca de, si OBS está implicado
+      placeholder: '31.0'
+    validations:
+      required: false
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system / Sistema operativo
+      description: Of the PC with OBS, and of the server if it is a different one / Del PC con OBS, y del servidor si es otro
+      placeholder: 'Windows 11 (OBS) + Ubuntu 24.04 (server)'
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce / Pasos para reproducirlo
+      placeholder: |
+        1. Create a room / Crear una sala
+        2. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior / Comportamiento esperado
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior / Comportamiento actual
+      description: Screenshots of the Dock or the Director Panel help a lot / Las capturas de la Dock o del Panel del director ayudan mucho
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Server logs (`docker compose logs streamcollab`), browser console or OBS log, without tokens or passwords / Logs del servidor (`docker compose logs streamcollab`), consola del navegador o log de OBS, sin tokens ni contraseñas
+      render: shell
+    validations:
+      required: false

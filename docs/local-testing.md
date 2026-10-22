@@ -1,72 +1,80 @@
-# Probar StreamCollab en local (sin VPS)
+**English** | [Español](local-testing.es.md)
 
-Todo funciona en un solo PC con OBS. En local además no aplica la restricción de Chrome
-"Local Network Access", porque el Dock se carga desde `localhost`.
+# Testing StreamCollab locally (no VPS)
 
-> Las pruebas automáticas (`npm.cmd test` y `npm.cmd run e2e`) cubren el servidor y la interfaz en un
-> navegador. Esta lista cubre lo que **solo se puede comprobar con OBS real**.
+Everything works on a single PC with OBS. Locally, Chrome's "Local Network Access" restriction doesn't apply
+either, because the Dock is loaded from `localhost`.
 
-## 0. Arrancar
+> The automated tests (`npm test` and `npm run e2e`) cover the server and the interface in a browser.
+> This checklist covers what **can only be checked with a real OBS**.
 
-```powershell
-npm.cmd install
-npm.cmd run build
-npm.cmd start
+> On Windows PowerShell, use `npm.cmd` if script execution is blocked.
+
+## 0. Start
+
+```bash
+npm install
+npm run build
+npm start
 ```
 
-Abre `http://localhost:3000/dashboard`. Los datos quedan en `packages/server/streamcollab.sqlite`.
+Open `http://localhost:3000/dashboard`. The data is stored in `packages/server/streamcollab.sqlite`.
 
-## 1. Sala
+Without Node.js, you can use the Docker image from the README (quick start, option A); the data then lives in the
+`streamcollab-data` volume.
 
-- [ ] En el Director Panel: **New room** → **Create**. Aparece "You are the host" y los enlaces del Dock y del HUD.
+## 1. Room
 
-## 2. Conectar OBS
+- [ ] In the Director Panel: **New room** → **Create**. "You are the host" appears, with the Dock and HUD links.
 
-- [ ] OBS → Herramientas → Configuración del servidor WebSocket → activar (puerto 4455).
-- [ ] Docks → Docks personalizados del navegador → pegar el enlace del Dock.
-- [ ] En el Dock: **OBS Disconnected** → **Connect** → pasa a **OBS Linked** con tu resolución y FPS.
-- [ ] La línea **Chapters** dice que los capítulos están disponibles (OBS 30.2+).
+## 2. Connect OBS
 
-## 3. Marcadores en el Dock
+- [ ] OBS → Tools → WebSocket Server Settings → enable it (port 4455).
+- [ ] Docks → Custom Browser Docks → paste the Dock link.
+- [ ] In the Dock: **OBS Disconnected** → **Connect** → it turns into **OBS Linked** with your resolution and FPS.
+- [ ] The **Chapters** line says that chapters are available (OBS 30.2+).
 
-- [ ] Botones y teclas `1`–`5` → el marcador aparece en el Dock y en el Director Panel.
-- [ ] `0` o **Undo** → desaparece tu último marcador.
+## 3. Markers in the Dock
 
-## 4. HUD en pantalla
+- [ ] Buttons and keys `1`–`5` → the marker shows up in the Dock and in the Director Panel.
+- [ ] `0` or **Undo** → your last marker disappears.
 
-- [ ] Fuente de navegador con el enlace del HUD, 1920×1080 → al marcar aparece el aviso con fondo transparente.
-- [ ] Ocultar la fuente y volver a mostrarla no deja avisos "atascados".
+## 4. On-screen HUD
 
-## 5. Hotkeys globales (con el juego en primer plano)
+- [ ] Browser Source with the HUD link, 1920×1080 → marking shows the alert over a transparent background.
+- [ ] Hiding the source and showing it again leaves no "stuck" alerts.
 
-- [ ] Herramientas → Scripts → `+` → `obs-scripts/streamcollab-hotkeys.lua`.
-- [ ] Ajustes → Atajos → "StreamCollab" → asignar Kill, Squad Wipe, Clutch, Funny, Note y Undo.
-- [ ] Con un juego u otra ventana enfocada, las teclas crean marcadores y la de Undo los quita.
+## 5. Global hotkeys (with the game in the foreground)
 
-## 6. Grabación y capítulos nativos
+- [ ] Tools → Scripts → `+` → `streamcollab-hotkeys.lua` (from the releases page or from `obs-scripts/`).
+- [ ] Settings → Hotkeys → "StreamCollab" → bind Kill, Squad Wipe, Clutch, Funny, Note and Undo.
+- [ ] With a game or another window focused, the keys create markers and the Undo key removes them.
 
-- [ ] Ajustes → Salida → Grabación → formato **Hybrid MP4**.
-- [ ] Director Panel → **Start New Session**; luego grabar en OBS → el Dock muestra **REC LIVE**.
-- [ ] Marcar 3–4 momentos que recuerdes; detener la grabación.
-- [ ] Abrir el archivo en un reproductor con capítulos (p. ej. VLC → Reproducción → Capítulo): están en esos momentos.
+## 6. Recording and native chapters
 
-## 7. Export a DaVinci Resolve
+- [ ] Settings → Output → Recording → **Hybrid MP4** format.
+- [ ] Director Panel → **Start New Session**; then record in OBS → the Dock shows **REC LIVE**.
+- [ ] Mark 3–4 moments you will remember; stop the recording.
+- [ ] Open the file in a player with chapter support (e.g. VLC → Playback → Chapter): the chapters are at those moments.
 
-- [ ] Director Panel → **Export Timeline** → **Timeline**: tu nombre (POV) → DaVinci Resolve → descargar `.edl`.
-- [ ] Importar el `.edl` con tu grabación: los marcadores caen donde marcaste.
+## 7. Export to DaVinci Resolve
 
-## 8. Varias personas sin VPS
+- [ ] Director Panel → **Export Timeline** → **Timeline**: your name (POV) → DaVinci Resolve → download the `.edl`.
+- [ ] Import the `.edl` together with your recording: the markers land where you marked.
 
-- [ ] Mismo PC: abrir el enlace del Dock en otro navegador o en incógnito (es otro jugador).
-- [ ] Otro PC de tu casa: `http://TU-IP-LOCAL:3000/...` (permitir Node en el firewall de Windows).
-- [ ] Ambos aparecen en el Director Panel; solo el host puede iniciar o detener sesiones.
+## 8. Several people without a VPS
 
-## 9. Persistencia
+- [ ] Same PC: open the Dock link in another browser or in a private window (it is another player).
+- [ ] Another PC at home: `http://YOUR-LAN-IP:3000/...` (allow Node through the Windows firewall).
+- [ ] Both appear in the Director Panel; only the host can start or stop sessions.
 
-- [ ] `Ctrl+C` en el servidor y `npm.cmd start` otra vez: la sala, las sesiones y los marcadores siguen ahí.
+## 9. Persistence and reconnection
 
-## Si algo falla, anota
+- [ ] `Ctrl+C` on the server: the Dock shows **Server disconnected · reconnecting**, and marking warns that the marker was not sent.
+- [ ] `npm start` again: the Dock reconnects, and the room, the sessions and the markers are still there.
 
-- El paso y qué esperabas ver.
-- El texto de la línea **Chapters** del Dock y cualquier aviso amarillo.
-- Una captura del Dock o del Director Panel.
+## If something fails, write down
+
+- The step and what you expected to see.
+- The text of the Dock's **Chapters** line and any yellow notice.
+- A screenshot of the Dock or the Director Panel.

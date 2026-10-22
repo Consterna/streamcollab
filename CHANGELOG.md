@@ -1,3 +1,5 @@
+**English** | [Español](CHANGELOG.es.md)
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -6,6 +8,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [1.6.1] - 2026-10-22
+
+### Added
+- Security policy (`SECURITY.md`), contributing guide (`CONTRIBUTING.md`) and GitHub issue / pull request templates.
+
+### Changed
+- **Docker image on GHCR:** `ghcr.io/consterna/streamcollab` (`linux/amd64`, `linux/arm64`). `docker-compose.yml` uses it by default (`STREAMCOLLAB_TAG`, with `build: .` as a fallback).
+- GitHub Releases ship the OBS Lua script (`streamcollab-hotkeys.lua`), `SHA256SUMS` and a build provenance attestation.
+- Documentation in English and Spanish (`README`, `CHANGELOG`, `docs/`); the README gains a user quick start (Docker, VPS) before the development guide.
+- `engines.node >= 24`.
+- Removing an offline member (`REMOVE_MEMBER`) now only takes them out of that room: their member id stays bound to their Dock, so no other device can claim it afterwards.
+
+### Fixed
+- **Member identity was global across rooms:** when a Dock joined another room, its streamer disappeared from the previous room, from that room's multicam sync matrix and from its HTTP quick-mark. Membership is now per room (schema migration v4); the Dock's identity and member token are shared by every room it joins.
+- **YouTube chapters:** the first chapter could start after `00:00` (YouTube requires the first chapter at 00:00, at least 3 timestamps and chapters of 10 s or more). The export now always opens at `00:00`, and the Export dialog warns when there are fewer than 3 chapters.
+- **EDL titles** lost accented letters ("Sesión" → "Sesin"); they are now folded to ASCII ("Sesion").
+- **Non-standard framerates** produced `NaN` timecodes. Sessions now only accept the 8 supported rates (60, 59.94, 50, 30, 29.97, 25, 24 and 23.976 fps), with drop-frame only at 29.97 and 59.94, and a Dock that reports an impossible OBS framerate is rejected. The timecode engine no longer drops frames at integer 30 / 60 fps when drop-frame is requested (only NTSC rates drop frames); the Director Panel disables the drop-frame option for the other rates.
+- **Orphaned sessions:** starting a session while another one was running left the previous one open, and it could not be deleted. The running session is now stopped first, and the migration closes existing orphans.
+- Joining a room with no active session sent every marker of every session; it now sends the most recent session and its markers, which can still be exported after a reload.
+- The Dock sent status updates before it had joined the room, and the translated "room does not exist / was deleted" notice was replaced every second by "Join a room first".
+- The Dock didn't show that it had lost its connection to the server, and markers were lost silently. It now shows **Server disconnected** and warns about the marker that was not sent (its native OBS chapter, if enabled, is still written into your recording).
+- The Director Panel's category filter had no `custom` option.
+- The category in the Dock's marker history was not translated.
+- The `1`–`5` and `0` shortcuts fired while a dropdown had focus.
+- The favicon pointed at a missing `/vite.svg` (404).
+- Un-hashed files of the client build (such as the favicon) were cached as immutable for 30 days; only hashed `/assets/` are now, the rest are revalidated.
+- The error codes `FORBIDDEN`, `NOT_FOUND` and `INVALID_MESSAGE` were not translated.
+- Unguarded `localStorage` access in OBS profiles where browser storage is blocked.
+
+### Security
+- CSV cells that start with `=`, `+`, `-` or `@` (or a tab / carriage return), which Excel and Google Sheets would run as formulas, are now prefixed with `'`.
 
 ## [1.6.0] - 2026-10-21
 
@@ -137,6 +171,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.0] - 2026-10-20
 
+*Note: the "60 FPS GPU-accelerated" and "sub-millisecond" claims below were never verified and were removed from the README in 1.6.0.*
+
 ### Added
 
 #### `@streamcollab/shared`
@@ -205,7 +241,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed exporter access after session stop to allow post-broadcast timeline generation.
 - Fixed route navigation handling for both query string (`?view=dock`) and hash routing (`#/dock`).
 
-[Unreleased]: https://github.com/Consterna/streamcollab/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/Consterna/streamcollab/compare/v1.6.1...HEAD
+[1.6.1]: https://github.com/Consterna/streamcollab/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/Consterna/streamcollab/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/Consterna/streamcollab/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/Consterna/streamcollab/compare/v1.4.0...v1.5.0

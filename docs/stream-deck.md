@@ -1,3 +1,5 @@
+**English** | [Español](stream-deck.es.md)
+
 # Stream Deck & Streamer.bot
 
 Besides the Dock buttons, the `1`..`5` keys and the OBS global hotkeys, any device or tool that can send an
@@ -18,6 +20,8 @@ look at the **HTTP token** row:
 
 The member token identifies *your* Dock: markers sent with it appear under your name, and nobody else can use your
 member id. Keep it private, like a password. If you clear the Dock's browser data you get a new member id and token.
+
+The same member id and token work in every room your Dock has joined.
 
 ## 2. The two requests
 
@@ -59,6 +63,9 @@ Both endpoints accept 60 requests per minute per IP, which is plenty for button 
 > HTTP markers are timestamped when the server receives them. Docks, OBS hotkeys and the `1`..`5` keys are a
 > little more precise: they use your clock calibrated against the server and your exact OBS recording position.
 > Native OBS chapters are only written by the Dock, so press the Dock / hotkey when you want a chapter in your file.
+
+If no session is running when a marker arrives, the server starts an *Auto Session* for it (named `Auto Session`
+plus the server's local time). Only the host can stop it.
 
 ## 3. Test from a terminal
 
@@ -132,7 +139,7 @@ public class CPHInline
 
 | Response | Meaning |
 | --- | --- |
-| `403 Member token required` | Wrong / missing token, or the member id belongs to another Dock |
-| `404 Room ... not found` | Wrong room code (codes are case-sensitive) |
+| `403 Member token required` | Wrong / missing token, the member id belongs to another Dock, or your Dock has never joined this room |
+| `404 Room ... not found` | Wrong room code (any letter case works: `kq7p-m3xd` is the same room as `KQ7P-M3XD`) |
 | `400 ...` | Invalid body: the message names the field (e.g. `category: Invalid option`) |
 | `429` | More than 60 requests per minute from your IP |
