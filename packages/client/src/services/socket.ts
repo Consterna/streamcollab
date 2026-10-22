@@ -55,6 +55,7 @@ export class StreamCollabSocketClient {
   // SNTP Calibration state
   private clockOffsetMs = 0;
   private rttMs = 0;
+  private hasSntpSample = false;
 
   // Current session/room context
   private currentRoomId = '';
@@ -132,6 +133,11 @@ export class StreamCollabSocketClient {
   }
 
   connect() {
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
       return;
     }
@@ -175,6 +181,7 @@ export class StreamCollabSocketClient {
   private handleDisconnect() {
     this.isConnected = false;
     this.isJoined = false;
+    this.hasSntpSample = false;
     this.emitConnectionChange(false);
     this.stopSntpCalibration();
 
@@ -200,14 +207,15 @@ export class StreamCollabSocketClient {
         // Jitter spike outlier rejection:
         // Reject samples with extreme RTT spikes (> 2.5x baseline and > 100ms)
         // to protect the calibrated timeline from transient network congestion / bufferbloat.
-        if (this.rttMs > 0 && currentRtt > Math.max(100, this.rttMs * 2.5)) {
+        if (this.hasSntpSample && currentRtt > Math.max(100, this.rttMs * 2.5)) {
           break;
         }
 
         // Exponential moving average filter
-        if (this.clockOffsetMs === 0 && this.rttMs === 0) {
+        if (!this.hasSntpSample) {
           this.clockOffsetMs = currentOffset;
           this.rttMs = currentRtt;
+          this.hasSntpSample = true;
         } else {
           // Weight lower RTT samples more heavily (NTP minimum dispersion principle)
           const weight = currentRtt < this.rttMs ? 0.5 : 0.3;
@@ -491,6 +499,7 @@ export class StreamCollabSocketClient {
     }
     this.isConnected = false;
     this.isJoined = false;
+    this.hasSntpSample = false;
     this.emitConnectionChange(false);
   }
 }

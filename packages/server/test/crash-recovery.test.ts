@@ -45,7 +45,7 @@ describe('Crash Recovery & Orphan Session Reconciliation', () => {
       sessionId: session.id,
       memberId: 'mem-1',
       memberName: 'Player1',
-      timestamp: 1700000010000,
+      timestamp: session.startedAt + 10000,
       relativeTimeMs: 10000,
       timecode: '01:00:10:00',
       frameNumber: 600,
@@ -60,7 +60,7 @@ describe('Crash Recovery & Orphan Session Reconciliation', () => {
       sessionId: session.id,
       memberId: 'mem-1',
       memberName: 'Player1',
-      timestamp: 1700000035000, // 35 seconds (latest marker)
+      timestamp: session.startedAt + 35000, // 35 seconds (latest marker)
       relativeTimeMs: 35000,
       timecode: '01:00:35:00',
       frameNumber: 2100,
@@ -86,10 +86,10 @@ describe('Crash Recovery & Orphan Session Reconciliation', () => {
     const result = rm2.reconcileCrashRecovery();
     expect(result.closedCount).toBe(1);
 
-    // Verify session was auto-closed at the timestamp of the last marker (1700000035000)
+    // Verify session was auto-closed at the timestamp of the last marker (session.startedAt + 35000)
     const recoveredSession = db2.getSession(session.id);
     expect(recoveredSession).not.toBeNull();
-    expect(recoveredSession?.stoppedAt).toBe(1700000035000);
+    expect(recoveredSession?.stoppedAt).toBe(session.startedAt + 35000);
 
     // Verify active session was cleared on the room
     expect(db2.getActiveSession('CRASH-ROOM-1')).toBeNull();
@@ -97,7 +97,7 @@ describe('Crash Recovery & Orphan Session Reconciliation', () => {
     // Verify latestSession still finds the closed session for exports
     const latest = db2.getLatestSession('CRASH-ROOM-1');
     expect(latest?.id).toBe(session.id);
-    expect(latest?.stoppedAt).toBe(1700000035000);
+    expect(latest?.stoppedAt).toBe(session.startedAt + 35000);
 
     // Verify markers survived intact
     const markers = db2.getSessionMarkers(session.id);
@@ -187,6 +187,52 @@ describe('Crash Recovery & Orphan Session Reconciliation', () => {
     const newSessionA = rm.startSession('MULTI-A', { name: 'Fresh Session A' });
     expect(newSessionA.stoppedAt).toBeNull();
     expect(db.getActiveSession('MULTI-A')?.id).toBe(newSessionA.id);
+    rm.stopSession('MULTI-A', newSessionA.id);
+
+    db.close();
+  });
+
+  it('clamps stopped_at to started_at when markers have skewed timestamps earlier than started_at', () => {
+    const db = new DatabaseService(dbPath);
+    const rm = new RoomManager(db);
+
+    rm.createRoom('SKEW-ROOM', 'Skew Test Room');
+    const startedAt = 50000;
+    const session = db.createSession({
+      id: 'sess-skew',
+      roomId: 'SKEW-ROOM',
+      name: 'Skew Session',
+      startedAt,
+      stoppedAt: null,
+      baseTimecode: '01:00:00:00',
+      framerateNumerator: 60,
+      framerateDenominator: 1,
+      dropFrame: false,
+    });
+
+    // Marker with timestamp in the past (earlier than startedAt due to client clock drift)
+    db.createMarker({
+      id: 'm-skew',
+      roomId: 'SKEW-ROOM',
+      sessionId: session.id,
+      memberId: 'mem1',
+      memberName: 'Player',
+      timestamp: 40000, // 10s BEFORE startedAt
+      relativeTimeMs: 0,
+      timecode: '01:00:00:00',
+      frameNumber: 0,
+      category: 'note',
+      label: 'Early marker',
+      color: 'Blue',
+    });
+
+    const recovered = rm.reconcileCrashRecovery();
+    expect(recovered.closedCount).toBe(1);
+
+    const closed = db.getSession('sess-skew');
+    expect(closed?.stoppedAt).not.toBeNull();
+    // Must be clamped to startedAt (50000), not the earlier marker timestamp (40000)
+    expect(closed?.stoppedAt).toBe(startedAt);
 
     db.close();
   });

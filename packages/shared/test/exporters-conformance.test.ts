@@ -254,6 +254,21 @@ describe('Exporters Conformance & Security Verification', () => {
       expect(errsDf).toEqual([]);
       expect(docDf.getElementsByTagName('displayformat')[0].textContent).toBe('DF');
     });
+
+    it('safely handles malformed / XML injection in session.baseTimecode with clean fallback', () => {
+      const hostileTimecodeSession: RecordingSession = {
+        ...baseSession,
+        baseTimecode: '01:00:00:00<evil>\x00\x08</evil>',
+      };
+
+      expect(() => exportToFcpXml(hostileTimecodeSession, [])).not.toThrow();
+      const xml = exportToFcpXml(hostileTimecodeSession, []);
+      const { doc, errors } = parseXmlStrict(xml);
+      expect(errors).toEqual([]);
+
+      const stringEls = doc.getElementsByTagName('string');
+      expect(stringEls[0].textContent).toBe('01:00:00:00');
+    });
   });
 
   describe('CSV Injection Hardening & Fuzzing', () => {
@@ -371,6 +386,26 @@ describe('Exporters Conformance & Security Verification', () => {
       expect(csv).not.toContain("'Great Headshot");
       expect(csv).toContain('Regular comment without formulas');
       expect(csv).not.toContain("'Regular comment without formulas");
+    });
+
+    it('safely handles NaN and non-finite timestamps without throwing RangeError', () => {
+      const invalidMarker: SquadMarker = {
+        id: 'nan-time',
+        roomId: 'room-conf',
+        sessionId: baseSession.id,
+        memberId: 'm1',
+        memberName: 'Alex Player',
+        timestamp: NaN as any,
+        relativeTimeMs: 5000,
+        timecode: '01:00:05:00',
+        frameNumber: 300,
+        category: 'kill',
+        label: 'NaN Timestamp Marker',
+      };
+
+      expect(() => exportToCsv(baseSession, [invalidMarker])).not.toThrow();
+      const csv = exportToCsv(baseSession, [invalidMarker]);
+      expect(csv).toContain('NaN Timestamp Marker');
     });
   });
 });

@@ -356,33 +356,37 @@ export class RoomManager {
       dropFrame?: boolean;
     }
   ): RecordingSession {
-    // One running session per room: a new start closes the previous one instead of orphaning it
-    const previous = this.db.getActiveSession(roomId);
-    if (previous) {
-      this.stopSession(roomId, previous.id);
-    }
-
-    const sessionId = crypto.randomUUID();
-    const session: RecordingSession = {
-      id: sessionId,
-      roomId,
-      name: sessionData.name || `Session ${new Date().toLocaleTimeString()}`,
-      startedAt: Date.now(),
-      stoppedAt: null,
-      baseTimecode: sessionData.baseTimecode || '01:00:00:00',
-      framerateNumerator: sessionData.framerateNumerator || 60,
-      framerateDenominator: sessionData.framerateDenominator || 1,
-      dropFrame: sessionData.dropFrame ?? false,
-    };
-
-    this.db.createSession(session);
-
-    // Members already recording when the session starts keep their existing file anchor
-    for (const member of this.db.getRoomMembers(roomId)) {
-      if (member.obsStatus === 'recording' || member.obsStatus === 'paused') {
-        this.saveAnchor(session.id, member);
+    const session = this.db.transaction(() => {
+      // One running session per room: a new start closes the previous one instead of orphaning it
+      const previous = this.db.getActiveSession(roomId);
+      if (previous) {
+        this.stopSession(roomId, previous.id);
       }
-    }
+
+      const sessionId = crypto.randomUUID();
+      const newSession: RecordingSession = {
+        id: sessionId,
+        roomId,
+        name: sessionData.name || `Session ${new Date().toLocaleTimeString()}`,
+        startedAt: Date.now(),
+        stoppedAt: null,
+        baseTimecode: sessionData.baseTimecode || '01:00:00:00',
+        framerateNumerator: sessionData.framerateNumerator || 60,
+        framerateDenominator: sessionData.framerateDenominator || 1,
+        dropFrame: sessionData.dropFrame ?? false,
+      };
+
+      this.db.createSession(newSession);
+
+      // Members already recording when the session starts keep their existing file anchor
+      for (const member of this.db.getRoomMembers(roomId)) {
+        if (member.obsStatus === 'recording' || member.obsStatus === 'paused') {
+          this.saveAnchor(newSession.id, member);
+        }
+      }
+
+      return newSession;
+    });
 
     this.broadcastToRoom(roomId, {
       type: 'SESSION_STARTED',

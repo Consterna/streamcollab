@@ -44,9 +44,12 @@ export function exportToCsv(session: RecordingSession, markers: SquadMarker[]): 
     const timecode = tc.relativeMsToTimecode(marker.relativeTimeMs, session.baseTimecode || '01:00:00:00');
     const frame = tc.millisecondsToFrames(marker.relativeTimeMs);
 
+    const ts = Number(marker.timestamp);
+    const isoTime = Number.isFinite(ts) && ts > 0 ? new Date(ts).toISOString() : '';
+
     return [
       escapeCsvField(marker.id),
-      escapeCsvField(new Date(marker.timestamp).toISOString()),
+      escapeCsvField(isoTime),
       escapeCsvField(timecode),
       escapeCsvField(frame),
       escapeCsvField(marker.relativeTimeMs),

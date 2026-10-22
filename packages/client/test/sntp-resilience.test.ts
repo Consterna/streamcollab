@@ -197,4 +197,65 @@ describe('SNTP Calibration Burst & WebSocket Resilience (Client)', () => {
 
     client.disconnect();
   });
+
+  it('rejects jitter spike outliers even when initial baseline RTT is 0 (loopback/localhost)', () => {
+    vi.setSystemTime(10000);
+    const client = new StreamCollabSocketClient('ws://test/ws');
+    client.connect();
+    const ws = FakeWebSocket.last!;
+    ws.open();
+
+    const syncEvents: { offset: number; rtt: number }[] = [];
+    client.on('onClockSync', (offset, rtt) => syncEvents.push({ offset, rtt }));
+
+    // 1. Initial localhost ping/pong: 0ms RTT, 0ms offset
+    // t1=10000, t2=10000, t3=10000, t4=10000
+    ws.receive({
+      type: 'SNTP_PONG',
+      payload: { t1: 10000, t2: 10000, t3: 10000 },
+    });
+
+    expect(syncEvents.length).toBe(1);
+    expect(client.rtt).toBe(0);
+    expect(client.offset).toBe(0);
+
+    // 2. Severe spike arrives with RTT = 500ms (> max(100, 0 * 2.5) = 100)
+    // t1=20000, t2=20250, t3=20250, t4=20500
+    vi.setSystemTime(20500);
+    ws.receive({
+      type: 'SNTP_PONG',
+      payload: { t1: 20000, t2: 20250, t3: 20250 },
+    });
+
+    // Outlier must be rejected despite baseline RTT being 0
+    expect(syncEvents.length).toBe(1);
+    expect(client.rtt).toBe(0);
+    expect(client.offset).toBe(0);
+
+    client.disconnect();
+  });
+
+  it('cancels pending reconnect timer when connect() is invoked explicitly', () => {
+    const client = new StreamCollabSocketClient('ws://test/ws');
+    client.connect();
+    const ws1 = FakeWebSocket.last!;
+    ws1.open();
+
+    // Disconnect schedules reconnect in ~1000ms
+    ws1.errorAndClose();
+    expect(client.connected).toBe(false);
+
+    // Explicit manual connect before timer expires
+    vi.advanceTimersByTime(200);
+    client.connect();
+    const ws2 = FakeWebSocket.last!;
+    expect(ws2).not.toBe(ws1);
+
+    // Advance beyond the original 1000ms timer
+    vi.advanceTimersByTime(1000);
+    // Should NOT have triggered a redundant connect
+    expect(FakeWebSocket.last).toBe(ws2);
+
+    client.disconnect();
+  });
 });

@@ -286,8 +286,11 @@ export class DatabaseService {
 
         this.db.exec(`
           UPDATE recording_sessions
-          SET stopped_at = COALESCE(
-            (SELECT MAX(timestamp) FROM markers WHERE markers.session_id = recording_sessions.id),
+          SET stopped_at = MAX(
+            COALESCE(
+              (SELECT MAX(timestamp) FROM markers WHERE markers.session_id = recording_sessions.id),
+              started_at
+            ),
             started_at
           )
           WHERE stopped_at IS NULL;
@@ -307,8 +310,11 @@ export class DatabaseService {
 
       this.db.exec(`
         UPDATE recording_sessions
-        SET stopped_at = COALESCE(
-          (SELECT MAX(timestamp) FROM markers WHERE markers.session_id = recording_sessions.id),
+        SET stopped_at = MAX(
+          COALESCE(
+            (SELECT MAX(timestamp) FROM markers WHERE markers.session_id = recording_sessions.id),
+            started_at
+          ),
           started_at
         )
         WHERE stopped_at IS NULL

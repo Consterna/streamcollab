@@ -41,7 +41,14 @@ export function exportToFcpXml(session: RecordingSession, markers: SquadMarker[]
   // Sort markers chronologically
   const sortedMarkers = [...markers].sort((a, b) => a.relativeTimeMs - b.relativeTimeMs);
 
-  const baseFrames = tc.timecodeToFrames(session.baseTimecode || '01:00:00:00');
+  let baseFrames = 0;
+  let baseTimecode = session.baseTimecode || '01:00:00:00';
+  try {
+    baseFrames = tc.timecodeToFrames(baseTimecode);
+  } catch {
+    baseTimecode = '01:00:00:00';
+    baseFrames = tc.timecodeToFrames(baseTimecode);
+  }
 
   // Calculate sequence duration in timeline frames (relative to sequence start, NOT baseFrames)
   let durationFrames = 0;
@@ -96,7 +103,7 @@ export function exportToFcpXml(session: RecordingSession, markers: SquadMarker[]
         <timebase>${timebase}</timebase>
         <ntsc>${isNtsc}</ntsc>
       </rate>
-      <string>${session.baseTimecode || '01:00:00:00'}</string>
+      <string>${escapeXml(baseTimecode)}</string>
       <frame>${baseFrames}</frame>
       <displayformat>${displayFormat}</displayformat>
     </timecode>${markersSection}

@@ -412,23 +412,30 @@ El proyecto incluye tests unitarios y de integración en todo el monorepo:
 npm test
 ```
 - `packages/shared/test/timecode.test.ts`: aritmética SMPTE, 60 fps NDF, 29.97 DF, 59.94 DF, 24 fps, salto de fotogramas en cada minuto.
+- `packages/shared/test/timecode-proptest.test.ts`: tests basados en propiedades (`fast-check`) verificando biyectividad en los 8 framerates estándar, límites de minutos drop-frame, precisión submilisegundo y desbordamiento 24h.
 - `packages/shared/test/exporters.test.ts`: formato del EDL CMX 3600 de DaVinci, XML FCP 7, CSV RFC 4180, capítulos de YouTube y matriz de sincronización multicámara.
+- `packages/shared/test/exporters-conformance.test.ts`: conformidad estricta CRLF en EDL, análisis XML 1.0 mediante DOMParser, saneamiento de caracteres de control y fuzzing de fórmulas CSV.
 - `packages/shared/test/edge-cases.test.ts`: cero marcadores, escapado XML/CSV, agrupación de capítulos de YouTube a 10 s, timecodes de más de 24 h.
 - `packages/shared/test/perMember.test.ts`: reajuste de líneas de tiempo por POV y localizadores EDL sobre el archivo del propio creador.
 - `packages/shared/test/regressions.test.ts`: capítulos de YouTube que empiezan en 00:00, neutralización de fórmulas en el CSV, acentos en los títulos EDL, drop frame solo a 29.97 / 59.94, validación de framerates.
 - `packages/server/test/server.test.ts`: rutas de Fastify, `node:sqlite` nativo de Node 24 en modo WAL, motor SNTP de 4 marcas (desfase de reloj y RTT).
+- `packages/server/test/db-concurrency.test.ts`: 20 workers concurrentes ejecutando 2.000 escrituras/s con copia de seguridad en caliente simultánea en contención WAL.
+- `packages/server/test/crash-recovery.test.ts`: conciliación en el arranque de sesiones no detenidas tras caída inesperada o reinicio del servidor.
 - `packages/server/test/markers.test.ts`: permisos y difusión al editar / borrar marcadores, deshacer (WebSocket y HTTP), historial de sesiones.
 - `packages/server/test/audit.test.ts`: códigos de sala sin distinguir mayúsculas, presencia y retirada de miembros, borrado de sesiones / salas, límite por IP de códigos inexistentes.
 - `packages/server/test/backup.test.ts`: copias en caliente de una base de datos en uso (incluidas las escrituras en el WAL), sin sobrescribir archivos existentes.
 - `packages/server/test/deploy.test.ts`: validación del entorno, servicio del cliente compilado (fallback SPA, cabeceras de caché, sin path traversal), cabeceras de seguridad, modo solo API.
 - `packages/server/test/security.test.ts`: host / member tokens, intentos de suplantación, acceso entre salas, errores de validación Zod, CORS, límites REST y WebSocket, frames demasiado grandes.
 - `packages/server/test/ws.test.ts`: salas WebSocket con sockets reales (Dock + HUD con el mismo member id), heartbeat, marcas de tiempo calibradas, anclas de grabación, exportaciones POV y migración in situ de bases de datos v1.0.0.
+- `packages/server/test/ws-chaos.test.ts`: saturación por ráfagas, tormentas de reconexión con 30 sockets, cargas de 16KB/40KB, fuzzing de JSON malformado y timeout de socket no unido (15s).
 - `packages/server/test/regressions.test.ts`: pertenencia a varias salas, una sola sesión en marcha por sala, estado de la sala entre sesiones, framerates no soportados, migración del esquema v3 → v4.
 - `packages/client/test/obs.test.ts`: detección de capítulos nativos de OBS, escritura solo durante la grabación e informe de errores, reconexión automática con espera creciente (con un obs-websocket simulado).
+- `packages/client/test/obs-integration.test.ts`: integración del protocolo OBS WebSocket v5 (ciclo start/pause/resume/stop, cambios dinámicos de FPS, deduplicación de hotkeys Lua, fallback de capítulos).
 - `packages/client/test/socket.test.ts`: la Dock no envía nada a una sala hasta que el servidor confirma la entrada, y deja de enviar si la sala ya no existe o se cae la conexión.
+- `packages/client/test/sntp-resilience.test.ts`: ráfaga inicial de 4 pings, descarte de picos de jitter, deduplicación de eventos de desconexión y backoff exponencial.
 - `packages/client/test/i18n-sound.test.ts`: diccionarios de español e inglés sincronizados (claves y marcadores de posición), interpolación, opciones y sonidos del HUD.
 
-**End-to-end (Playwright):** `npm run build` y después `npm run e2e`. Arranca el servidor compilado en el puerto 3210 con una base de datos desechable y maneja ventanas reales de Chromium como identidades distintas (host, Dock de un streamer, HUD, espectador): inicio de sesión, atajos y deshacer, avisos del HUD, la vuelta atrás desde la vista previa del HUD, edición / borrado de marcadores, historial de sesiones y exportaciones, códigos de sala erróneos, idioma y sonido del HUD, docks estrechos, y la Dock perdiendo y recuperando la conexión con el servidor. El WebSocket de OBS está simulado, así que la prueba nunca toca un OBS abierto en la misma máquina. Ejecuta `npx playwright install chromium` una vez antes de la primera prueba.
+**End-to-end (Playwright):** `npm run build` y después `npm run e2e`. Arranca el servidor compilado en el puerto 3210 con una base de datos desechable y maneja ventanas reales de Chromium como identidades distintas (host, Dock de un streamer, HUD, espectador): inicio de sesión, atajos y deshacer, avisos del HUD, la vuelta atrás desde la vista previa del HUD, edición / borrado de marcadores, historial de sesiones y exportaciones, códigos de sala erróneos, idioma y sonido del HUD, docks estrechos (300px/360px), sincronización de escuadra multi-streamer, descargas de los 5 formatos de exportación, y la Dock perdiendo y recuperando la conexión con el servidor. El WebSocket de OBS está simulado, así que la prueba nunca toca un OBS abierto en la misma máquina. Ejecuta `npx playwright install chromium` una vez antes de la primera prueba.
 
 **Con OBS real:** sigue la lista de [docs/local-testing.es.md](docs/local-testing.es.md) (no hace falta VPS).
 

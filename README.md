@@ -410,23 +410,30 @@ The project includes unit and integration tests across the monorepo:
 npm test
 ```
 - `packages/shared/test/timecode.test.ts`: SMPTE arithmetic, 60 fps NDF, 29.97 DF, 59.94 DF, 24 fps, minute-mark frame skipping.
+- `packages/shared/test/timecode-proptest.test.ts`: Property-based testing (`fast-check`) verifying bijectivity across all 8 standard framerates, drop-frame minute boundaries, sub-ms rational math, and 24h rollover.
 - `packages/shared/test/exporters.test.ts`: DaVinci CMX 3600 EDL formatting, FCP 7 XML, RFC 4180 CSV, YouTube chapters, and Multicam Sync Matrix.
+- `packages/shared/test/exporters-conformance.test.ts`: Strict CRLF conformance in EDL, DOMParser FCP XML 1.0 schema parsing, control character stripping, and CSV formula fuzzing.
 - `packages/shared/test/edge-cases.test.ts`: Zero markers, XML/CSV escaping, YouTube 10s chapter clustering, >24h timecode rollover.
 - `packages/shared/test/perMember.test.ts`: Per-POV timeline rebasing and EDL locators on the creator's own file.
 - `packages/shared/test/regressions.test.ts`: YouTube chapters opening at 00:00, CSV formula neutralization, accent folding in EDL titles, drop-frame only at 29.97 / 59.94, framerate validation.
 - `packages/server/test/server.test.ts`: Fastify routes, Node 24 native `node:sqlite` WAL mode, SNTP 4-timestamp clock offset and RTT engine.
+- `packages/server/test/db-concurrency.test.ts`: 20 concurrent workers executing 2,000 writes/sec with simultaneous live database hot backup under WAL contention.
+- `packages/server/test/crash-recovery.test.ts`: Startup reconciliation of unstopped sessions left active after an abrupt crash or server kill.
 - `packages/server/test/markers.test.ts`: Marker editing / deletion permissions and broadcasts, undo (WebSocket and HTTP), session history.
 - `packages/server/test/audit.test.ts`: Case-insensitive room codes, member presence and removal, session / room deletion, per-IP limit on unknown room codes.
 - `packages/server/test/backup.test.ts`: Hot backups of a live database (including WAL writes), never overwriting existing files.
 - `packages/server/test/deploy.test.ts`: Environment validation, serving the compiled client (SPA fallback, cache headers, no path traversal), security headers, API-only mode.
 - `packages/server/test/security.test.ts`: Host / member tokens, spoofing attempts, cross-room access, Zod validation errors, CORS, REST and WebSocket rate limits, oversized frames.
 - `packages/server/test/ws.test.ts`: Real-socket WebSocket rooms (Dock + HUD with the same member id), heartbeat, calibrated marker timestamps, recording anchors, per-POV exports, and in-place migration of v1.0.0 databases.
+- `packages/server/test/ws-chaos.test.ts`: Rate limit burst flooding, reconnect storms with 30 sockets, 16KB/40KB oversized payloads, malformed JSON fuzzing, 15s unjoined socket timeout.
 - `packages/server/test/regressions.test.ts`: Membership in several rooms, one running session per room, room state between sessions, unsupported framerates, schema migration v3 → v4.
 - `packages/client/test/obs.test.ts`: Native OBS chapter detection, recording-only writes and error reporting, automatic reconnection backoff (with a stubbed obs-websocket).
+- `packages/client/test/obs-integration.test.ts`: OBS WebSocket v5 protocol integration (start/pause/resume/stop lifecycle, dynamic canvas FPS changes, Lua hotkey signal deduplication, chapter fallback).
 - `packages/client/test/socket.test.ts`: The Dock sends nothing to a room until the server confirms the join, and stops when the room is gone or the connection drops.
+- `packages/client/test/sntp-resilience.test.ts`: 4-ping initial calibration burst, jitter spike outlier rejection, duplicate disconnect event prevention, and exponential backoff.
 - `packages/client/test/i18n-sound.test.ts`: Spanish / English dictionaries in sync (keys and placeholders), interpolation, HUD sound options and cues.
 
-**End-to-end (Playwright):** `npm run build` then `npm run e2e`. Starts the compiled server on port 3210 with a throwaway database and drives real Chromium windows as separate identities (host, streamer dock, HUD, viewer): session start, hotkeys and undo, HUD toasts, the HUD preview's way back, editing / deleting markers, session history and exports, wrong room codes, language and HUD sound, narrow docks, and the Dock losing and regaining the server connection. OBS's WebSocket is mocked, so the run never touches an OBS open on the same machine. Run `npx playwright install chromium` once before the first run.
+**End-to-end (Playwright):** `npm run build` then `npm run e2e`. Starts the compiled server on port 3210 with a throwaway database and drives real Chromium windows as separate identities (host, streamer dock, HUD, viewer): session start, hotkeys and undo, HUD toasts, the HUD preview's way back, editing / deleting markers, session history and exports, wrong room codes, language and HUD sound, narrow docks (300px/360px), multi-streamer squad synchronization, all 5 export format downloads, and the Dock losing and regaining the server connection. OBS's WebSocket is mocked, so the run never touches an OBS open on the same machine. Run `npx playwright install chromium` once before the first run.
 
 **With real OBS:** follow the checklist in [docs/local-testing.md](docs/local-testing.md) (no VPS needed).
 
