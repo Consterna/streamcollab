@@ -2,7 +2,7 @@ import { SquadMarker, RecordingSession } from '../types/index.js';
 import { SMPTETimecode } from '../timecode/index.js';
 
 // Text a spreadsheet would run as a formula (CSV / formula injection, see OWASP)
-const FORMULA_TRIGGER = /^[=+\-@\t\r]/;
+const FORMULA_TRIGGER = /^\s*[=+\-@|]|[\t\r]/;
 
 function escapeCsvField(val: string | number | undefined | null): string {
   if (val === undefined || val === null) return '';

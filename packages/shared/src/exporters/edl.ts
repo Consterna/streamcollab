@@ -35,7 +35,7 @@ export function exportToEdl(session: RecordingSession, markers: SquadMarker[], o
 
   const title = toEdlAscii(options?.title || session.name || 'StreamCollab Session');
   const clipName = toEdlAscii(options?.clipName || 'StreamCollab');
-  const fcm = session.dropFrame ? 'DROP FRAME' : 'NON-DROP FRAME';
+  const fcm = tc.dropFrame ? 'DROP FRAME' : 'NON-DROP FRAME';
 
   const lines: string[] = [`TITLE: ${title}`, `FCM: ${fcm}`, ''];
 

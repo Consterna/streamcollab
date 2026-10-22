@@ -8,12 +8,16 @@ export interface XmlExportOptions {
 }
 
 function escapeXml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
+  return (
+    str
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;')
+  );
 }
 
 /**
@@ -32,7 +36,7 @@ export function exportToFcpXml(session: RecordingSession, markers: SquadMarker[]
 
   const timebase = tc.nominalFps;
   const isNtsc = session.framerateDenominator === 1001 ? 'TRUE' : 'FALSE';
-  const displayFormat = session.dropFrame ? 'DF' : 'NDF';
+  const displayFormat = tc.dropFrame ? 'DF' : 'NDF';
 
   // Sort markers chronologically
   const sortedMarkers = [...markers].sort((a, b) => a.relativeTimeMs - b.relativeTimeMs);
