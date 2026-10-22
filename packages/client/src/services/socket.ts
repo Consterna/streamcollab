@@ -49,6 +49,8 @@ export class StreamCollabSocketClient {
   // The server confirmed the current JOIN_ROOM (JOINED); room actions are only sent while true
   private isJoined = false;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+  private reconnectAttempts = 0;
+  private sntpBurstTimeouts: ReturnType<typeof setTimeout>[] = [];
 
   // SNTP Calibration state
   private clockOffsetMs = 0;
@@ -75,11 +77,20 @@ export class StreamCollabSocketClient {
     };
   }
 
+  private lastReportedConnected: boolean | null = null;
+
   private emit<K extends keyof SocketClientCallbacks>(
     event: K,
     ...args: Parameters<NonNullable<SocketClientCallbacks[K]>>
   ) {
     this.listeners[event]?.forEach((handler) => (handler as (...a: typeof args) => void)(...args));
+  }
+
+  private emitConnectionChange(connected: boolean) {
+    if (this.lastReportedConnected !== connected) {
+      this.lastReportedConnected = connected;
+      this.emit('onConnectionChange', connected);
+    }
   }
 
   constructor(serverUrl?: string) {
@@ -130,7 +141,8 @@ export class StreamCollabSocketClient {
 
       this.ws.onopen = () => {
         this.isConnected = true;
-        this.emit('onConnectionChange', true);
+        this.reconnectAttempts = 0;
+        this.emitConnectionChange(true);
         this.startSntpCalibration();
 
         // If we were already in a room, rejoin
@@ -163,14 +175,17 @@ export class StreamCollabSocketClient {
   private handleDisconnect() {
     this.isConnected = false;
     this.isJoined = false;
-    this.emit('onConnectionChange', false);
+    this.emitConnectionChange(false);
     this.stopSntpCalibration();
 
     if (!this.reconnectTimeout) {
+      // Exponential backoff: 1s, 1.5s, 2.25s... up to 15s max
+      const delay = Math.min(15000, Math.round(1000 * Math.pow(1.5, this.reconnectAttempts)));
+      this.reconnectAttempts++;
       this.reconnectTimeout = setTimeout(() => {
         this.reconnectTimeout = null;
         this.connect();
-      }, 2000);
+      }, delay);
     }
   }
 
@@ -182,12 +197,21 @@ export class StreamCollabSocketClient {
         const currentRtt = Math.max(0, t4 - t1 - (t3 - t2));
         const currentOffset = (t2 - t1 + (t3 - t4)) / 2;
 
+        // Jitter spike outlier rejection:
+        // Reject samples with extreme RTT spikes (> 2.5x baseline and > 100ms)
+        // to protect the calibrated timeline from transient network congestion / bufferbloat.
+        if (this.rttMs > 0 && currentRtt > Math.max(100, this.rttMs * 2.5)) {
+          break;
+        }
+
         // Exponential moving average filter
-        if (this.clockOffsetMs === 0) {
+        if (this.clockOffsetMs === 0 && this.rttMs === 0) {
           this.clockOffsetMs = currentOffset;
           this.rttMs = currentRtt;
         } else {
-          this.clockOffsetMs = this.clockOffsetMs * 0.7 + currentOffset * 0.3;
+          // Weight lower RTT samples more heavily (NTP minimum dispersion principle)
+          const weight = currentRtt < this.rttMs ? 0.5 : 0.3;
+          this.clockOffsetMs = this.clockOffsetMs * (1 - weight) + currentOffset * weight;
           this.rttMs = this.rttMs * 0.7 + currentRtt * 0.3;
         }
 
@@ -270,8 +294,15 @@ export class StreamCollabSocketClient {
 
   private startSntpCalibration() {
     this.stopSntpCalibration();
-    // Immediate ping
+    // 4-ping initial calibration burst: immediate ping followed by 3 pings spaced 150ms apart
     this.sendPing();
+    for (let i = 1; i <= 3; i++) {
+      const timeout = setTimeout(() => {
+        this.sendPing();
+      }, i * 150);
+      this.sntpBurstTimeouts.push(timeout);
+    }
+
     // Ping every 5 seconds for continuous high-accuracy clock calibration
     this.sntpInterval = setInterval(() => {
       this.sendPing();
@@ -283,6 +314,10 @@ export class StreamCollabSocketClient {
       clearInterval(this.sntpInterval);
       this.sntpInterval = null;
     }
+    for (const t of this.sntpBurstTimeouts) {
+      clearTimeout(t);
+    }
+    this.sntpBurstTimeouts = [];
   }
 
   private sendPing() {
@@ -440,6 +475,7 @@ export class StreamCollabSocketClient {
 
   disconnect() {
     this.stopSntpCalibration();
+    this.reconnectAttempts = 0;
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
@@ -455,5 +491,6 @@ export class StreamCollabSocketClient {
     }
     this.isConnected = false;
     this.isJoined = false;
+    this.emitConnectionChange(false);
   }
 }

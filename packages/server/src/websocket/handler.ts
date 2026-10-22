@@ -13,7 +13,10 @@ export interface WebSocketHandlerOptions {
   heartbeatIntervalMs?: number;
   // Unknown room codes tolerated per IP and window before joins from that IP are refused
   joinFailureLimit?: { max: number; windowMs: number };
+  unjoinedTimeoutMs?: number;
 }
+
+export const DEFAULT_UNJOINED_SOCKET_TIMEOUT_MS = 15_000;
 
 // Room codes are the invite, so stop clients that try many codes (they can't be throttled
 // per socket alone, since opening new sockets is free)
@@ -88,6 +91,16 @@ export function registerWebSocketHandler(
     };
     const sendError = (code: ErrorCode, message: string) => send({ type: 'ERROR', payload: { code, message } });
 
+    // Unjoined socket timeout (15s default): auto-close connections that do not join a room
+    const unjoinedTimeoutMs = options.unjoinedTimeoutMs ?? DEFAULT_UNJOINED_SOCKET_TIMEOUT_MS;
+    const unjoinedTimer = setTimeout(() => {
+      if (!roomManager.getClient(socket)) {
+        sendError('TIMEOUT', 'Socket did not join a room within 15 seconds');
+        socket.close(1008, 'Join timeout');
+      }
+    }, unjoinedTimeoutMs);
+    unjoinedTimer.unref();
+
     let tokens: number = WS_RATE_LIMIT.burst;
     let lastRefill = Date.now();
     const allowMessage = () => {
@@ -135,6 +148,7 @@ export function registerWebSocketHandler(
           const { roomId, member, clientKind, memberToken, hostToken } = message.payload;
           try {
             roomManager.joinRoom(socket, roomId, clientKind, member, { memberToken, hostToken });
+            clearTimeout(unjoinedTimer);
           } catch (err) {
             if (err instanceof RoomError && err.code === 'ROOM_NOT_FOUND') recordFailedJoin(ip);
             throw err;
@@ -239,6 +253,7 @@ export function registerWebSocketHandler(
     });
 
     const cleanup = () => {
+      clearTimeout(unjoinedTimer);
       liveSockets.delete(socket);
       roomManager.removeClient(socket);
     };

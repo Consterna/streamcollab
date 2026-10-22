@@ -215,7 +215,8 @@ export type ErrorCode =
   | 'HOST_TOKEN_INVALID'
   | 'MEMBER_TOKEN_INVALID'
   | 'NOT_FOUND'
-  | 'RATE_LIMITED';
+  | 'RATE_LIMITED'
+  | 'TIMEOUT';
 
 // Response of POST /api/rooms. The host token is shown once and only its hash is stored.
 export interface CreateRoomResponse extends Room {
