@@ -136,9 +136,17 @@ jobs:
         run: |
           prerelease=()
           if [[ "$GITHUB_REF_NAME" == *-* ]]; then prerelease=(--prerelease); fi
-          gh release create "$GITHUB_REF_NAME" \
-            --title "StreamCollab $GITHUB_REF_NAME" \
-            --notes-file notes.md \
-            --verify-tag \
-            "${prerelease[@]}" \
-            dist-release/*
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" \
+              --title "StreamCollab $GITHUB_REF_NAME" \
+              --notes-file notes.md \
+              "${prerelease[@]}"
+            gh release upload "$GITHUB_REF_NAME" --clobber dist-release/*
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --title "StreamCollab $GITHUB_REF_NAME" \
+              --notes-file notes.md \
+              --verify-tag \
+              "${prerelease[@]}" \
+              dist-release/*
+          fi

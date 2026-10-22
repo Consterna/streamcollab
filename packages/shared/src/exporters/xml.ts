@@ -41,7 +41,7 @@ export function exportToFcpXml(session: RecordingSession, markers: SquadMarker[]
   // Sort markers chronologically
   const sortedMarkers = [...markers].sort((a, b) => a.relativeTimeMs - b.relativeTimeMs);
 
-  let baseFrames = 0;
+  let baseFrames: number;
   let baseTimecode = session.baseTimecode || '01:00:00:00';
   try {
     baseFrames = tc.timecodeToFrames(baseTimecode);
