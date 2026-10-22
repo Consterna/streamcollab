@@ -240,7 +240,87 @@ export class DatabaseService {
     this.db.exec('PRAGMA journal_mode = WAL;');
     this.db.exec('PRAGMA synchronous = NORMAL;');
     this.db.exec('PRAGMA foreign_keys = ON;');
+    this.db.exec('PRAGMA busy_timeout = 5000;');
     this.migrate();
+    this.reconcileOrphanSessions();
+  }
+
+  private inTx = false;
+
+  /** Run a callback inside a BEGIN IMMEDIATE ... COMMIT transaction with rollback on error */
+  transaction<T>(fn: () => T): T {
+    if (this.inTx) {
+      return fn();
+    }
+    this.inTx = true;
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const result = fn();
+      this.db.exec('COMMIT');
+      return result;
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    } finally {
+      this.inTx = false;
+    }
+  }
+
+  /**
+   * Auto-close unstopped sessions using the last recorded marker timestamp (or started_at).
+   * By default, reconciles orphan sessions (those not pointed to by any room's active_session_id).
+   * When options.closeActive is true (crash recovery), also auto-closes active sessions left unstopped
+   * when the server was killed/crashed, and clears active_session_id across all rooms.
+   */
+  reconcileOrphanSessions(options?: { closeActive?: boolean }): { closedCount: number } {
+    return this.transaction(() => {
+      if (options?.closeActive) {
+        const unstopped = this.stmt('SELECT id FROM recording_sessions WHERE stopped_at IS NULL').all() as unknown as {
+          id: string;
+        }[];
+
+        if (unstopped.length === 0) {
+          this.db.exec('UPDATE rooms SET active_session_id = NULL WHERE active_session_id IS NOT NULL');
+          return { closedCount: 0 };
+        }
+
+        this.db.exec(`
+          UPDATE recording_sessions
+          SET stopped_at = COALESCE(
+            (SELECT MAX(timestamp) FROM markers WHERE markers.session_id = recording_sessions.id),
+            started_at
+          )
+          WHERE stopped_at IS NULL;
+          UPDATE rooms SET active_session_id = NULL WHERE active_session_id IS NOT NULL;
+        `);
+
+        return { closedCount: unstopped.length };
+      }
+
+      const unstopped = this.stmt(
+        `SELECT id FROM recording_sessions
+         WHERE stopped_at IS NULL
+           AND id NOT IN (SELECT active_session_id FROM rooms WHERE active_session_id IS NOT NULL)`
+      ).all() as unknown as { id: string }[];
+
+      if (unstopped.length === 0) return { closedCount: 0 };
+
+      this.db.exec(`
+        UPDATE recording_sessions
+        SET stopped_at = COALESCE(
+          (SELECT MAX(timestamp) FROM markers WHERE markers.session_id = recording_sessions.id),
+          started_at
+        )
+        WHERE stopped_at IS NULL
+          AND id NOT IN (SELECT active_session_id FROM rooms WHERE active_session_id IS NOT NULL);
+      `);
+
+      return { closedCount: unstopped.length };
+    });
+  }
+
+  reconcileCrashRecovery(): { closedCount: number } {
+    return this.reconcileOrphanSessions({ closeActive: true });
   }
 
   private migrate() {
@@ -248,7 +328,7 @@ export class DatabaseService {
     const current = Number(row.user_version);
 
     for (let version = current; version < MIGRATIONS.length; version++) {
-      this.db.exec('BEGIN');
+      this.db.exec('BEGIN IMMEDIATE');
       try {
         this.db.exec(MIGRATIONS[version]);
         this.db.exec(`PRAGMA user_version = ${version + 1}`);
@@ -429,37 +509,41 @@ export class DatabaseService {
 
   // Session methods
   createSession(session: RecordingSession): RecordingSession {
-    this.stmt(
+    return this.transaction(() => {
+      this.stmt(
+        `
+        INSERT INTO recording_sessions (
+          id, room_id, name, started_at, stopped_at, base_timecode,
+          framerate_num, framerate_den, drop_frame
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `
-      INSERT INTO recording_sessions (
-        id, room_id, name, started_at, stopped_at, base_timecode,
-        framerate_num, framerate_den, drop_frame
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `
-    ).run(
-      session.id,
-      session.roomId,
-      session.name,
-      session.startedAt,
-      session.stoppedAt,
-      session.baseTimecode,
-      session.framerateNumerator,
-      session.framerateDenominator,
-      session.dropFrame ? 1 : 0
-    );
+      ).run(
+        session.id,
+        session.roomId,
+        session.name,
+        session.startedAt,
+        session.stoppedAt,
+        session.baseTimecode,
+        session.framerateNumerator,
+        session.framerateDenominator,
+        session.dropFrame ? 1 : 0
+      );
 
-    this.setRoomActiveSession(session.roomId, session.id);
-    return session;
+      this.setRoomActiveSession(session.roomId, session.id);
+      return session;
+    });
   }
 
   stopSession(sessionId: string, stoppedAt: number = Date.now()): RecordingSession | null {
-    this.stmt('UPDATE recording_sessions SET stopped_at = ? WHERE id = ?').run(stoppedAt, sessionId);
+    return this.transaction(() => {
+      this.stmt('UPDATE recording_sessions SET stopped_at = ? WHERE id = ?').run(stoppedAt, sessionId);
 
-    const session = this.getSession(sessionId);
-    if (session) {
-      this.setRoomActiveSession(session.roomId, null);
-    }
-    return session;
+      const session = this.getSession(sessionId);
+      if (session) {
+        this.setRoomActiveSession(session.roomId, null);
+      }
+      return session;
+    });
   }
 
   private mapSession(row: SessionRow): RecordingSession {

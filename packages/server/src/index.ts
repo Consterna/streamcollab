@@ -25,6 +25,7 @@ export interface ServerOptions {
   adminToken?: string;
   roomCreateLimitPerMinute?: number;
   trustProxy?: boolean;
+  unjoinedTimeoutMs?: number;
   // Compiled client (packages/client/dist) to serve at "/". Omit to serve the API only.
   clientDir?: string;
 }
@@ -60,6 +61,7 @@ export async function createServer(options: ServerOptions = {}) {
 
   const db = new DatabaseService(options.dbPath);
   const roomManager = new RoomManager(db);
+  roomManager.reconcileCrashRecovery();
 
   registerApiRoutes(fastify, roomManager, db, {
     adminToken: options.adminToken,
@@ -68,6 +70,7 @@ export async function createServer(options: ServerOptions = {}) {
   registerWebSocketHandler(fastify, roomManager, {
     heartbeatIntervalMs: options.heartbeatIntervalMs,
     joinFailureLimit: options.joinFailureLimit,
+    unjoinedTimeoutMs: options.unjoinedTimeoutMs,
   });
 
   if (options.clientDir) {

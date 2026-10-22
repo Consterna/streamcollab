@@ -68,6 +68,16 @@ export class RoomManager {
     this.db = db;
   }
 
+  /** Auto-close any unstopped sessions left orphaned after crash/restart */
+  reconcileOrphanSessions(options?: { closeActive?: boolean }): { closedCount: number } {
+    return this.db.reconcileOrphanSessions(options);
+  }
+
+  /** Crash recovery reconciliation: auto-close unstopped sessions across all rooms */
+  reconcileCrashRecovery(): { closedCount: number } {
+    return this.db.reconcileCrashRecovery();
+  }
+
   // Room lifecycle
   createRoom(id?: string, name?: string): CreateRoomResponse {
     let roomId = id;

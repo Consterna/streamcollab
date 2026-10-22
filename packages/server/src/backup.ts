@@ -21,6 +21,7 @@ export function backupDatabase(sourcePath: string, destinationPath: string): { p
 
   const source = new DatabaseSync(sourcePath, { readOnly: true });
   try {
+    source.exec('PRAGMA busy_timeout = 5000;');
     source.prepare('VACUUM INTO ?').run(destinationPath);
   } finally {
     source.close();
@@ -29,6 +30,7 @@ export function backupDatabase(sourcePath: string, destinationPath: string): { p
   // Never hand back a backup that SQLite itself doesn't consider sound
   const copy = new DatabaseSync(destinationPath, { readOnly: true });
   try {
+    copy.exec('PRAGMA busy_timeout = 5000;');
     const check = copy.prepare('PRAGMA integrity_check').get() as { integrity_check: string };
     if (check.integrity_check !== 'ok') {
       throw new Error(`Backup failed integrity check: ${check.integrity_check}`);
