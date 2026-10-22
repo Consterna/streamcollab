@@ -1,4 +1,4 @@
-import OBSWebSocket from 'obs-websocket-js';
+import OBSWebSocket from 'obs-websocket-js/json';
 
 export interface ObsVideoSettings {
   baseWidth: number;

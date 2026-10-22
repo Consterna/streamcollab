@@ -68,7 +68,11 @@ export const HudView: React.FC<HudViewProps> = ({ socketClient, members, activeS
 
     const interval = setInterval(() => {
       const now = Date.now();
-      setToasts((prev) => prev.filter((t) => t.expiresAt > now));
+      setToasts((prev) => {
+        if (prev.length === 0) return prev;
+        const next = prev.filter((t) => t.expiresAt > now);
+        return next.length === prev.length ? prev : next;
+      });
     }, 200);
 
     return () => clearInterval(interval);
