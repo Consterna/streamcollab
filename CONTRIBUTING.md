@@ -6,6 +6,8 @@ Thanks for helping with StreamCollab! Bug reports, fixes, translations and docum
 
 - **Bugs and ideas:** open an issue with the bug report or feature request form.
 - **Vulnerabilities:** never in a public issue, see [SECURITY.md](SECURITY.md).
+- **Code of Conduct:** all contributors must adhere to our [Code of Conduct](CODE_OF_CONDUCT.md).
+- **Accessibility:** UI contributions must adhere to our [Accessibility Statement](ACCESSIBILITY.md) (WCAG 2.1 AA).
 
 ## Setup
 
@@ -69,6 +71,8 @@ By contributing, you agree that your contributions are licensed under the [MIT L
 
 - **Errores e ideas:** abre un issue con el formulario de error o de propuesta.
 - **Vulnerabilidades:** nunca en un issue público, consulta [SECURITY.md](SECURITY.md).
+- **Código de conducta:** todos los colaboradores deben cumplir con nuestro [Código de conducta](docs/CODE_OF_CONDUCT.es.md).
+- **Accesibilidad:** las contribuciones de interfaz deben cumplir con nuestra [Declaración de accesibilidad](docs/ACCESSIBILITY.es.md) (WCAG 2.1 AA).
 
 ## Preparar el entorno
 

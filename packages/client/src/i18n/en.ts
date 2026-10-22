@@ -38,6 +38,7 @@ export const en = {
   'common.copy': 'Copy',
   'common.copied': 'Copied',
   'common.cancel': 'Cancel',
+  'common.close': 'Close',
   'common.save': 'Save',
   'common.back': 'Back',
   'common.markers': '{count} markers',

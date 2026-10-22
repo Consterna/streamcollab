@@ -40,6 +40,7 @@ export const es: Messages = {
   'common.copy': 'Copiar',
   'common.copied': 'Copiado',
   'common.cancel': 'Cancelar',
+  'common.close': 'Cerrar',
   'common.save': 'Guardar',
   'common.back': 'Volver',
   'common.markers': '{count} marcadores',

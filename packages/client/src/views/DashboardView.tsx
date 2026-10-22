@@ -147,6 +147,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // Drop-frame timecode only exists for the NTSC rates; the server rejects it for any other
   const dropFrameAvailable = selectedFramerate === '59.94' || selectedFramerate === '29.97';
 
+  // Close start session modal on Escape key
+  useEffect(() => {
+    if (!showStartModal) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowStartModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showStartModal]);
+
   const handleStartSession = (e: React.FormEvent) => {
     e.preventDefault();
     const framerates: Record<string, { num: number; den: number }> = {
@@ -584,10 +596,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {showStartModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4">
           <form
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="start-session-modal-title"
             onSubmit={handleStartSession}
             className="w-full max-w-md rounded-xl border border-zinc-700 bg-zinc-900 p-6 shadow-2xl space-y-4"
           >
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
+            <h3 id="start-session-modal-title" className="text-base font-bold text-white flex items-center gap-2">
               <Play className="h-5 w-5 text-emerald-400" />
               {t('dash.configure')}
             </h3>

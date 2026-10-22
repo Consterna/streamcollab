@@ -91,6 +91,18 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, sessi
   const loaded = !remoteUrl || remote?.key === remoteKey;
   const youtubeChapters = selectedFormat === 'youtube' && loaded ? countYouTubeChapters(content) : null;
 
+  // Close on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen || !session) return null;
 
   const handleCopy = async () => {
@@ -142,11 +154,16 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, sessi
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4">
-      <div className="relative w-full max-w-3xl rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl flex flex-col max-h-[90vh]">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="export-modal-title"
+        className="relative w-full max-w-3xl rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl flex flex-col max-h-[90vh]"
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-zinc-800 px-6 py-4">
           <div>
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <h2 id="export-modal-title" className="text-lg font-bold text-white flex items-center gap-2">
               <Film className="h-5 w-5 text-indigo-400" />
               {t('export.title')}
             </h2>
@@ -157,7 +174,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, sessi
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-white transition"
+            aria-label={t('common.close')}
+            className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-white transition focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500"
           >
             <X className="h-5 w-5" />
           </button>

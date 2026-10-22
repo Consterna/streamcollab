@@ -440,6 +440,12 @@ npm run e2e    # 15 Playwright E2E tests (real multi-window Chromium flow)
 
 ---
 
+## 🤝 Community & Accessibility
+
+StreamCollab welcomes everyone. Please review our [Code of Conduct](CODE_OF_CONDUCT.md) and our [Accessibility Statement](ACCESSIBILITY.md) (WCAG 2.1 Level AA conformance). To contribute code, translations, or bug reports, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+---
+
 ## 📜 License
 
 Distributed under the MIT License. See [`LICENSE`](./LICENSE) for more information.
