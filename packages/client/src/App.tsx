@@ -2,7 +2,15 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { SquadMember, Room, RecordingSession, SquadMarker, ClientKind } from '@streamcollab/shared';
 import { ObsService } from './services/obs';
 import { StreamCollabSocketClient } from './services/socket';
-import { getLastRoom, saveLastRoom, saveHostToken } from './services/credentials';
+import {
+  getLastRoom,
+  saveLastRoom,
+  saveHostToken,
+  getStoredMemberId,
+  saveMemberId,
+  getStoredUserName,
+  saveUserName,
+} from './services/credentials';
 import { DockView } from './views/DockView';
 import { HudView } from './views/HudView';
 import { DashboardView } from './views/DashboardView';
@@ -29,6 +37,9 @@ const TRANSLATED_ERRORS: Record<string, MessageKey> = {
   ROOM_NOT_FOUND: 'error.ROOM_NOT_FOUND',
   RATE_LIMITED: 'error.RATE_LIMITED',
   HOST_TOKEN_INVALID: 'error.HOST_TOKEN_INVALID',
+  FORBIDDEN: 'error.FORBIDDEN',
+  NOT_FOUND: 'error.NOT_FOUND',
+  INVALID_MESSAGE: 'error.INVALID_MESSAGE',
 };
 
 function newMemberId() {
@@ -101,11 +112,11 @@ export function App() {
   const exitHudPreview = useCallback(() => navigateTo(returnView), [navigateTo, returnView]);
   const [roomId, setRoomId] = useState<string>(initialRoom);
   const [userName, setUserName] = useState<string>(() => {
-    const saved = localStorage.getItem('streamcollab_username');
+    const saved = getStoredUserName();
     if (saved) return saved;
     // Keep the generated name, otherwise the same streamer shows up under a new name on every load
     const generated = `Player_${Math.floor(100 + Math.random() * 900)}`;
-    localStorage.setItem('streamcollab_username', generated);
+    saveUserName(generated);
     return generated;
   });
 
@@ -127,7 +138,7 @@ export function App() {
     const next = nameDraft.trim();
     if (next && next !== userName) {
       setUserName(next);
-      localStorage.setItem('streamcollab_username', next);
+      saveUserName(next);
     } else {
       setNameDraft(userName);
     }
@@ -137,10 +148,10 @@ export function App() {
   const clientKind: ClientKind = currentView === 'hud' ? 'hud' : currentView === 'dashboard' ? 'dashboard' : 'dock';
 
   const [memberId, setMemberId] = useState(() => {
-    let id = localStorage.getItem('streamcollab_member_id');
+    let id = getStoredMemberId();
     if (!id) {
       id = newMemberId();
-      localStorage.setItem('streamcollab_member_id', id);
+      saveMemberId(id);
     }
     return id;
   });
@@ -195,9 +206,8 @@ export function App() {
       socketClient.on('onRoomState', (state) => {
         setRoom(state.room);
         setActiveSession(state.activeSession);
-        if (state.activeSession) {
-          setLastSession(state.activeSession);
-        }
+        // The markers belong to this session (servers before v1.6.1 don't send latestSession)
+        setLastSession(state.activeSession ?? state.latestSession ?? null);
         setMarkers(state.markers);
       })
     );
@@ -317,10 +327,12 @@ export function App() {
           // This browser lost the token for its member id (cleared storage, closed before it arrived...).
           // The old id stays locked to protect it, so continue under a fresh identity.
           const freshId = newMemberId();
-          localStorage.setItem('streamcollab_member_id', freshId);
+          saveMemberId(freshId);
           setMemberId(freshId);
           return;
         }
+        // Messages sent before the join completed; the dock stops sending them, and they'd hide the real error
+        if (error.code === 'NOT_JOINED') return;
         setJoinError({ code: error.code, message: error.message, room: roomId });
         if (error.code === 'HOST_TOKEN_INVALID' && roomId) {
           // Forget the bad token and join again as a viewer
@@ -461,7 +473,10 @@ export function App() {
           <span>
             {joinError
               ? TRANSLATED_ERRORS[joinError.code ?? '']
-                ? t(TRANSLATED_ERRORS[joinError.code ?? ''], { room: joinError.room ?? roomId })
+                ? t(TRANSLATED_ERRORS[joinError.code ?? ''], {
+                    room: joinError.room ?? roomId,
+                    detail: joinError.message,
+                  })
                 : joinError.message
               : t('app.noRoom')}
           </span>

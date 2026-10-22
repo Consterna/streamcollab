@@ -16,6 +16,9 @@ export const en = {
   'error.ROOM_NOT_FOUND': 'Room {room} not found. Ask your host for the room code.',
   'error.RATE_LIMITED': 'Too many attempts. Wait a minute and try again.',
   'error.HOST_TOKEN_INVALID': 'That host token is not valid for this room.',
+  'error.FORBIDDEN': "You don't have permission to do that in this room.",
+  'error.NOT_FOUND': 'That item no longer exists (it may have been deleted).',
+  'error.INVALID_MESSAGE': 'The server rejected the request: {detail}',
   'app.dismiss': 'Dismiss',
 
   // Marker categories and default labels
@@ -60,6 +63,10 @@ export const en = {
   'dock.obsLinked': 'OBS Linked',
   'dock.obsDisconnected': 'OBS Disconnected',
   'dock.obsRetrying': 'OBS Disconnected · retrying',
+  'dock.serverDisconnected': 'Server disconnected · reconnecting',
+  'dock.serverDisconnectedTitle':
+    "Not connected to the StreamCollab server: markers can't be sent until it reconnects.",
+  'dock.markerNotSent': 'Marker not sent: not connected to the room. Mark it again once the server is back.',
   'dock.exportNle': 'Export NLE',
   'dock.websocket': 'WebSocket:',
   'dock.password': 'Password:',
@@ -191,6 +198,7 @@ export const en = {
   'dash.filter.clutch': 'Clutches',
   'dash.filter.funny': 'Funny',
   'dash.filter.note': 'Notes',
+  'dash.filter.custom': 'Custom',
   'dash.noMatches': 'No markers found matching your current filter.',
   'dash.deleteMarkerConfirm': 'Delete marker "{label}" ({timecode}) by {member}?',
   'dash.deleteSessionConfirm': 'Delete session "{name}" and its {count} markers? This cannot be undone.',
@@ -224,6 +232,7 @@ export const en = {
   'dash.form.fps.29.97': '29.97 FPS (NTSC)',
   'dash.form.fps.24': '24 FPS (Cinematic)',
   'dash.form.dropFrame': 'SMPTE Drop Frame (DF) mode',
+  'dash.form.dropFrameOnlyNtsc': 'Drop-frame timecode only exists for 29.97 and 59.94 fps',
   'dash.form.baseTimecode': 'Base Starting Timecode',
   'dash.form.baseHint': 'Standard NLE broadcast starting timecode is usually 01:00:00:00.',
   'dash.form.start': 'Start Recording',
@@ -255,6 +264,8 @@ export const en = {
   'export.copyCode': 'Copy Code',
   'export.copiedCode': 'Copied!',
   'export.download': 'Download File',
+  'export.youtubeTooFew':
+    'YouTube only shows chapters with at least {min} timestamps (the first at 00:00, each chapter 10 s or longer); this export has {count}.',
 } as const;
 
 export type MessageKey = keyof typeof en;

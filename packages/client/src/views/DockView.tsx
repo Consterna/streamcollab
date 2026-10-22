@@ -24,6 +24,7 @@ import {
   Activity,
   Send,
   Undo2,
+  ServerOff,
 } from 'lucide-react';
 
 // Default marker labels, shared by the dock buttons, dock hotkeys and global OBS hotkeys
@@ -84,6 +85,18 @@ export const DockView: React.FC<DockViewProps> = ({
 
   // SNTP stats
   const [sntpStats, setSntpStats] = useState({ offset: 0, rtt: 0 });
+
+  // Link to the StreamCollab server: without it markers can't reach the room
+  // (a connection still opening counts as connected, so the warning doesn't flash on every load)
+  const [serverConnected, setServerConnected] = useState(() => socketClient.connected || socketClient.connecting);
+  useEffect(() => socketClient.on('onConnectionChange', setServerConnected), [socketClient]);
+  // Shown for a few seconds when a marker could not be sent
+  const [markerNotSentAt, setMarkerNotSentAt] = useState<number | null>(null);
+  useEffect(() => {
+    if (markerNotSentAt === null) return;
+    const timeout = setTimeout(() => setMarkerNotSentAt(null), 5000);
+    return () => clearTimeout(timeout);
+  }, [markerNotSentAt]);
 
   // Latest OBS video settings / recording anchor for callbacks, without re-subscribing
   // (and re-connecting to OBS) every time they change
@@ -214,7 +227,7 @@ export const DockView: React.FC<DockViewProps> = ({
 
       const comment = commentOverride !== undefined ? commentOverride : customComment;
 
-      socketClient.createMarker({
+      const sent = socketClient.createMarker({
         roomId,
         sessionId: activeSession?.id || '',
         memberId: member.id,
@@ -225,6 +238,8 @@ export const DockView: React.FC<DockViewProps> = ({
         // Exact position inside this streamer's own recording file, for per-POV exports
         obsRecordMs: obsService.getEstimatedRecordMs(),
       });
+      if (!sent) setMarkerNotSentAt(Date.now());
+      // The chapter still lands in this streamer's own recording file
       writeChapter({ category, label: defaultLabel, comment: comment.trim() || undefined, memberName: member.name });
 
       if (commentOverride === undefined) {
@@ -258,8 +273,9 @@ export const DockView: React.FC<DockViewProps> = ({
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if typing in an input
-      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
+      // Don't trigger while typing or choosing in a form control
+      const target = e.target as HTMLElement | null;
+      if (target && (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable)) {
         return;
       }
 
@@ -317,6 +333,17 @@ export const DockView: React.FC<DockViewProps> = ({
             </span>
             {showObsSettings ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
           </button>
+
+          {!serverConnected && (
+            <span
+              className="flex items-center gap-1 rounded-sm bg-red-500/15 px-2 py-1 text-[11px] font-semibold text-red-300 border border-red-500/40"
+              title={t('dock.serverDisconnectedTitle')}
+              role="status"
+            >
+              <ServerOff className="h-3 w-3" />
+              {t('dock.serverDisconnected')}
+            </span>
+          )}
 
           {videoSettings && (
             <span className="text-[11px] text-zinc-400 font-mono">
@@ -574,6 +601,15 @@ export const DockView: React.FC<DockViewProps> = ({
           </button>
         </div>
 
+        {markerNotSentAt !== null && (
+          <p
+            role="alert"
+            className="mt-2 rounded-sm bg-red-500/15 px-2 py-1 text-[11px] text-red-300 border border-red-500/40"
+          >
+            {t('dock.markerNotSent')}
+          </p>
+        )}
+
         {/* Custom Comment Input */}
         <form
           onSubmit={(e) => {
@@ -662,7 +698,7 @@ export const DockView: React.FC<DockViewProps> = ({
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-xs font-bold text-white tracking-tight">{m.timecode}</span>
                       <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-sm bg-zinc-800/80">
-                        {m.category}
+                        {t(`category.${m.category}`)}
                       </span>
                       <span className="text-xs font-medium text-zinc-200 truncate">{m.label}</span>
                     </div>

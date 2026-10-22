@@ -278,3 +278,34 @@ test.describe('Narrow OBS docks', () => {
     expect(await dock.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(420);
   });
 });
+
+test.describe('Server connection', () => {
+  test('the dock says it lost the server, flags unsent markers and recovers', async ({ browser, request }) => {
+    const room = await createRoom(request);
+    const context = await newIdentity(browser);
+    // Refuse the StreamCollab socket until the "server" comes back (OBS's own socket stays mocked)
+    let serverUp = false;
+    await context.routeWebSocket(/\/ws$/, (ws) => {
+      if (serverUp) {
+        ws.connectToServer();
+      } else {
+        ws.close({ code: 1001, reason: 'E2E: server unreachable' });
+      }
+    });
+    const dock = await openView(context, 'dock', room.id);
+    await expect(dock.getByText('Server disconnected · reconnecting')).toBeVisible();
+
+    await dock.keyboard.press('1');
+    await expect(dock.getByRole('alert')).toContainText('Marker not sent');
+    await markersCaptured(dock, 0);
+
+    // The client retries every 2 s; once the server answers, the warning goes and marking works again
+    serverUp = true;
+    await expect(dock.getByText('Server disconnected · reconnecting')).toHaveCount(0, { timeout: 10_000 });
+    // (the socket can be open a moment before the room accepts it again, so retry the press until it lands)
+    await expect(async () => {
+      await dock.keyboard.press('1');
+      await markersCaptured(dock, 1);
+    }).toPass({ timeout: 10_000 });
+  });
+});

@@ -7,6 +7,8 @@ import {
   exportToFcpXml,
   exportToCsv,
   exportToYouTubeChapters,
+  countYouTubeChapters,
+  YOUTUBE_MIN_CHAPTERS,
 } from '@streamcollab/shared';
 import { apiUrl } from '../services/serverUrl';
 import { useT } from '../i18n';
@@ -86,6 +88,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, sessi
   }, [isOpen, session, markers, selectedFormat, remoteUrl]);
 
   const content = remoteUrl ? (remote?.key === remoteKey ? remote.text : t('export.loading')) : localContent;
+  const loaded = !remoteUrl || remote?.key === remoteKey;
+  const youtubeChapters = selectedFormat === 'youtube' && loaded ? countYouTubeChapters(content) : null;
 
   if (!isOpen || !session) return null;
 
@@ -200,6 +204,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, sessi
             </select>
             {povMemberId && <span className="text-zinc-500">{t('export.povHint')}</span>}
           </div>
+        )}
+
+        {youtubeChapters !== null && youtubeChapters < YOUTUBE_MIN_CHAPTERS && (
+          <p role="status" className="border-b border-zinc-800 bg-amber-500/10 px-4 py-2 text-xs text-amber-300">
+            {t('export.youtubeTooFew', { min: YOUTUBE_MIN_CHAPTERS, count: youtubeChapters })}
+          </p>
         )}
 
         {/* Preview Code View */}

@@ -33,3 +33,12 @@ export const saveMemberToken = (memberId: string, token: string) => write(MEMBER
 
 export const getLastRoom = () => read(LAST_ROOM_KEY);
 export const saveLastRoom = (roomId: string) => write(LAST_ROOM_KEY, roomId);
+
+// This device's streamer identity (same keys as before v1.6.1, so existing docks keep their member id)
+const MEMBER_ID_KEY = 'streamcollab_member_id';
+const USER_NAME_KEY = 'streamcollab_username';
+
+export const getStoredMemberId = () => read(MEMBER_ID_KEY);
+export const saveMemberId = (memberId: string) => write(MEMBER_ID_KEY, memberId);
+export const getStoredUserName = () => read(USER_NAME_KEY);
+export const saveUserName = (name: string) => write(USER_NAME_KEY, name);

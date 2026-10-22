@@ -69,6 +69,8 @@ describe('Serving the compiled client', () => {
       '<!doctype html><title>StreamCollab</title><div id="root"></div>'
     );
     fs.writeFileSync(path.join(clientDir, 'assets', 'index-abc123.js'), 'console.log("app")');
+    // Copied from public/ with a fixed name, so it must not be cached as immutable
+    fs.writeFileSync(path.join(clientDir, 'favicon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
     // A file outside the served root that must never be reachable
     fs.writeFileSync(path.join(tmp, 'secret.txt'), 'top secret');
 
@@ -103,6 +105,12 @@ describe('Serving the compiled client', () => {
     expect(res.statusCode).toBe(200);
     expect(res.headers['cache-control']).toContain('immutable');
     expect(res.headers['cache-control']).toContain('max-age=2592000');
+  });
+
+  it('revalidates un-hashed public files such as the favicon', async () => {
+    const res = await app.inject({ method: 'GET', url: '/favicon.svg' });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['cache-control']).toBe('no-cache');
   });
 
   it('falls back to the app shell for unknown browser navigations only', async () => {

@@ -144,6 +144,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [baseTimecode, setBaseTimecode] = useState('01:00:00:00');
   const [selectedFramerate, setSelectedFramerate] = useState('60');
   const [isDropFrame, setIsDropFrame] = useState(false);
+  // Drop-frame timecode only exists for the NTSC rates; the server rejects it for any other
+  const dropFrameAvailable = selectedFramerate === '59.94' || selectedFramerate === '29.97';
 
   const handleStartSession = (e: React.FormEvent) => {
     e.preventDefault();
@@ -164,7 +166,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       baseTimecode,
       framerateNumerator: rate.num,
       framerateDenominator: rate.den,
-      dropFrame: isDropFrame,
+      dropFrame: dropFrameAvailable && isDropFrame,
     });
     setShowStartModal(false);
   };
@@ -423,6 +425,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <option value="clutch">{t('dash.filter.clutch')}</option>
                   <option value="funny">{t('dash.filter.funny')}</option>
                   <option value="note">{t('dash.filter.note')}</option>
+                  <option value="custom">{t('dash.filter.custom')}</option>
                 </select>
               </div>
             </div>
@@ -635,7 +638,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <input
                 type="checkbox"
                 id="dropFrame"
-                checked={isDropFrame}
+                checked={dropFrameAvailable && isDropFrame}
+                disabled={!dropFrameAvailable}
+                title={dropFrameAvailable ? undefined : t('dash.form.dropFrameOnlyNtsc')}
                 onChange={(e) => setIsDropFrame(e.target.checked)}
                 className="rounded-sm border-zinc-700 bg-zinc-950 text-indigo-600 focus:ring-0"
               />

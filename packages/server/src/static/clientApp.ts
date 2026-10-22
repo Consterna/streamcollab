@@ -24,13 +24,20 @@ export async function registerClientApp(fastify: FastifyInstance, clientDir: str
     return false;
   }
 
-  // Hashed Vite assets are safe to cache "forever"; index.html must always be revalidated
+  // Hashed Vite assets (assets/) are safe to cache "forever"; files copied as-is from public/ (favicon...)
+  // keep their name across releases, so they and index.html must always be revalidated
+  const assetsDir = path.join(root, 'assets') + path.sep;
   await fastify.register(fastifyStatic, {
     root,
     prefix: '/',
     index: false,
     maxAge: '30d',
     immutable: true,
+    setHeaders: (reply, filePath) => {
+      if (!path.resolve(filePath).startsWith(assetsDir)) {
+        reply.header('Cache-Control', 'no-cache');
+      }
+    },
   });
 
   const sendIndex = (reply: FastifyReply) =>

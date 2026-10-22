@@ -18,6 +18,9 @@ export const es: Messages = {
   'error.ROOM_NOT_FOUND': 'No existe la sala {room}. Pide el código a tu host.',
   'error.RATE_LIMITED': 'Demasiados intentos. Espera un minuto y vuelve a probar.',
   'error.HOST_TOKEN_INVALID': 'Ese token de host no es válido para esta sala.',
+  'error.FORBIDDEN': 'No tienes permiso para hacer eso en esta sala.',
+  'error.NOT_FOUND': 'Ese elemento ya no existe (puede que lo hayan borrado).',
+  'error.INVALID_MESSAGE': 'El servidor rechazó la petición: {detail}',
   'app.dismiss': 'Cerrar',
 
   // Marker categories and default labels
@@ -62,6 +65,11 @@ export const es: Messages = {
   'dock.obsLinked': 'OBS conectado',
   'dock.obsDisconnected': 'OBS desconectado',
   'dock.obsRetrying': 'OBS desconectado · reintentando',
+  'dock.serverDisconnected': 'Servidor desconectado · reconectando',
+  'dock.serverDisconnectedTitle':
+    'Sin conexión con el servidor de StreamCollab: los marcadores no se pueden enviar hasta que vuelva.',
+  'dock.markerNotSent':
+    'Marcador no enviado: no hay conexión con la sala. Vuelve a marcarlo cuando vuelva el servidor.',
   'dock.exportNle': 'Exportar NLE',
   'dock.websocket': 'WebSocket:',
   'dock.password': 'Contraseña:',
@@ -194,6 +202,7 @@ export const es: Messages = {
   'dash.filter.clutch': 'Clutches',
   'dash.filter.funny': 'Graciosos',
   'dash.filter.note': 'Notas',
+  'dash.filter.custom': 'Personalizados',
   'dash.noMatches': 'Ningún marcador coincide con el filtro actual.',
   'dash.deleteMarkerConfirm': '¿Eliminar el marcador "{label}" ({timecode}) de {member}?',
   'dash.deleteSessionConfirm': '¿Eliminar la sesión "{name}" y sus {count} marcadores? No se puede deshacer.',
@@ -227,6 +236,7 @@ export const es: Messages = {
   'dash.form.fps.29.97': '29.97 FPS (NTSC)',
   'dash.form.fps.24': '24 FPS (cine)',
   'dash.form.dropFrame': 'Modo SMPTE Drop Frame (DF)',
+  'dash.form.dropFrameOnlyNtsc': 'El timecode drop-frame solo existe para 29,97 y 59,94 fps',
   'dash.form.baseTimecode': 'Timecode inicial',
   'dash.form.baseHint': 'El timecode inicial habitual en los NLE es 01:00:00:00.',
   'dash.form.start': 'Iniciar grabación',
@@ -258,4 +268,6 @@ export const es: Messages = {
   'export.copyCode': 'Copiar código',
   'export.copiedCode': '¡Copiado!',
   'export.download': 'Descargar archivo',
+  'export.youtubeTooFew':
+    'YouTube solo muestra capítulos con al menos {min} marcas de tiempo (la primera en 00:00 y cada capítulo de 10 s o más); este export tiene {count}.',
 };

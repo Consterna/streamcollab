@@ -4,7 +4,6 @@ import {
   SquadMember,
   SquadMarker,
   RecordingSession,
-  Room,
   MarkerCategory,
   ClientKind,
   ErrorCode,
@@ -13,6 +12,9 @@ import {
 } from '@streamcollab/shared';
 import { getHostToken, getMemberToken, saveMemberToken } from './credentials';
 import { wsUrl } from './serverUrl';
+
+// Errors after which the server did not add this socket to the room
+const JOIN_REFUSED_CODES = new Set<ErrorCode>(['ROOM_NOT_FOUND', 'HOST_TOKEN_INVALID', 'MEMBER_TOKEN_INVALID']);
 
 export interface JoinedInfo {
   roomId: string;
@@ -23,7 +25,7 @@ export interface JoinedInfo {
 export interface SocketClientCallbacks {
   onJoined?: (info: JoinedInfo) => void;
   onError?: (error: { message: string; code?: ErrorCode }) => void;
-  onRoomState?: (state: { room: Room; activeSession: RecordingSession | null; markers: SquadMarker[] }) => void;
+  onRoomState?: (state: Extract<ServerMessage, { type: 'ROOM_STATE' }>['payload']) => void;
   onMemberJoined?: (member: SquadMember) => void;
   onMemberLeft?: (memberId: string) => void;
   onMemberRemoved?: (memberId: string) => void;
@@ -44,6 +46,8 @@ export class StreamCollabSocketClient {
   private serverUrl: string;
   private sntpInterval: ReturnType<typeof setInterval> | null = null;
   private isConnected = false;
+  // The server confirmed the current JOIN_ROOM (JOINED); room actions are only sent while true
+  private isJoined = false;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // SNTP Calibration state
@@ -89,6 +93,16 @@ export class StreamCollabSocketClient {
 
   get connected(): boolean {
     return this.isConnected;
+  }
+
+  /** Not connected yet, but the first connection (or a new one) is still being opened */
+  get connecting(): boolean {
+    return !this.ws || this.ws.readyState === WebSocket.CONNECTING;
+  }
+
+  /** Connected and accepted into the current room */
+  get joined(): boolean {
+    return this.isConnected && this.isJoined;
   }
 
   get offset(): number {
@@ -148,6 +162,7 @@ export class StreamCollabSocketClient {
 
   private handleDisconnect() {
     this.isConnected = false;
+    this.isJoined = false;
     this.emit('onConnectionChange', false);
     this.stopSntpCalibration();
 
@@ -221,6 +236,7 @@ export class StreamCollabSocketClient {
         break;
 
       case 'ROOM_DELETED':
+        this.isJoined = false;
         this.emit('onRoomDeleted', msg.payload.roomId);
         break;
 
@@ -234,11 +250,16 @@ export class StreamCollabSocketClient {
         if (memberToken && this.currentMember) {
           saveMemberToken(this.currentMember.id, memberToken);
         }
+        this.isJoined = true;
         this.emit('onJoined', info);
         break;
       }
 
       case 'ERROR':
+        // A refused join leaves this socket outside any room
+        if (msg.payload.code && JOIN_REFUSED_CODES.has(msg.payload.code)) {
+          this.isJoined = false;
+        }
         this.emit('onError', msg.payload);
         break;
 
@@ -291,6 +312,7 @@ export class StreamCollabSocketClient {
     this.currentRoomId = roomId;
     this.currentKind = clientKind;
     this.currentMember = clientKind === 'dock' ? member : undefined;
+    this.isJoined = false;
     this.send({
       type: 'JOIN_ROOM',
       payload: {
@@ -311,6 +333,8 @@ export class StreamCollabSocketClient {
   }
 
   updateStatus(roomId: string, memberId: string, status: Partial<SquadMember>) {
+    // Not in a room yet (or any more): the next status poll after JOINED reports it
+    if (!this.joined) return;
     this.send({
       type: 'UPDATE_STATUS',
       payload: {
@@ -336,7 +360,9 @@ export class StreamCollabSocketClient {
     color?: DaVinciMarkerColor;
     tags?: string[];
     obsRecordMs?: number | null;
-  }) {
+  }): boolean {
+    // Never drop a marker silently: the dock tells the streamer it was not sent
+    if (!this.joined) return false;
     this.send({
       type: 'CREATE_MARKER',
       payload: {
@@ -357,6 +383,7 @@ export class StreamCollabSocketClient {
         },
       },
     });
+    return true;
   }
 
   /** Edit a marker (author dock or host only; the server enforces it) */
@@ -427,5 +454,6 @@ export class StreamCollabSocketClient {
       this.ws = null;
     }
     this.isConnected = false;
+    this.isJoined = false;
   }
 }
