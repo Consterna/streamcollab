@@ -11,11 +11,14 @@ StreamCollab busca cumplir las **Pautas de Accesibilidad para el Contenido Web (
 - **axe-core (reglas WCAG 2.1 A y AA)** se ejecuta en la suite end-to-end ([`e2e/a11y.spec.ts`](e2e/a11y.spec.ts)), en inglés y en español, sobre:
   - la Dock, vacía y con un marcador y los ajustes de OBS abiertos,
   - el Panel del director, su diálogo de inicio de sesión y su diálogo de exportación,
-  - la vista previa del HUD.
+  - el Panel del director con un miembro, marcadores y un marcador en edición,
+  - la vista previa del HUD y el HUD en vivo mostrando el aviso de un marcador.
 
   Cualquier infracción hace fallar el build. Las herramientas automáticas solo detectan una parte de los problemas WCAG (contraste, nombres, roles, estructura); no pueden juzgar, por ejemplo, si una etiqueta tiene sentido.
 - **Diálogos** (Exportar, Iniciar sesión): se prueban en Chromium ([`packages/client/test/components.browser.test.tsx`](packages/client/test/components.browser.test.tsx)). Al abrirse, el foco entra en el diálogo; `Tab` / `Mayús+Tab` no salen de él; `Escape` lo cierra y el foco vuelve al botón que lo abrió.
 - **Docks estrechas:** la suite end-to-end comprueba que todos los controles de la Dock siguen en pantalla con 300, 360 y 420 px de ancho.
+- **Reflow (WCAG 1.4.10):** la suite end-to-end comprueba que el Panel del director, con una sesión en marcha, no necesita desplazamiento horizontal con 320 px de ancho.
+- **Foco tras iniciar / detener la sesión:** el botón que sustituye al que pulsaste recibe el foco, así que nunca vuelve a la página.
 
 ## Qué hace StreamCollab
 

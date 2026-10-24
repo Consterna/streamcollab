@@ -408,7 +408,7 @@ streamcollab/
 
 ### 🧪 Testing & Verification
 
-At v1.6.2 the automated suite has **295 tests**: 268 unit / integration tests (28 files), 9 component tests in Chromium and 18 Playwright end-to-end tests (3 files, including the axe accessibility scans):
+At v1.6.2 the automated suite has **305 tests**: 278 unit / integration tests (29 files), 9 component tests in Chromium and 18 Playwright end-to-end tests (3 files, including the axe accessibility scans):
 ```bash
 npm test               # unit / integration tests (Node)
 npm run test:browser   # component tests in Chromium (run `npx playwright install chromium` once)
@@ -423,6 +423,8 @@ Mutation testing of the timecode engine and exporters (Stryker, on demand) is de
 - `packages/shared/test/edge-cases.test.ts`: Zero markers, XML/CSV escaping, YouTube 10s chapter clustering, >24h timecode rollover.
 - `packages/shared/test/perMember.test.ts`: Per-POV timeline rebasing and EDL locators on the creator's own file.
 - `packages/shared/test/regressions.test.ts`: YouTube chapters opening at 00:00, CSV formula neutralization, accent folding in EDL titles, drop-frame only at 29.97 / 59.94, framerate validation.
+- `packages/shared/test/exporters-v162.test.ts`: Resolve marker EDL layout, markers on the same frame merged into one (Resolve keeps one per frame), the 16 Resolve colors, CRLF-only output (property), FCP 7 drop-frame base timecode.
+- `packages/shared/test/exporters-mutants.test.ts`: Exporter details found by mutation testing: framerate resolution, Sync Matrix offsets, per-POV rebasing, chapter spacing, CSV ordering and FCP 7 sequence length.
 - `packages/server/test/server.test.ts`: Fastify routes, Node 24 native `node:sqlite` WAL mode, SNTP 4-timestamp clock offset and RTT engine.
 - `packages/server/test/db-concurrency.test.ts`: 2,000 marker writes from 20 interleaved writers with a hot backup taken in the middle of them (none lost), and transactions that never fail with `SQLITE_BUSY`.
 - `packages/server/test/crash-recovery.test.ts`: Startup reconciliation of unstopped sessions left active after an abrupt crash or server kill.
@@ -434,10 +436,15 @@ Mutation testing of the timecode engine and exporters (Stryker, on demand) is de
 - `packages/server/test/ws.test.ts`: Real-socket WebSocket rooms (Dock + HUD with the same member id), heartbeat, calibrated marker timestamps, recording anchors, per-POV exports, and in-place migration of v1.0.0 databases.
 - `packages/server/test/ws-chaos.test.ts`: Rate limit burst flooding, reconnect storms with 30 sockets, 16KB/40KB oversized payloads, malformed JSON fuzzing, 15s unjoined socket timeout.
 - `packages/server/test/regressions.test.ts`: Membership in several rooms, one running session per room, room state between sessions, unsupported framerates, schema migration v3 → v4.
+- `packages/server/test/audit-v162.test.ts`: Transactions after a failed BEGIN, session stop races, Auto Session start time, restart recovery (clean shutdown vs crash) and migration v5, HTTP / WebSocket hardening (per-IP socket cap, repeated query parameters), environment parsing, unbiased room codes.
 - `packages/client/test/obs.test.ts`: Native OBS chapter detection, recording-only writes and error reporting, automatic reconnection backoff (with a stubbed obs-websocket).
 - `packages/client/test/obs-integration.test.ts`: OBS WebSocket v5 protocol integration (start/pause/resume/stop lifecycle, dynamic canvas FPS changes, Lua hotkey signal deduplication, chapter fallback).
 - `packages/client/test/socket.test.ts`: The Dock sends nothing to a room until the server confirms the join, and stops when the room is gone or the connection drops.
 - `packages/client/test/sntp-resilience.test.ts`: 4-ping initial calibration burst, jitter spike outlier rejection, duplicate disconnect event prevention, and exponential backoff.
+- `packages/client/test/audit-v162.test.ts`: Credentials kept per server (never handed to an untrusted `?server=`), blocked storage, random member ids, socket and OBS reconnection edge cases, clock filter re-baselining.
+- `packages/client/test/dockClock.test.ts`: The Dock clock follows the session timeline while a session runs.
+- `packages/client/test/accessibility.test.ts`: Reduced-motion CSS and the accessibility strings in both languages.
+- `packages/client/test/components.browser.test.tsx`: Component tests in Chromium: marker rows, export dialog focus and downloads, the start-session dialog.
 - `packages/client/test/i18n-sound.test.ts`: Spanish / English dictionaries in sync (keys and placeholders), interpolation, HUD sound options and cues.
 
 **End-to-end (Playwright):** `npm run build` then `npm run e2e`. Starts the compiled server on port 3210 with a throwaway database and drives real Chromium windows as separate identities (host, streamer dock, HUD, viewer): session start, hotkeys and undo, HUD toasts, the HUD preview's way back, editing / deleting markers, session history and exports, wrong room codes, language and HUD sound, narrow docks (300px/360px), multi-streamer squad synchronization, all 5 export format downloads, and the Dock losing and regaining the server connection. OBS's WebSocket is mocked, so the run never touches an OBS open on the same machine. Run `npx playwright install chromium` once before the first run.

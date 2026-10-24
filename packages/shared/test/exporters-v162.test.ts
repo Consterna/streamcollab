@@ -85,7 +85,7 @@ describe('DaVinci Resolve marker EDL (v1.6.2)', () => {
     expect(toResolveMarkerColor('Orange')).toBe('ResolveColorBlue');
   });
 
-  it('always produces one readable event + marker line pair per marker (property)', () => {
+  it('always produces one readable event + marker line pair per frame (property)', () => {
     fc.assert(
       fc.property(
         fc.array(

@@ -410,7 +410,7 @@ streamcollab/
 
 ### 🧪 Tests y verificación
 
-En la v1.6.2 la suite automática tiene **295 tests**: 268 tests unitarios y de integración (28 archivos), 9 tests de componentes en Chromium y 18 tests end-to-end con Playwright (3 archivos, incluidos los escaneos de accesibilidad con axe):
+En la v1.6.2 la suite automática tiene **305 tests**: 278 tests unitarios y de integración (29 archivos), 9 tests de componentes en Chromium y 18 tests end-to-end con Playwright (3 archivos, incluidos los escaneos de accesibilidad con axe):
 ```bash
 npm test               # tests unitarios y de integración (Node)
 npm run test:browser   # tests de componentes en Chromium (ejecuta `npx playwright install chromium` una vez)
@@ -425,6 +425,8 @@ El mutation testing del motor de timecode y los exportadores (Stryker, bajo dema
 - `packages/shared/test/edge-cases.test.ts`: cero marcadores, escapado XML/CSV, agrupación de capítulos de YouTube a 10 s, timecodes de más de 24 h.
 - `packages/shared/test/perMember.test.ts`: reajuste de líneas de tiempo por POV y localizadores EDL sobre el archivo del propio creador.
 - `packages/shared/test/regressions.test.ts`: capítulos de YouTube que empiezan en 00:00, neutralización de fórmulas en el CSV, acentos en los títulos EDL, drop frame solo a 29.97 / 59.94, validación de framerates.
+- `packages/shared/test/exporters-v162.test.ts`: formato del EDL de marcadores de Resolve, marcadores en el mismo frame unidos en uno (Resolve guarda uno por frame), los 16 colores de Resolve, salida solo con CRLF (propiedad), timecode base drop frame en FCP 7.
+- `packages/shared/test/exporters-mutants.test.ts`: detalles de los exportadores encontrados con mutation testing: resolución del framerate, offsets de la Sync Matrix, reajuste por POV, separación de capítulos, orden del CSV y duración de la secuencia FCP 7.
 - `packages/server/test/server.test.ts`: rutas de Fastify, `node:sqlite` nativo de Node 24 en modo WAL, motor SNTP de 4 marcas (desfase de reloj y RTT).
 - `packages/server/test/db-concurrency.test.ts`: 2.000 escrituras de marcadores de 20 escritores intercalados con una copia en caliente hecha en medio de ellas (sin perder ninguna) y transacciones que nunca fallan con `SQLITE_BUSY`.
 - `packages/server/test/crash-recovery.test.ts`: conciliación en el arranque de sesiones no detenidas tras caída inesperada o reinicio del servidor.
@@ -436,10 +438,15 @@ El mutation testing del motor de timecode y los exportadores (Stryker, bajo dema
 - `packages/server/test/ws.test.ts`: salas WebSocket con sockets reales (Dock + HUD con el mismo member id), heartbeat, marcas de tiempo calibradas, anclas de grabación, exportaciones POV y migración in situ de bases de datos v1.0.0.
 - `packages/server/test/ws-chaos.test.ts`: saturación por ráfagas, tormentas de reconexión con 30 sockets, cargas de 16KB/40KB, fuzzing de JSON malformado y timeout de socket no unido (15s).
 - `packages/server/test/regressions.test.ts`: pertenencia a varias salas, una sola sesión en marcha por sala, estado de la sala entre sesiones, framerates no soportados, migración del esquema v3 → v4.
+- `packages/server/test/audit-v162.test.ts`: transacciones tras un BEGIN fallido, carreras al detener sesiones, hora de inicio de la Auto Session, recuperación tras reinicio (apagado ordenado frente a caída) y migración v5, refuerzo de HTTP / WebSocket (límite de sockets por IP, parámetros repetidos), lectura del entorno, códigos de sala sin sesgo.
 - `packages/client/test/obs.test.ts`: detección de capítulos nativos de OBS, escritura solo durante la grabación e informe de errores, reconexión automática con espera creciente (con un obs-websocket simulado).
 - `packages/client/test/obs-integration.test.ts`: integración del protocolo OBS WebSocket v5 (ciclo start/pause/resume/stop, cambios dinámicos de FPS, deduplicación de hotkeys Lua, fallback de capítulos).
 - `packages/client/test/socket.test.ts`: la Dock no envía nada a una sala hasta que el servidor confirma la entrada, y deja de enviar si la sala ya no existe o se cae la conexión.
 - `packages/client/test/sntp-resilience.test.ts`: ráfaga inicial de 4 pings, descarte de picos de jitter, deduplicación de eventos de desconexión y backoff exponencial.
+- `packages/client/test/audit-v162.test.ts`: credenciales guardadas por servidor (nunca se entregan a un `?server=` no confiable), almacenamiento bloqueado, ids de miembro aleatorios, casos límite de reconexión del socket y de OBS, reajuste del filtro del reloj.
+- `packages/client/test/dockClock.test.ts`: el reloj de la Dock sigue el timeline de la sesión mientras hay una sesión.
+- `packages/client/test/accessibility.test.ts`: CSS de movimiento reducido y los textos de accesibilidad en los dos idiomas.
+- `packages/client/test/components.browser.test.tsx`: tests de componentes en Chromium: filas de marcadores, foco y descargas del diálogo de exportación, el diálogo de inicio de sesión.
 - `packages/client/test/i18n-sound.test.ts`: diccionarios de español e inglés sincronizados (claves y marcadores de posición), interpolación, opciones y sonidos del HUD.
 
 **End-to-end (Playwright):** `npm run build` y después `npm run e2e`. Arranca el servidor compilado en el puerto 3210 con una base de datos desechable y maneja ventanas reales de Chromium como identidades distintas (host, Dock de un streamer, HUD, espectador): inicio de sesión, atajos y deshacer, avisos del HUD, la vuelta atrás desde la vista previa del HUD, edición / borrado de marcadores, historial de sesiones y exportaciones, códigos de sala erróneos, idioma y sonido del HUD, docks estrechos (300px/360px), sincronización de escuadra multi-streamer, descargas de los 5 formatos de exportación, y la Dock perdiendo y recuperando la conexión con el servidor. El WebSocket de OBS está simulado, así que la prueba nunca toca un OBS abierto en la misma máquina. Ejecuta `npx playwright install chromium` una vez antes de la primera prueba.
