@@ -1,6 +1,8 @@
 {
   "name": "@streamcollab/client",
   "version": "1.6.1",
+  "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
