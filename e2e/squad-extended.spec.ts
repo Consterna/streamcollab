@@ -129,8 +129,9 @@ test.describe('Export downloads validation', () => {
     expect(edlContent).toContain('\r\n');
     expect(edlContent).toMatch(/^TITLE:\s+Export Suite Session/m);
     expect(edlContent).toMatch(/^FCM:\s+(NON-DROP FRAME|DROP FRAME)/m);
-    expect(edlContent).toMatch(/\* FROM CLIP NAME:/m);
-    expect(edlContent).toMatch(/\* LOC:\s+\d\d:\d\d:\d\d:\d\d\s+(Red|Fuchsia|Yellow|Blue)/m);
+    // DaVinci Resolve marker EDL: one-frame event, then ` |C:ResolveColor<Color> |M:<name> |D:1`
+    expect(edlContent).toMatch(/^\d{3} {2}001 {6}V {5}C {8}\d\d:\d\d:\d\d:\d\d /m);
+    expect(edlContent).toMatch(/^ \|C:ResolveColor(Red|Fuchsia|Yellow|Blue) \|M:.+ \|D:1\r$/m);
 
     // 2. Final Cut Pro XML
     const xmlContent = await downloadFormat('Premiere Pro', 'xml');

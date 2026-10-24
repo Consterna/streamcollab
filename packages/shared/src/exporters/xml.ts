@@ -103,7 +103,7 @@ export function exportToFcpXml(session: RecordingSession, markers: SquadMarker[]
         <timebase>${timebase}</timebase>
         <ntsc>${isNtsc}</ntsc>
       </rate>
-      <string>${escapeXml(baseTimecode)}</string>
+      <string>${escapeXml(tc.framesToTimecode(baseFrames))}</string>
       <frame>${baseFrames}</frame>
       <displayformat>${displayFormat}</displayformat>
     </timecode>${markersSection}

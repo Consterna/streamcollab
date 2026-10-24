@@ -92,9 +92,13 @@ describe('Edge Cases and Robustness Verification', () => {
     it('EDL removes newlines to protect CMX 3600 line structure', () => {
       const edl = exportToEdl(emptySession, maliciousMarkers);
       const lines = edl.split('\r\n');
-      const locLine = lines.find((l) => l.startsWith('* LOC:'));
-      expect(locLine).toBeDefined();
-      expect(locLine).not.toContain('\n');
+      const markerLines = lines.filter((l) => l.startsWith(' |C:'));
+      expect(markerLines).toHaveLength(maliciousMarkers.length);
+      for (const line of markerLines) {
+        expect(line).not.toContain('\n');
+        // A `|` in the text would start a new field: only the three field separators remain
+        expect(line.split('|')).toHaveLength(4);
+      }
     });
   });
 

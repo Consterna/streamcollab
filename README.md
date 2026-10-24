@@ -45,7 +45,7 @@ StreamCollab allows competitive gaming squads, content creator groups, and espor
   - Configurable base timecode offsets (e.g. `01:00:00:00` or `00:00:00:00`).
 
 - **NLE Exporter Suite**:
-  - 🎬 **DaVinci Resolve CMX 3600 EDL**: Strict CRLF line endings, sequential 1-frame edit events (`001`, `002`...), and `* LOC:` locator syntax mapped to native DaVinci marker colors (Red, Fuchsia, Yellow, Cyan, Blue, Green), clamped against negative frame durations.
+  - 🎬 **DaVinci Resolve marker EDL**: the layout Resolve itself writes with *Timeline Markers to EDL* (a 1-frame CMX 3600 event per marker followed by `|C:ResolveColor<Color> |M:<name> |D:1`), CRLF line endings, and Resolve's marker colors (Red, Fuchsia, Yellow, Cyan, Blue, Green by category).
   - 🎞️ **Adobe Premiere Pro FCP 7 XML (`xmeml` v4)**: Valid Final Cut Pro 7 XML with stripped control characters, complete `<format><samplecharacteristics>` video format blocks and track-level `<marker>` tags prefixed with category identifiers.
   - 📊 **Universal CSV**: RFC 4180 compliant CSV compatible with Google Sheets, Microsoft Excel, and Markerbox. Formula injection triggers (`/^\s*[=+\-@|]|[\t\r]/`) are safely neutralized.
   - 📺 **YouTube Video Chapters**: Clean description chapter format (`00:00 Intro\n01:23 First Blood`) that always starts at `00:00` and keeps YouTube's 10-second minimum chapter length.
@@ -242,10 +242,11 @@ The HUD and Director Panel never talk to OBS's WebSocket, so they can always be 
 ### DaVinci Resolve
 1. In StreamCollab Dock or Director Panel, click **Export NLE** -> select **DaVinci Resolve**.
 2. Click **Download File** (`.edl`).
-3. In DaVinci Resolve:
-   - Go to **File** -> **Import** -> **Timeline...** (or right-click timeline -> **Timelines** -> **Import** -> **EDL/XML...**).
-   - Select the downloaded `.edl` file.
-   - DaVinci Resolve will create timeline markers with native colors corresponding to each event type (Red for Kills, Fuchsia for Wipes, Yellow for Clutches, Cyan for Funny, Blue for Notes).
+3. In DaVinci Resolve, put your recording on a timeline whose start timecode matches the session's base timecode (01:00:00:00 by default; 00:00:00:00 for a per-POV export).
+4. In the Media Pool, right-click that timeline -> **Timelines** -> **Import** -> **Timeline Markers from EDL...** and select the downloaded `.edl`.
+   - Each marker gets the color of its event type (Red for Kills, Fuchsia for Wipes, Yellow for Clutches, Cyan for Funny, Blue for Notes, Green for custom). If no marker appears, zoom out: they may be outside the visible part of the timeline.
+
+Since v1.6.2 the file uses Resolve's own marker EDL layout (earlier versions wrote Avid-style `* LOC:` locators).
 
 EDL titles are plain ASCII: accented letters are folded (a session named "Sesión" becomes "Sesion").
 

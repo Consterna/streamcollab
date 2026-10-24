@@ -88,6 +88,6 @@ describe('Per-member (POV) timeline rebasing', () => {
     const markers = [marker({ id: 'a1', timestamp: session.startedAt + 10000, label: 'Entry Frag' })];
     const rebased = rebaseSessionForMember(session, markers, bravoAnchor, 'Bravo');
     const edl = exportToEdl(rebased.session, rebased.markers);
-    expect(edl).toContain('* LOC: 00:00:06:00 Red Entry Frag');
+    expect(edl).toContain('00:00:06:00 00:00:06:01 00:00:06:00 00:00:06:01  \r\n |C:ResolveColorRed |M:Entry Frag');
   });
 });

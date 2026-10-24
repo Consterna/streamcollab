@@ -121,7 +121,7 @@ describe('StreamCollab Server & SQLite WAL Integration', () => {
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toContain('text/plain');
     expect(res.payload).toContain('TITLE: Tournament Match 1');
-    expect(res.payload).toContain('* LOC:');
+    expect(res.payload).toContain(' |C:ResolveColor');
     expect(res.payload).toContain('Sniper Headshot');
     expect(res.payload.includes('\r\n')).toBe(true);
   });

@@ -125,7 +125,7 @@ describe('Marker editing, undo and session history', () => {
     expect(cleared.payload.comment).toBeUndefined();
 
     const edl = await app.inject({ method: 'GET', url: `/api/rooms/${roomId}/export/edl` });
-    expect(edl.payload).toContain('Mint Triple Kill');
+    expect(edl.payload).toContain('|C:ResolveColorMint |M:Triple Kill');
   });
 
   it("does not let a squadmate change someone else's marker, but the host can", async () => {

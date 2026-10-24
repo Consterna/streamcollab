@@ -60,7 +60,7 @@ Without Node.js, you can use the Docker image from the README (quick start, opti
 ## 7. Export to DaVinci Resolve
 
 - [ ] Director Panel → **Export Timeline** → **Timeline**: your name (POV) → DaVinci Resolve → download the `.edl`.
-- [ ] Import the `.edl` together with your recording: the markers land where you marked.
+- [ ] Put your recording on a timeline that starts at 00:00:00:00, then right-click the timeline in the Media Pool → **Timelines** → **Import** → **Timeline Markers from EDL...**: the markers land where you marked, with their colors.
 
 ## 8. Several people without a VPS
 

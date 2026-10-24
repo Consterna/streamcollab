@@ -45,7 +45,7 @@ StreamCollab permite que squads de juego competitivo, grupos de creadores y dire
   - Timecode base configurable (p. ej. `01:00:00:00` o `00:00:00:00`).
 
 - **Exportadores para editores (NLE)**:
-  - 🎬 **EDL CMX 3600 para DaVinci Resolve**: saltos de línea CRLF estrictos, eventos de edición de 1 fotograma numerados (`001`, `002`...) y localizadores `* LOC:` con los colores nativos de marcador de DaVinci (Red, Fuchsia, Yellow, Cyan, Blue, Green), acotados contra duraciones negativas de fotogramas.
+  - 🎬 **EDL de marcadores para DaVinci Resolve**: el formato que escribe el propio Resolve con *Timeline Markers to EDL* (un evento CMX 3600 de 1 fotograma por marcador seguido de `|C:ResolveColor<Color> |M:<nombre> |D:1`), saltos de línea CRLF y los colores de marcador de Resolve (Red, Fuchsia, Yellow, Cyan, Blue, Green según la categoría).
   - 🎞️ **XML FCP 7 (`xmeml` v4) para Adobe Premiere Pro**: XML de Final Cut Pro 7 válido con eliminación de caracteres de control, con bloques `<format><samplecharacteristics>` completos y etiquetas `<marker>` en la pista con el identificador de la categoría delante.
   - 📊 **CSV universal**: CSV conforme a RFC 4180, compatible con Google Sheets, Microsoft Excel y Markerbox. Patrones de inyección de fórmulas (`/^\s*[=+\-@|]|[\t\r]/`) neutralizados de forma segura.
   - 📺 **Capítulos de YouTube**: formato limpio para la descripción (`00:00 Intro\n01:23 First Blood`) que siempre empieza en `00:00` y respeta la duración mínima de 10 segundos por capítulo de YouTube.
@@ -244,10 +244,11 @@ El HUD y el Panel del director nunca hablan con el WebSocket de OBS, así que si
 ### DaVinci Resolve
 1. En la Dock o en el Panel del director, pulsa **Exportar NLE** → elige **DaVinci Resolve**.
 2. Pulsa **Descargar archivo** (`.edl`).
-3. En DaVinci Resolve:
-   - Ve a **File** → **Import** → **Timeline...** (o clic derecho en la línea de tiempo → **Timelines** → **Import** → **EDL/XML...**).
-   - Elige el archivo `.edl` descargado.
-   - DaVinci Resolve crea marcadores en la línea de tiempo con el color nativo de cada tipo de evento (rojo para kills, fucsia para wipes, amarillo para clutches, cian para momentos graciosos, azul para notas).
+3. En DaVinci Resolve, pon tu grabación en una línea de tiempo cuyo timecode inicial coincida con el timecode base de la sesión (01:00:00:00 por defecto; 00:00:00:00 en un export por POV).
+4. En el Media Pool, clic derecho en esa línea de tiempo → **Timelines** → **Import** → **Timeline Markers from EDL...** y elige el `.edl` descargado.
+   - Cada marcador lleva el color de su tipo de evento (rojo para kills, fucsia para wipes, amarillo para clutches, cian para momentos graciosos, azul para notas, verde para los personalizados). Si no aparece ningún marcador, aleja el zoom: pueden estar fuera de la parte visible de la línea de tiempo.
+
+Desde la v1.6.2 el archivo usa el formato de EDL de marcadores del propio Resolve (las versiones anteriores escribían localizadores `* LOC:` al estilo de Avid).
 
 Los títulos del EDL son ASCII puro: las letras acentuadas se simplifican (una sesión llamada "Sesión" pasa a "Sesion").
 

@@ -15,6 +15,32 @@ export const CATEGORY_TO_DAVINCI_COLOR: Record<string, DaVinciMarkerColor> = {
   custom: 'Green',
 };
 
+// The 16 timeline marker colors of DaVinci Resolve, as written in its marker EDLs (`ResolveColor<Name>`).
+// 'White' predates this list and has no Resolve equivalent: Cream is the closest.
+const RESOLVE_MARKER_COLORS = new Set([
+  'Blue',
+  'Cyan',
+  'Green',
+  'Yellow',
+  'Red',
+  'Pink',
+  'Purple',
+  'Fuchsia',
+  'Rose',
+  'Lavender',
+  'Sky',
+  'Mint',
+  'Lemon',
+  'Sand',
+  'Cocoa',
+  'Cream',
+]);
+
+export function toResolveMarkerColor(color: string | undefined): string {
+  if (color === 'White') return 'ResolveColorCream';
+  return `ResolveColor${color && RESOLVE_MARKER_COLORS.has(color) ? color : 'Blue'}`;
+}
+
 /** EDL header fields are plain ASCII: fold accents ("Sesión" -> "Sesion") before dropping other symbols */
 function toEdlAscii(text: string): string {
   return text
@@ -23,8 +49,20 @@ function toEdlAscii(text: string): string {
     .replace(/[^\w\s-]/g, '');
 }
 
+// `|` separates the fields of a marker line and line breaks end it
+function toMarkerText(text: string): string {
+  return text
+    .replace(/[\r\n|]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 /**
- * Generate DaVinci Resolve CMX 3600 EDL format with strict CRLF line endings
+ * DaVinci Resolve timeline markers as an EDL: Timeline > Import > Timeline Markers from EDL.
+ *
+ * Same layout as Resolve's own "Export > Timeline Markers to EDL": every marker is a one-frame
+ * CMX 3600 event followed by ` |C:ResolveColor<Color> |M:<name> |D:<duration in frames>`, with CRLF
+ * line endings.
  */
 export function exportToEdl(session: RecordingSession, markers: SquadMarker[], options?: EdlExportOptions): string {
   const tc = new SMPTETimecode({
@@ -34,7 +72,6 @@ export function exportToEdl(session: RecordingSession, markers: SquadMarker[], o
   });
 
   const title = toEdlAscii(options?.title || session.name || 'StreamCollab Session');
-  const clipName = toEdlAscii(options?.clipName || 'StreamCollab');
   const fcm = tc.dropFrame ? 'DROP FRAME' : 'NON-DROP FRAME';
 
   const lines: string[] = [`TITLE: ${title}`, `FCM: ${fcm}`, ''];
@@ -48,26 +85,22 @@ export function exportToEdl(session: RecordingSession, markers: SquadMarker[], o
     const eventNum = String(index + 1).padStart(3, '0');
     const elapsedFrames = tc.millisecondsToFrames(marker.relativeTimeMs);
     const startFrames = baseFrames + elapsedFrames;
-    const endFrames = startFrames + 1; // 1-frame edit event for marker locator
+    const endFrames = startFrames + 1; // 1-frame event: the marker's position
 
     const startTc = tc.framesToTimecode(startFrames);
     const endTc = tc.framesToTimecode(endFrames);
 
-    const color = marker.color || CATEGORY_TO_DAVINCI_COLOR[marker.category] || 'Blue';
-    const cleanLabel = marker.label.replace(/[\r\n]/g, ' ').trim();
-    const cleanComment = marker.comment ? ` - ${marker.comment.replace(/[\r\n]/g, ' ').trim()}` : '';
+    const color = toResolveMarkerColor(marker.color || CATEGORY_TO_DAVINCI_COLOR[marker.category]);
     const creatorTag = marker.memberName ? ` [${marker.memberName}]` : '';
+    const commentPart = marker.comment ? ` - ${marker.comment}` : '';
+    const name = toMarkerText(`${marker.label}${creatorTag}${commentPart}`);
 
-    const locatorText = `${cleanLabel}${creatorTag}${cleanComment}`;
-
-    // Standard CMX 3600 record line:
-    // Event Reel Track Edit In Out RecordIn RecordOut
-    lines.push(`${eventNum}  AX       V     C        ${startTc} ${endTc} ${startTc} ${endTc}`);
-    lines.push(`* FROM CLIP NAME: ${clipName}`);
-    lines.push(`* LOC: ${startTc} ${color} ${locatorText}`);
+    // Event Reel Track Edit SourceIn SourceOut RecordIn RecordOut
+    lines.push(`${eventNum}  001      V     C        ${startTc} ${endTc} ${startTc} ${endTc}  `);
+    lines.push(` |C:${color} |M:${name} |D:1`);
     lines.push('');
   });
 
-  // Strict CRLF as required by CMX 3600 specification and DaVinci Resolve parser
+  // CRLF, as in CMX 3600 EDLs written by NLEs
   return lines.join('\r\n') + '\r\n';
 }

@@ -297,7 +297,9 @@ describe('WebSocket rooms, connections and timing', () => {
     const expectedFrames = Math.floor((expectedMs * 30) / 1000 + 1e-6);
     const ss = String(Math.floor(expectedFrames / 30)).padStart(2, '0');
     const ff = String(expectedFrames % 30).padStart(2, '0');
-    expect(edlRes.payload).toContain(`* LOC: 00:00:${ss}:${ff} Red Pov Kill`);
+    expect(edlRes.payload).toMatch(
+      new RegExp(`C {8}00:00:${ss}:${ff} \\S+ 00:00:${ss}:${ff} \\S+ {2}\\r\\n \\|C:ResolveColorRed \\|M:Pov Kill`)
+    );
 
     const matrixRes = await app.inject({
       method: 'GET',
