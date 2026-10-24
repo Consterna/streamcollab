@@ -143,6 +143,15 @@ export const saveLastRoom = (roomId: string) => write(LAST_ROOM_KEY, roomId);
 const MEMBER_ID_KEY = 'streamcollab_member_id';
 const USER_NAME_KEY = 'streamcollab_username';
 
+/**
+ * A fresh streamer identity. Unpredictable, so nobody can claim the id another Dock is about to use;
+ * getRandomValues (not randomUUID) also works on plain-http LAN pages, where OBS docks may load.
+ */
+export function newMemberId() {
+  const bytes = crypto.getRandomValues(new Uint8Array(8));
+  return 'mem_' + Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 const memberIdKey = (server: string) => (server ? `${MEMBER_ID_KEY}@${server}` : MEMBER_ID_KEY);
 
 export function getStoredMemberId(): string | undefined {

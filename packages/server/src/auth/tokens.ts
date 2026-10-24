@@ -22,10 +22,10 @@ export function tokenMatches(token: string | undefined, storedHash: string | nul
 
 /** Room codes are the join codes shared with the squad, e.g. "KQ7P-M3XD" (~40 bits) */
 export function generateRoomCode(): string {
-  const bytes = crypto.randomBytes(8);
   let code = '';
   for (let i = 0; i < 8; i++) {
-    code += ROOM_CODE_ALPHABET[bytes[i] % ROOM_CODE_ALPHABET.length];
+    // randomInt draws uniformly; `byte % 31` favoured the first 8 characters (256 % 31 = 8)
+    code += ROOM_CODE_ALPHABET[crypto.randomInt(ROOM_CODE_ALPHABET.length)];
     if (i === 3) code += '-';
   }
   return code;

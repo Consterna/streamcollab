@@ -13,6 +13,7 @@ import {
   serverAwaitingTrust,
   trustCurrentServer,
   distrustCurrentServer,
+  newMemberId,
 } from './services/credentials';
 import { DockView } from './views/DockView';
 import { HudView } from './views/HudView';
@@ -47,10 +48,6 @@ const TRANSLATED_ERRORS: Record<string, MessageKey> = {
   NOT_FOUND: 'error.NOT_FOUND',
   INVALID_MESSAGE: 'error.INVALID_MESSAGE',
 };
-
-function newMemberId() {
-  return 'mem_' + Math.random().toString(36).substring(2, 9);
-}
 
 type View = 'dock' | 'hud' | 'dashboard';
 const VIEWS: View[] = ['dock', 'hud', 'dashboard'];

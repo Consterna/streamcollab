@@ -9,6 +9,7 @@ import { RoomManager, RoomError } from '../src/rooms/roomManager.js';
 import { attachmentDisposition } from '../src/routes/api.js';
 import { loadConfig } from '../src/config.js';
 import { handleSocketError } from '../src/websocket/handler.js';
+import { generateRoomCode } from '../src/auth/tokens.js';
 
 function removeDb(dbPath: string) {
   for (const suffix of ['', '-wal', '-shm']) {
@@ -509,6 +510,20 @@ describe('v1.6.2 small fixes', () => {
     expect(loadConfig({}).maxSocketsPerIp).toBe(64);
     expect(loadConfig({ MAX_SOCKETS_PER_IP: '300' }).maxSocketsPerIp).toBe(300);
     expect(() => loadConfig({ MAX_SOCKETS_PER_IP: '0' })).toThrow(/MAX_SOCKETS_PER_IP/);
+  });
+
+  it('draws room code characters without modulo bias', () => {
+    // 256 % 31 = 8: with `byte % 31` the first 8 characters came up 9/256 of the time instead of 8/256
+    const counts = new Map<string, number>();
+    const samples = 40_000;
+    for (let i = 0; i < samples; i++) {
+      for (const ch of generateRoomCode().replace('-', '')) counts.set(ch, (counts.get(ch) ?? 0) + 1);
+    }
+    const expected = (samples * 8) / 31;
+    const chiSquare = [...counts.values()].reduce((sum, n) => sum + (n - expected) ** 2 / expected, 0);
+    expect(counts.size).toBe(31);
+    // 30 degrees of freedom: p = 2e-6 at 80. The biased draw scored over 900 at this sample size.
+    expect(chiSquare).toBeLessThan(80);
   });
 
   it("percent-encodes ' ( ) * in the RFC 5987 file name", () => {

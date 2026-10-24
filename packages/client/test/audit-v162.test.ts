@@ -164,6 +164,13 @@ describe('credentials are kept per server (v1.6.2)', () => {
     expect(c.getHostToken('ROOM-9')).toBeUndefined();
   });
 
+  it('creates unpredictable member ids the server accepts', async () => {
+    const c = await load('');
+    const ids = new Set(Array.from({ length: 2000 }, () => c.newMemberId()));
+    expect(ids.size).toBe(2000);
+    for (const id of ids) expect(id).toMatch(/^mem_[0-9a-f]{16}$/); // 64 random bits, within the server's id rule
+  });
+
   it('treats ?server= pointing at the page itself as the own server', async () => {
     const c = await load('?server=https://app.example');
     expect(c.getHostToken('ROOM-1')).toBe('legacy-host-token');
