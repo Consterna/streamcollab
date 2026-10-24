@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { SquadMember, Room, RecordingSession, SquadMarker, ClientKind, LIMITS } from '@streamcollab/shared';
 import { ObsService } from './services/obs';
 import { StreamCollabSocketClient } from './services/socket';
