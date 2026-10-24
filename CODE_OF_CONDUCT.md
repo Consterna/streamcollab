@@ -1,5 +1,7 @@
 # Contributor Covenant Code of Conduct
 
+**English** | [Español](CODE_OF_CONDUCT.es.md)
+
 ## Our Pledge
 
 We as members, contributors, and leaders pledge to make participation in our
@@ -125,4 +127,4 @@ enforcement ladder](https://github.com/mozilla/diversity).
 
 For answers to common questions about this code of conduct, see the FAQ at
 https://www.contributor-covenant.org/faq. Translations are available at
-https://www.contributor-covenant.org/translations, with a Spanish version available at [docs/CODE_OF_CONDUCT.es.md](docs/CODE_OF_CONDUCT.es.md).
+https://www.contributor-covenant.org/translations, with a Spanish version available at [CODE_OF_CONDUCT.es.md](CODE_OF_CONDUCT.es.md).

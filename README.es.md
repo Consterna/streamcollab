@@ -403,16 +403,19 @@ streamcollab/
 ├── eslint.config.mjs      # Configuración plana de ESLint 10 (typescript-eslint, react-hooks)
 ├── .prettierrc.json
 ├── playwright.config.ts
-└── vitest.config.ts
+└── vitest.config.mts
 ```
 
 ### 🧪 Tests y verificación
 
-StreamCollab mantiene una suite de pruebas automatizada de **216 tests** (201 tests unitarios y de integración con Vitest en 23 suites + 15 tests end-to-end con Playwright simulando flujos reales multi-streamer):
+En la v1.6.2 la suite automática tiene **289 tests**: 263 tests unitarios y de integración (28 archivos), 9 tests de componentes en Chromium y 17 tests end-to-end con Playwright (3 archivos, incluidos los escaneos de accesibilidad con axe):
 ```bash
-npm test       # 201 tests en Vitest en 23 suites
-npm run e2e    # 15 tests E2E con Playwright (flujo real multi-ventana en Chromium)
+npm test               # tests unitarios y de integración (Node)
+npm run test:browser   # tests de componentes en Chromium (ejecuta `npx playwright install chromium` una vez)
+npm run test:coverage  # ambos, con los umbrales de cobertura de vitest.config.mts
+npm run e2e            # end-to-end (ejecuta `npm run build` antes)
 ```
+El mutation testing del motor de timecode y los exportadores (Stryker, bajo demanda) se describe en `stryker.config.mjs`.
 - `packages/shared/test/timecode.test.ts`: aritmética SMPTE, 60 fps NDF, 29.97 DF, 59.94 DF, 24 fps, salto de fotogramas en cada minuto.
 - `packages/shared/test/timecode-proptest.test.ts`: tests basados en propiedades (`fast-check`) verificando biyectividad en los 8 framerates estándar, límites de minutos drop-frame, precisión submilisegundo y desbordamiento 24h.
 - `packages/shared/test/exporters.test.ts`: formato del EDL CMX 3600 de DaVinci, XML FCP 7, CSV RFC 4180, capítulos de YouTube y matriz de sincronización multicámara.
@@ -421,7 +424,7 @@ npm run e2e    # 15 tests E2E con Playwright (flujo real multi-ventana en Chromi
 - `packages/shared/test/perMember.test.ts`: reajuste de líneas de tiempo por POV y localizadores EDL sobre el archivo del propio creador.
 - `packages/shared/test/regressions.test.ts`: capítulos de YouTube que empiezan en 00:00, neutralización de fórmulas en el CSV, acentos en los títulos EDL, drop frame solo a 29.97 / 59.94, validación de framerates.
 - `packages/server/test/server.test.ts`: rutas de Fastify, `node:sqlite` nativo de Node 24 en modo WAL, motor SNTP de 4 marcas (desfase de reloj y RTT).
-- `packages/server/test/db-concurrency.test.ts`: 20 workers concurrentes ejecutando 2.000 escrituras/s con copia de seguridad en caliente simultánea en contención WAL.
+- `packages/server/test/db-concurrency.test.ts`: 2.000 escrituras de marcadores de 20 escritores intercalados con una copia en caliente hecha en medio de ellas (sin perder ninguna) y transacciones que nunca fallan con `SQLITE_BUSY`.
 - `packages/server/test/crash-recovery.test.ts`: conciliación en el arranque de sesiones no detenidas tras caída inesperada o reinicio del servidor.
 - `packages/server/test/markers.test.ts`: permisos y difusión al editar / borrar marcadores, deshacer (WebSocket y HTTP), historial de sesiones.
 - `packages/server/test/audit.test.ts`: códigos de sala sin distinguir mayúsculas, presencia y retirada de miembros, borrado de sesiones / salas, límite por IP de códigos inexistentes.
@@ -445,7 +448,7 @@ npm run e2e    # 15 tests E2E con Playwright (flujo real multi-ventana en Chromi
 
 ## 🤝 Comunidad y accesibilidad
 
-StreamCollab da la bienvenida a todas las personas. Por favor, consulta nuestro [Código de conducta](docs/CODE_OF_CONDUCT.es.md) y nuestra [Declaración de accesibilidad](docs/ACCESSIBILITY.es.md) (conformidad WCAG 2.1 Nivel AA). Para contribuir código, traducciones o informes de errores, consulta [CONTRIBUTING.md](CONTRIBUTING.md).
+StreamCollab da la bienvenida a todas las personas. Por favor, consulta nuestro [Código de conducta](CODE_OF_CONDUCT.es.md) y nuestra [Declaración de accesibilidad](ACCESSIBILITY.es.md) (objetivo: WCAG 2.1 nivel AA; qué está probado y qué no). Para contribuir código, traducciones o informes de errores, consulta [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 

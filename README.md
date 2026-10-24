@@ -401,16 +401,19 @@ streamcollab/
 ├── eslint.config.mjs      # ESLint 10 flat config (typescript-eslint, react-hooks)
 ├── .prettierrc.json
 ├── playwright.config.ts
-└── vitest.config.ts
+└── vitest.config.mts
 ```
 
 ### 🧪 Testing & Verification
 
-StreamCollab maintains an automated suite of **216 tests** (201 Vitest unit/integration tests across 23 test suites + 15 Playwright end-to-end tests across real multi-streamer flows):
+At v1.6.2 the automated suite has **289 tests**: 263 unit / integration tests (28 files), 9 component tests in Chromium and 17 Playwright end-to-end tests (3 files, including the axe accessibility scans):
 ```bash
-npm test       # 201 Vitest tests across 23 suites
-npm run e2e    # 15 Playwright E2E tests (real multi-window Chromium flow)
+npm test               # unit / integration tests (Node)
+npm run test:browser   # component tests in Chromium (run `npx playwright install chromium` once)
+npm run test:coverage  # both, with the coverage thresholds of vitest.config.mts
+npm run e2e            # end-to-end (run `npm run build` first)
 ```
+Mutation testing of the timecode engine and exporters (Stryker, on demand) is described in `stryker.config.mjs`.
 - `packages/shared/test/timecode.test.ts`: SMPTE arithmetic, 60 fps NDF, 29.97 DF, 59.94 DF, 24 fps, minute-mark frame skipping.
 - `packages/shared/test/timecode-proptest.test.ts`: Property-based testing (`fast-check`) verifying bijectivity across all 8 standard framerates, drop-frame minute boundaries, sub-ms rational math, and 24h rollover.
 - `packages/shared/test/exporters.test.ts`: DaVinci CMX 3600 EDL formatting, FCP 7 XML, RFC 4180 CSV, YouTube chapters, and Multicam Sync Matrix.
@@ -419,7 +422,7 @@ npm run e2e    # 15 Playwright E2E tests (real multi-window Chromium flow)
 - `packages/shared/test/perMember.test.ts`: Per-POV timeline rebasing and EDL locators on the creator's own file.
 - `packages/shared/test/regressions.test.ts`: YouTube chapters opening at 00:00, CSV formula neutralization, accent folding in EDL titles, drop-frame only at 29.97 / 59.94, framerate validation.
 - `packages/server/test/server.test.ts`: Fastify routes, Node 24 native `node:sqlite` WAL mode, SNTP 4-timestamp clock offset and RTT engine.
-- `packages/server/test/db-concurrency.test.ts`: 20 concurrent workers executing 2,000 writes/sec with simultaneous live database hot backup under WAL contention.
+- `packages/server/test/db-concurrency.test.ts`: 2,000 marker writes from 20 interleaved writers with a hot backup taken in the middle of them (none lost), and transactions that never fail with `SQLITE_BUSY`.
 - `packages/server/test/crash-recovery.test.ts`: Startup reconciliation of unstopped sessions left active after an abrupt crash or server kill.
 - `packages/server/test/markers.test.ts`: Marker editing / deletion permissions and broadcasts, undo (WebSocket and HTTP), session history.
 - `packages/server/test/audit.test.ts`: Case-insensitive room codes, member presence and removal, session / room deletion, per-IP limit on unknown room codes.
@@ -443,7 +446,7 @@ npm run e2e    # 15 Playwright E2E tests (real multi-window Chromium flow)
 
 ## 🤝 Community & Accessibility
 
-StreamCollab welcomes everyone. Please review our [Code of Conduct](CODE_OF_CONDUCT.md) and our [Accessibility Statement](ACCESSIBILITY.md) (WCAG 2.1 Level AA conformance). To contribute code, translations, or bug reports, see [CONTRIBUTING.md](CONTRIBUTING.md).
+StreamCollab welcomes everyone. Please review our [Code of Conduct](CODE_OF_CONDUCT.md) and our [Accessibility Statement](ACCESSIBILITY.md) (target: WCAG 2.1 Level AA; what is and isn't tested yet). To contribute code, translations, or bug reports, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 

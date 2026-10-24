@@ -1,0 +1,33 @@
+name: Mutation testing
+
+# On demand only (Actions -> Mutation testing -> Run workflow): it takes minutes and its score is a
+# review aid, not a gate. Stryker is installed for the run, not added to the project's dependencies.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stryker:
+    name: Stryker (timecode and exporters)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npm install --no-save @stryker-mutator/core@10.1.1 @stryker-mutator/vitest-runner@10.1.1
+      - run: npx stryker run
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: mutation-report
+          path: reports/mutation/
+          retention-days: 14

@@ -53,6 +53,9 @@ pnpm-debug.log*
 
 # Testing & Coverage
 coverage/
+# Mutation testing (stryker.config.mjs)
+reports/mutation/
+.stryker-tmp/
 
 # OS generated files
 .DS_Store
