@@ -94,7 +94,7 @@ export const RoomSetupPanel: React.FC<RoomSetupPanelProps> = ({ socketClient, ro
     <section className="mx-6 mt-6 rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 text-xs">
       <div className="flex flex-wrap items-start gap-6">
         {/* Create a new room */}
-        <form onSubmit={handleCreate} className="flex min-w-[240px] flex-col gap-2">
+        <form onSubmit={handleCreate} className="flex min-w-[min(240px,100%)] flex-col gap-2">
           <span className="font-semibold text-zinc-300 flex items-center gap-1.5">
             <Plus className="h-3.5 w-3.5 text-indigo-400" /> {t('room.new')}
           </span>
@@ -104,7 +104,7 @@ export const RoomSetupPanel: React.FC<RoomSetupPanelProps> = ({ socketClient, ro
               onChange={(e) => setRoomName(e.target.value)}
               placeholder={t('room.namePlaceholder')}
               maxLength={80}
-              className="flex-1 rounded-sm border border-zinc-700 bg-zinc-950 px-2 py-1 text-zinc-200 focus:border-indigo-500 focus:outline-hidden"
+              className="min-w-0 flex-1 rounded-sm border border-zinc-700 bg-zinc-950 px-2 py-1 text-zinc-200 focus:border-indigo-500 focus:outline-hidden"
             />
             <button
               type="submit"
@@ -121,7 +121,7 @@ export const RoomSetupPanel: React.FC<RoomSetupPanelProps> = ({ socketClient, ro
         {room && (
           <>
             {/* Invite links */}
-            <div className="flex min-w-[280px] flex-1 flex-col gap-2">
+            <div className="flex min-w-[min(280px,100%)] flex-1 flex-col gap-2">
               <span className="font-semibold text-zinc-300 flex items-center gap-1.5">
                 <LinkIcon className="h-3.5 w-3.5 text-indigo-400" /> {t('room.invite')}{' '}
                 <span className="font-mono text-indigo-300">{roomId}</span>
@@ -144,7 +144,7 @@ export const RoomSetupPanel: React.FC<RoomSetupPanelProps> = ({ socketClient, ro
             </div>
 
             {/* Host control */}
-            <div className="flex min-w-[240px] flex-col gap-2">
+            <div className="flex min-w-[min(240px,100%)] flex-col gap-2">
               <span className="font-semibold text-zinc-300 flex items-center gap-1.5">
                 {isHost ? (
                   <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
@@ -172,7 +172,7 @@ export const RoomSetupPanel: React.FC<RoomSetupPanelProps> = ({ socketClient, ro
                     value={hostTokenDraft}
                     onChange={(e) => setHostTokenDraft(e.target.value)}
                     placeholder={t('room.pasteToken')}
-                    className="flex-1 rounded-sm border border-zinc-700 bg-zinc-950 px-2 py-1 text-zinc-200 focus:border-indigo-500 focus:outline-hidden"
+                    className="min-w-0 flex-1 rounded-sm border border-zinc-700 bg-zinc-950 px-2 py-1 text-zinc-200 focus:border-indigo-500 focus:outline-hidden"
                   />
                   <button
                     type="submit"

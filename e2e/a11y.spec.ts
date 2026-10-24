@@ -62,6 +62,38 @@ for (const lang of ['en', 'es'] as const) {
       await expect(page.getByText(lang === 'en' ? '1 markers captured' : '1 marcadores registrados')).toBeVisible();
       await page.getByTitle(lang === 'en' ? 'OBS WebSocket settings' : 'Ajustes del WebSocket de OBS').click();
       await expectNoViolations(page, 'dock with a marker and OBS settings');
+
+      // The live HUD (not the preview) with a toast: the dock marks once the HUD has joined
+      const hud = await host.newPage();
+      await hud.emulateMedia({ reducedMotion: 'reduce' });
+      const hudJoined = hud
+        .waitForEvent('websocket', (ws) => ws.url().endsWith('/ws'))
+        .then((ws) => ws.waitForEvent('framereceived', (frame) => String(frame.payload).includes('"type":"JOINED"')));
+      await hud.goto(`/?view=hud&room=${room.id}&lang=${lang}`);
+      await hudJoined;
+      await page.reload();
+      await expect(page.getByText(lang === 'en' ? '1 markers captured' : '1 marcadores registrados')).toBeVisible();
+      await page.keyboard.press('2');
+      await expect(hud.getByText('Wipe', { exact: true })).toBeVisible();
+      await expectNoViolations(hud, 'HUD with a toast');
+      await hud.close();
+
+      // Director Panel with a member, markers and a marker being edited inline
+      await page.goto(`/?view=dashboard&room=${room.id}&lang=${lang}`);
+      await expect(page.getByText(lang === 'en' ? 'Squad Wipe' : 'Squad eliminado', { exact: true })).toBeVisible();
+      await expectNoViolations(page, 'director panel with members and markers');
+      await page
+        .getByTitle(lang === 'en' ? 'Edit marker' : 'Editar marcador')
+        .first()
+        .click();
+      await expect(page.getByLabel(lang === 'en' ? 'Label' : 'Etiqueta')).toBeVisible();
+      await expectNoViolations(page, 'marker being edited');
+
+      // WCAG 1.4.10 Reflow: no horizontal scrolling at 320 CSS px, with a live session in the header
+      await page.setViewportSize({ width: 320, height: 800 });
+      await expect
+        .poll(() => page.evaluate(() => document.documentElement.scrollWidth), { message: 'director panel at 320 px' })
+        .toBeLessThanOrEqual(320);
     });
   });
 }

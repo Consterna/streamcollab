@@ -41,6 +41,7 @@ y este proyecto se adhiere al [Versionado Semántico](https://semver.org/lang/es
 - Los diálogos mantienen el foco del teclado dentro y lo devuelven al cerrarse (cerrar con Escape y el soporte de movimiento reducido también se añadieron después de la 1.6.1).
 - Contraste de texto subido al menos a 4,5:1 donde axe encontró menos; etiquetas añadidas a los campos de filtro, búsqueda, categoría y ajustes de OBS.
 - La declaración de accesibilidad se reescribe para decir solo lo que se prueba (reglas WCAG 2.1 A/AA de axe-core en las pantallas principales, en los dos idiomas) y lo que aún no (lectores de pantalla, Firefox, Safari).
+- El Panel del director se adapta hasta 320 px CSS (WCAG 1.4.10): la cabecera con una sesión en vivo, los filtros de marcadores y el panel de la sala ensanchaban la página hasta unos 650 px en un móvil. La suite end-to-end ahora lo comprueba a 320 px, y los escaneos de axe cubren también el HUD en vivo con un aviso, el panel con miembros y marcadores, y un marcador en edición.
 
 ### Tests
 - Tests de componentes en un Chromium real (Vitest Browser Mode), escaneos de accesibilidad con axe-core en la suite end-to-end, umbrales de cobertura sobre todos los archivos fuente y tests de regresión para cada corrección anterior.

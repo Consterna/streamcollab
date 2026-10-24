@@ -237,15 +237,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans select-none">
       {/* Top Navbar */}
-      <header className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900 px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/30">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 bg-zinc-900 px-6 py-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/30">
             <Radio className="h-5 w-5" />
           </div>
-          <div>
-            <h1 className="text-base font-bold text-white flex items-center gap-2">
+          <div className="min-w-0">
+            <h1 className="text-base font-bold text-white flex flex-wrap items-center gap-2">
               {t('dash.title')}
-              <span className="rounded-sm bg-indigo-500/20 px-2 py-0.5 text-xs font-mono text-indigo-400 border border-indigo-500/30">
+              <span className="break-all rounded-sm bg-indigo-500/20 px-2 py-0.5 text-xs font-mono text-indigo-400 border border-indigo-500/30">
                 {t('dash.room', { name: room?.name || roomId })}
               </span>
             </h1>
@@ -254,12 +254,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Master Recording Controls */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {activeSession ? (
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 rounded-lg bg-red-500/10 px-3 py-1.5 border border-red-500/30 text-xs">
-                <span className="h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
-                <span className="font-bold text-red-400">{activeSession.name}</span>
+            <div className="flex min-w-0 flex-wrap items-center gap-3">
+              <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg bg-red-500/10 px-3 py-1.5 border border-red-500/30 text-xs">
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500 animate-pulse" />
+                <span className="min-w-0 break-words font-bold text-red-400">{activeSession.name}</span>
                 <span className="text-zinc-400">|</span>
                 <span className="font-mono text-zinc-300">
                   {activeSession.framerateNumerator}/{activeSession.framerateDenominator} fps
@@ -436,8 +436,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
 
               {/* Filters */}
-              <div className="flex items-center gap-2">
-                <div className="relative">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative min-w-0 flex-1 sm:flex-none">
                   <Search className="h-3.5 w-3.5 text-zinc-400 absolute left-2.5 top-2.5" />
                   <input
                     type="text"
@@ -445,7 +445,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder={t('dash.search')}
                     aria-label={t('dash.search')}
-                    className="rounded-lg border border-zinc-700 bg-zinc-950 pl-8 pr-3 py-1 text-xs text-zinc-200 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-hidden w-40 sm:w-48"
+                    className="rounded-lg border border-zinc-700 bg-zinc-950 pl-8 pr-3 py-1 text-xs text-zinc-200 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-hidden w-full sm:w-48"
                   />
                 </div>
 
@@ -453,7 +453,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   value={filterCategory}
                   onChange={(e) => setFilterCategory(e.target.value)}
                   aria-label={t('markerRow.category')}
-                  className="rounded-lg border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-xs text-zinc-200 focus:border-indigo-500 focus:outline-hidden"
+                  className="min-w-0 max-w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-xs text-zinc-200 focus:border-indigo-500 focus:outline-hidden"
                 >
                   <option value="all">{t('dash.filter.all')}</option>
                   <option value="kill">{t('dash.filter.kill')}</option>
