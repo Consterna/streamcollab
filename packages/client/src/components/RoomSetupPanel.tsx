@@ -64,7 +64,7 @@ export const RoomSetupPanel: React.FC<RoomSetupPanelProps> = ({ socketClient, ro
       setRoomName('');
       onRoomChange(created.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('room.createFailed'));
+      setError(err instanceof Error ? `${t('room.createFailed')}: ${err.message}` : t('room.createFailed'));
     } finally {
       setCreating(false);
     }
@@ -77,7 +77,7 @@ export const RoomSetupPanel: React.FC<RoomSetupPanelProps> = ({ socketClient, ro
       await deleteRoom(roomId);
       onRoomChange('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('room.deleteFailed'));
+      setError(err instanceof Error ? `${t('room.deleteFailed')}: ${err.message}` : t('room.deleteFailed'));
     }
   };
 

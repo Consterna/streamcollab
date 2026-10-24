@@ -1,5 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef, useEffectEvent } from 'react';
-import { SquadMarker, SquadMember, RecordingSession, Room, MarkerCategory, SMPTETimecode } from '@streamcollab/shared';
+import {
+  SquadMarker,
+  SquadMember,
+  RecordingSession,
+  Room,
+  MarkerCategory,
+  SMPTETimecode,
+  LIMITS,
+} from '@streamcollab/shared';
 import { ObsService, ObsRecordStatus, ObsVideoSettings, ObsHotkeySignal, ObsChapterSupport } from '../services/obs';
 import {
   getBoolPreference,
@@ -278,14 +286,18 @@ export const DockView: React.FC<DockViewProps> = ({
       if (target && (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable)) {
         return;
       }
+      // Holding a key repeats it (one marker per press), and a dialog on top owns the keyboard
+      if (e.repeat || typeof e.key !== 'string' || document.querySelector('[aria-modal="true"]')) return;
 
-      if (e.key === '0' || (e.key.toLowerCase() === 'z' && (e.ctrlKey || e.metaKey))) {
+      const undoShortcut = e.key.toLowerCase() === 'z' && (e.ctrlKey || e.metaKey) && !e.altKey;
+      if (undoShortcut || (e.key === '0' && !e.ctrlKey && !e.metaKey && !e.altKey)) {
         e.preventDefault();
         handleUndo();
         return;
       }
 
-      const category = keyToCategory[e.key];
+      // Ctrl+1 / Alt+1 are browser and OBS shortcuts, not markers
+      const category = e.ctrlKey || e.metaKey || e.altKey ? undefined : keyToCategory[e.key];
       if (category) {
         e.preventDefault();
         handleQuickMark(category, quickLabel(category));
@@ -381,6 +393,7 @@ export const DockView: React.FC<DockViewProps> = ({
               type="text"
               value={obsAddress}
               onChange={(e) => setObsAddress(e.target.value)}
+              aria-label={t('dock.websocket')}
               className="flex-1 rounded-sm border border-zinc-700 bg-zinc-950 px-2 py-1 text-zinc-200 font-mono text-[11px]"
               placeholder="ws://127.0.0.1:4455"
             />
@@ -391,6 +404,7 @@ export const DockView: React.FC<DockViewProps> = ({
               type="password"
               value={obsPassword}
               onChange={(e) => setObsPassword(e.target.value)}
+              aria-label={t('dock.password')}
               className="flex-1 rounded-sm border border-zinc-700 bg-zinc-950 px-2 py-1 text-zinc-200 font-mono text-[11px]"
               placeholder={t('dock.passwordPlaceholder')}
             />
@@ -615,7 +629,9 @@ export const DockView: React.FC<DockViewProps> = ({
           onSubmit={(e) => {
             e.preventDefault();
             if (customComment.trim()) {
-              handleQuickMark(selectedCategory, customComment.trim());
+              // The typed text is the marker's label; it is not repeated as its comment
+              handleQuickMark(selectedCategory, customComment.trim(), '');
+              setCustomComment('');
             }
           }}
           className="mt-2.5 flex flex-wrap items-center gap-2"
@@ -623,6 +639,7 @@ export const DockView: React.FC<DockViewProps> = ({
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value as MarkerCategory)}
+            aria-label={t('markerRow.category')}
             className="rounded-sm border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-200 focus:border-indigo-500 focus:outline-hidden"
           >
             <option value="kill">{t('dock.categoryOption.kill')}</option>
@@ -638,6 +655,8 @@ export const DockView: React.FC<DockViewProps> = ({
             value={customComment}
             onChange={(e) => setCustomComment(e.target.value)}
             placeholder={t('dock.customPlaceholder')}
+            aria-label={t('dock.customPlaceholder')}
+            maxLength={LIMITS.label}
             className="min-w-40 flex-1 rounded-sm border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-hidden"
           />
 

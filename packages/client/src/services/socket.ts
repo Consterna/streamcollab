@@ -16,6 +16,9 @@ import { wsUrl } from './serverUrl';
 // Errors after which the server did not add this socket to the room
 const JOIN_REFUSED_CODES = new Set<ErrorCode>(['ROOM_NOT_FOUND', 'HOST_TOKEN_INVALID', 'MEMBER_TOKEN_INVALID']);
 
+// Consecutive RTT spikes (one ping every 5 s) after which the clock filter re-baselines
+export const SNTP_REBASELINE_AFTER_SPIKES = 3;
+
 export interface JoinedInfo {
   roomId: string;
   clientKind: ClientKind;
@@ -56,6 +59,8 @@ export class StreamCollabSocketClient {
   private clockOffsetMs = 0;
   private rttMs = 0;
   private hasSntpSample = false;
+  // Spikes rejected in a row: that many means the network path itself changed (Wi-Fi to 4G, VPN...)
+  private sntpRejectedInARow = 0;
 
   // Current session/room context
   private currentRoomId = '';
@@ -143,11 +148,16 @@ export class StreamCollabSocketClient {
     }
 
     try {
-      this.ws = new WebSocket(this.serverUrl);
+      const ws = new WebSocket(this.serverUrl);
+      this.ws = ws;
+      // Late events of a socket this client already replaced must not touch the current one
+      const current = () => this.ws === ws;
 
-      this.ws.onopen = () => {
+      ws.onopen = () => {
+        if (!current()) return;
+        // The backoff only resets once the server accepts this client into its room (JOINED):
+        // a server that opens and then closes (join timeout, rate limit) keeps backing off
         this.isConnected = true;
-        this.reconnectAttempts = 0;
         this.emitConnectionChange(true);
         this.startSntpCalibration();
 
@@ -157,7 +167,8 @@ export class StreamCollabSocketClient {
         }
       };
 
-      this.ws.onmessage = (event) => {
+      ws.onmessage = (event) => {
+        if (!current()) return;
         try {
           const msg: ServerMessage = JSON.parse(event.data);
           this.handleServerMessage(msg);
@@ -166,12 +177,12 @@ export class StreamCollabSocketClient {
         }
       };
 
-      this.ws.onclose = () => {
-        this.handleDisconnect();
+      ws.onclose = () => {
+        if (current()) this.handleDisconnect();
       };
 
-      this.ws.onerror = () => {
-        this.handleDisconnect();
+      ws.onerror = () => {
+        if (current()) this.handleDisconnect();
       };
     } catch (err) {
       this.handleDisconnect();
@@ -207,9 +218,13 @@ export class StreamCollabSocketClient {
         // Jitter spike outlier rejection:
         // Reject samples with extreme RTT spikes (> 2.5x baseline and > 100ms)
         // to protect the calibrated timeline from transient network congestion / bufferbloat.
-        if (this.hasSntpSample && currentRtt > Math.max(100, this.rttMs * 2.5)) {
+        // Several spikes in a row are the new normal of a changed network path: start over from it.
+        const spike = this.hasSntpSample && currentRtt > Math.max(100, this.rttMs * 2.5);
+        if (spike && ++this.sntpRejectedInARow < SNTP_REBASELINE_AFTER_SPIKES) {
           break;
         }
+        if (spike) this.hasSntpSample = false;
+        this.sntpRejectedInARow = 0;
 
         // Exponential moving average filter
         if (!this.hasSntpSample) {
@@ -269,6 +284,8 @@ export class StreamCollabSocketClient {
 
       case 'ROOM_DELETED':
         this.isJoined = false;
+        // Never rejoin a deleted room on the next reconnect
+        if (msg.payload.roomId === this.currentRoomId) this.currentRoomId = '';
         this.emit('onRoomDeleted', msg.payload.roomId);
         break;
 
@@ -283,6 +300,7 @@ export class StreamCollabSocketClient {
           saveMemberToken(this.currentMember.id, memberToken);
         }
         this.isJoined = true;
+        this.reconnectAttempts = 0;
         this.emit('onJoined', info);
         break;
       }
@@ -291,6 +309,10 @@ export class StreamCollabSocketClient {
         // A refused join leaves this socket outside any room
         if (msg.payload.code && JOIN_REFUSED_CODES.has(msg.payload.code)) {
           this.isJoined = false;
+        }
+        // An unknown room stays unknown: don't retry it on every reconnect (the user types another code)
+        if (msg.payload.code === 'ROOM_NOT_FOUND') {
+          this.currentRoomId = '';
         }
         this.emit('onError', msg.payload);
         break;
@@ -500,6 +522,9 @@ export class StreamCollabSocketClient {
     this.isConnected = false;
     this.isJoined = false;
     this.hasSntpSample = false;
+    // A later connect() joins only the room it is told to (the App joins again after connecting)
+    this.currentRoomId = '';
+    this.currentMember = undefined;
     this.emitConnectionChange(false);
   }
 }

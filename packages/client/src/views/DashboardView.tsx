@@ -1,13 +1,14 @@
-import React, { useEffect, useState } from 'react';
-import { MarkerChanges, Room, RecordingSession, SessionSummary, SquadMarker } from '@streamcollab/shared';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { LIMITS, MarkerChanges, Room, RecordingSession, SessionSummary, SquadMarker } from '@streamcollab/shared';
 import { StreamCollabSocketClient } from '../services/socket';
 import { ExportModal } from '../components/ExportModal';
 import { RoomSetupPanel } from '../components/RoomSetupPanel';
 import { MarkerRow } from '../components/MarkerRow';
 import { SessionHistory } from '../components/SessionHistory';
-import { apiUrl } from '../services/serverUrl';
+import { apiUrl, exportPath } from '../services/serverUrl';
 import { deleteSession } from '../services/api';
 import { useT, MessageKey, TranslateParams } from '../i18n';
+import { useDialogFocus } from '../hooks/useDialogFocus';
 import { Play, Square, Users, Film, Download, Radio, Search, Layers } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -45,8 +46,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const liveSession = activeSession || lastSession || null;
 
   // Session history: null = follow the current session; otherwise browse a past one
-  const [sessions, setSessions] = useState<SessionSummary[]>([]);
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  // Both belong to one room: after switching rooms they read as empty until the new room answers
+  const [sessionList, setSessionList] = useState<{ roomId: string; list: SessionSummary[] }>({ roomId: '', list: [] });
+  const sessions = sessionList.roomId === room?.id ? sessionList.list : [];
+  const [selection, setSelection] = useState<{ roomId: string; sessionId: string | null }>({
+    roomId,
+    sessionId: null,
+  });
+  const selectedSessionId = selection.roomId === roomId ? selection.sessionId : null;
+  const setSelectedSessionId = useCallback(
+    (update: string | null | ((current: string | null) => string | null)) =>
+      setSelection((prev) => {
+        const current = prev.roomId === roomId ? prev.sessionId : null;
+        return { roomId, sessionId: typeof update === 'function' ? update(current) : update };
+      }),
+    [roomId]
+  );
   const [history, setHistory] = useState<{ sessionId: string; markers: SquadMarker[] } | null>(null);
   const viewingHistory = Boolean(selectedSessionId && selectedSessionId !== liveSession?.id);
 
@@ -55,10 +70,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const sessionsKey = `${room?.id}|${activeSession?.id}|${lastSession?.stoppedAt}|${markers.length}|${deletedSessions}`;
   useEffect(() => {
     if (!room?.id) return;
+    const listRoomId = room.id;
     const controller = new AbortController();
-    fetch(apiUrl(`/api/rooms/${encodeURIComponent(room.id)}/sessions`), { signal: controller.signal })
+    fetch(apiUrl(`/api/rooms/${encodeURIComponent(listRoomId)}/sessions`), { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : []))
-      .then((list: SessionSummary[]) => setSessions(list))
+      .then((list: SessionSummary[]) => setSessionList({ roomId: listRoomId, list }))
       .catch(() => {
         // keep the previous list (network hiccup or aborted)
       });
@@ -96,7 +112,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     );
     const offSessionDeleted = socketClient.on('onSessionDeleted', (sessionId) => {
       setDeletedSessions((n) => n + 1);
-      setSelectedSessionId((current) => (current === sessionId ? null : current));
+      setSelection((prev) => (prev.sessionId === sessionId ? { ...prev, sessionId: null } : prev));
     });
     return () => {
       offUpdated();
@@ -112,7 +128,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     try {
       await deleteSession(roomId, session.id);
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : t('dash.deleteSessionFailed'));
+      window.alert(
+        err instanceof Error ? `${t('dash.deleteSessionFailed')}: ${err.message}` : t('dash.deleteSessionFailed')
+      );
     }
   };
 
@@ -140,6 +158,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   // Start session form state
   const [showStartModal, setShowStartModal] = useState(false);
+  const startDialogRef = useRef<HTMLFormElement>(null);
+  useDialogFocus(startDialogRef, showStartModal);
   const [sessionName, setSessionName] = useState(() => t('dash.defaultSessionName'));
   const [baseTimecode, setBaseTimecode] = useState('01:00:00:00');
   const [selectedFramerate, setSelectedFramerate] = useState('60');
@@ -534,7 +554,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </h2>
             <div className="space-y-2">
               <a
-                href={viewedSession ? apiUrl(`/api/rooms/${roomId}/export/edl?sessionId=${viewedSession.id}`) : '#'}
+                href={viewedSession ? apiUrl(exportPath('edl', roomId, viewedSession.id)) : '#'}
                 download
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
                   !viewedSession ? 'pointer-events-none opacity-40' : ''
@@ -545,7 +565,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </a>
 
               <a
-                href={viewedSession ? apiUrl(`/api/rooms/${roomId}/export/xml?sessionId=${viewedSession.id}`) : '#'}
+                href={viewedSession ? apiUrl(exportPath('xml', roomId, viewedSession.id)) : '#'}
                 download
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
                   !viewedSession ? 'pointer-events-none opacity-40' : ''
@@ -556,7 +576,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </a>
 
               <a
-                href={viewedSession ? apiUrl(`/api/rooms/${roomId}/export/csv?sessionId=${viewedSession.id}`) : '#'}
+                href={viewedSession ? apiUrl(exportPath('csv', roomId, viewedSession.id)) : '#'}
                 download
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
                   !viewedSession ? 'pointer-events-none opacity-40' : ''
@@ -567,7 +587,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </a>
 
               <a
-                href={viewedSession ? apiUrl(`/api/rooms/${roomId}/export/youtube?sessionId=${viewedSession.id}`) : '#'}
+                href={viewedSession ? apiUrl(exportPath('youtube', roomId, viewedSession.id)) : '#'}
                 download
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
                   !viewedSession ? 'pointer-events-none opacity-40' : ''
@@ -578,7 +598,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </a>
 
               <a
-                href={viewedSession ? apiUrl(`/api/rooms/${roomId}/export/matrix?sessionId=${viewedSession.id}`) : '#'}
+                href={viewedSession ? apiUrl(exportPath('matrix', roomId, viewedSession.id)) : '#'}
                 download
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
                   !viewedSession ? 'pointer-events-none opacity-40' : ''
@@ -596,6 +616,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {showStartModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4">
           <form
+            ref={startDialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="start-session-modal-title"
@@ -616,6 +637,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 type="text"
                 required
                 value={sessionName}
+                maxLength={LIMITS.sessionName}
                 onChange={(e) => setSessionName(e.target.value)}
                 className="w-full rounded-sm border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs text-white focus:border-indigo-500 focus:outline-hidden"
               />
@@ -673,8 +695,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 type="text"
                 required
                 value={baseTimecode}
-                onChange={(e) => setBaseTimecode(e.target.value)}
+                onChange={(e) => setBaseTimecode(e.target.value.trim())}
                 placeholder="01:00:00:00"
+                // Same rule as the server: the form stays open instead of losing the input
+                pattern="\d{2}:\d{2}:\d{2}[:;]\d{2}"
+                title="HH:MM:SS:FF"
                 className="w-full rounded-sm border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs font-mono text-white focus:border-indigo-500 focus:outline-hidden"
               />
               <p className="text-[10px] text-zinc-500 mt-1">{t('dash.form.baseHint')}</p>

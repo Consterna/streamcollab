@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { SquadMember, Room, RecordingSession, SquadMarker, ClientKind } from '@streamcollab/shared';
+import { SquadMember, Room, RecordingSession, SquadMarker, ClientKind, LIMITS } from '@streamcollab/shared';
 import { ObsService } from './services/obs';
 import { StreamCollabSocketClient } from './services/socket';
 import {
@@ -10,6 +10,9 @@ import {
   saveMemberId,
   getStoredUserName,
   saveUserName,
+  serverAwaitingTrust,
+  trustCurrentServer,
+  distrustCurrentServer,
 } from './services/credentials';
 import { DockView } from './views/DockView';
 import { HudView } from './views/HudView';
@@ -71,6 +74,18 @@ function writeViewToUrl(view: View, preview: boolean) {
   window.history.replaceState(null, '', url);
 }
 
+/** Keep `?room=` on the room in use, so a reload doesn't go back to the room of the invite link */
+function writeRoomToUrl(roomId: string) {
+  const url = new URL(window.location.href);
+  if (url.searchParams.get('room') === (roomId || null)) return;
+  if (roomId) {
+    url.searchParams.set('room', roomId);
+  } else {
+    url.searchParams.delete('room');
+  }
+  window.history.replaceState(null, '', url);
+}
+
 export function App() {
   const { t, locale, setLocale } = useT();
   // Parse initial view from query parameters, hash (legacy links) or pathname
@@ -112,7 +127,8 @@ export function App() {
   const exitHudPreview = useCallback(() => navigateTo(returnView), [navigateTo, returnView]);
   const [roomId, setRoomId] = useState<string>(initialRoom);
   const [userName, setUserName] = useState<string>(() => {
-    const saved = getStoredUserName();
+    // Names longer than the server accepts (possible before v1.6.2) would keep the dock out of every room
+    const saved = getStoredUserName()?.trim().slice(0, LIMITS.memberName);
     if (saved) return saved;
     // Keep the generated name, otherwise the same streamer shows up under a new name on every load
     const generated = `Player_${Math.floor(100 + Math.random() * 900)}`;
@@ -147,14 +163,37 @@ export function App() {
   // Only docks represent a squad member; HUD overlays and dashboards observe
   const clientKind: ClientKind = currentView === 'hud' ? 'hud' : currentView === 'dashboard' ? 'dashboard' : 'dock';
 
+  // `?server=` names a server this device has credentials for from before v1.6.2: nothing is sent to
+  // it (not even a join) until the user decides whether to trust it with them
+  // (an OBS HUD source has no way to answer and only observes, so it just goes without them)
+  const [serverToTrust, setServerToTrust] = useState<string | null>(() =>
+    initialView === 'hud' ? null : serverAwaitingTrust()
+  );
+
   const [memberId, setMemberId] = useState(() => {
     let id = getStoredMemberId();
     if (!id) {
       id = newMemberId();
-      saveMemberId(id);
+      // Saved once the trust question is answered (accepting may bring back the old id)
+      if (!serverAwaitingTrust()) saveMemberId(id);
     }
     return id;
   });
+
+  const answerServerTrust = (trust: boolean) => {
+    if (trust) {
+      trustCurrentServer();
+    } else {
+      distrustCurrentServer();
+    }
+    let id = getStoredMemberId();
+    if (!id) {
+      id = memberId;
+      saveMemberId(id);
+    }
+    setMemberId(id);
+    setServerToTrust(null);
+  };
 
   const member: SquadMember = useMemo(
     () => ({
@@ -197,8 +236,11 @@ export function App() {
     setRoomDraft(newRoom);
   };
 
+  useEffect(() => writeRoomToUrl(roomId), [roomId]);
+
   // Initialize socket and listeners
   useEffect(() => {
+    if (serverToTrust) return;
     const subscriptions: Array<() => void> = [];
     const setJoinError = (error: JoinError | null) =>
       setJoinState((state) => ({ key: joinKey, isHost: state.key === joinKey && state.isHost, error }));
@@ -331,8 +373,10 @@ export function App() {
           setMemberId(freshId);
           return;
         }
-        // Messages sent before the join completed; the dock stops sending them, and they'd hide the real error
-        if (error.code === 'NOT_JOINED') return;
+        // Messages sent before the join completed; the dock stops sending them, and they'd hide the real error.
+        // TIMEOUT only means this socket sat in no room (no code yet, or an unknown one): the banner
+        // already says why, and the client reconnects by itself.
+        if (error.code === 'NOT_JOINED' || error.code === 'TIMEOUT') return;
         setJoinError({ code: error.code, message: error.message, room: roomId });
         if (error.code === 'HOST_TOKEN_INVALID' && roomId) {
           // Forget the bad token and join again as a viewer
@@ -358,7 +402,7 @@ export function App() {
       subscriptions.forEach((unsubscribe) => unsubscribe());
       socketClient.disconnect();
     };
-  }, [socketClient, roomId, member, clientKind, joinKey]);
+  }, [socketClient, roomId, member, clientKind, joinKey, serverToTrust]);
 
   // Legacy #/dock, #/hud, #/dashboard links typed into the address bar
   useEffect(() => {
@@ -435,6 +479,8 @@ export function App() {
               if (e.key === 'Enter') e.currentTarget.blur();
             }}
             placeholder={t('nav.namePlaceholder')}
+            maxLength={LIMITS.memberName}
+            aria-label={t('nav.nameTitle')}
             className="w-28 rounded-sm border border-zinc-700 bg-zinc-950 px-2 py-0.5 text-xs text-zinc-200 focus:border-indigo-500 focus:outline-hidden"
             title={t('nav.nameTitle')}
           />
@@ -448,6 +494,8 @@ export function App() {
               if (e.key === 'Enter') e.currentTarget.blur();
             }}
             placeholder={t('nav.roomPlaceholder')}
+            maxLength={LIMITS.roomId}
+            aria-label={t('nav.roomTitle')}
             className="w-24 rounded-sm border border-zinc-700 bg-zinc-950 px-2 py-0.5 text-xs font-mono text-zinc-200 focus:border-indigo-500 focus:outline-hidden"
             title={t('nav.roomTitle')}
           />
@@ -468,6 +516,29 @@ export function App() {
         </div>
       </nav>
 
+      {serverToTrust && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-3 border-b border-sky-500/30 bg-sky-500/10 px-4 py-2 text-xs text-sky-200"
+        >
+          <span>{t('app.trustServer', { server: serverToTrust })}</span>
+          <span className="flex gap-2">
+            <button
+              onClick={() => answerServerTrust(true)}
+              className="rounded-sm bg-sky-600 px-2 py-1 font-semibold text-white hover:bg-sky-500"
+            >
+              {t('app.trustServerYes')}
+            </button>
+            <button
+              onClick={() => answerServerTrust(false)}
+              className="rounded-sm border border-sky-500/40 px-2 py-1 text-sky-200 hover:bg-sky-500/20"
+            >
+              {t('app.trustServerNo')}
+            </button>
+          </span>
+        </div>
+      )}
+
       {(joinError || !roomId) && (
         <div className="flex items-center justify-between gap-3 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-300">
           <span>
@@ -481,7 +552,12 @@ export function App() {
               : t('app.noRoom')}
           </span>
           {joinError && (
-            <button onClick={dismissJoinError} className="text-amber-400 hover:text-amber-200" title={t('app.dismiss')}>
+            <button
+              onClick={dismissJoinError}
+              className="text-amber-400 hover:text-amber-200"
+              title={t('app.dismiss')}
+              aria-label={t('app.dismiss')}
+            >
               ✕
             </button>
           )}
