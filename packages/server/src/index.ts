@@ -125,6 +125,7 @@ async function start() {
       adminToken: config.adminToken,
       trustProxy: config.trustProxy,
       roomCreateLimitPerMinute: config.roomCreateLimitPerMinute,
+      maxSocketsPerIp: config.maxSocketsPerIp,
       clientDir: config.clientDist,
     });
   } catch (err) {

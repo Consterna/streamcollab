@@ -197,8 +197,9 @@ Content-Type: application/json
 **Server environment variables** (see `.env.example`):
 - `ALLOWED_ORIGIN`: comma-separated origins allowed to call the REST API cross-origin. Leave empty when the client is served from the same host (default).
 - `ADMIN_TOKEN`: enables `GET /api/rooms` for `Authorization: Bearer <ADMIN_TOKEN>` (16+ characters).
-- `TRUST_PROXY`: `true` behind a reverse proxy so rate limits use the real client IP. Only enable it behind a proxy that **overwrites** `X-Forwarded-For` with the address it sees. Caddy does by default (`docker-compose.yml` already sets `TRUST_PROXY=true` for it). With another proxy, configure it that way (in Nginx, `proxy_set_header X-Forwarded-For $remote_addr;`); otherwise a client can send a fake IP and slip past the rate limits.
+- `TRUST_PROXY`: `true` behind a reverse proxy so rate limits use the real client IP. Only enable it behind a proxy that **overwrites** `X-Forwarded-For` with the address it sees. Caddy does by default (`docker-compose.yml` already sets `TRUST_PROXY=true` for it). With another proxy, configure it that way (in Nginx, `proxy_set_header X-Forwarded-For $remote_addr;`); otherwise a client can send a fake IP and slip past the rate limits. Behind a proxy with `TRUST_PROXY=false`, every client shares the proxy's IP, so the per-IP limits (room creation, unknown room codes, 64 simultaneous WebSocket connections) apply to everyone together.
 - `ROOM_CREATE_LIMIT_PER_MINUTE`: rooms one IP may create per minute (default 10).
+- `MAX_SOCKETS_PER_IP`: simultaneous WebSocket connections (docks, HUDs, Director Panels) from one IP (default 64). Raise it for a LAN event where many streamers share one public IP.
 
 Room codes are accepted in any letter case (`kq7p-m3xd` joins `KQ7P-M3XD`). An IP that tries more than 20 unknown room codes in a minute is refused for the rest of that minute.
 
@@ -406,7 +407,7 @@ streamcollab/
 
 ### 🧪 Testing & Verification
 
-At v1.6.2 the automated suite has **289 tests**: 263 unit / integration tests (28 files), 9 component tests in Chromium and 17 Playwright end-to-end tests (3 files, including the axe accessibility scans):
+At v1.6.2 the automated suite has **295 tests**: 268 unit / integration tests (28 files), 9 component tests in Chromium and 18 Playwright end-to-end tests (3 files, including the axe accessibility scans):
 ```bash
 npm test               # unit / integration tests (Node)
 npm run test:browser   # component tests in Chromium (run `npx playwright install chromium` once)

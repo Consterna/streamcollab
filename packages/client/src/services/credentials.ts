@@ -1,10 +1,11 @@
 // Room credentials kept in this browser / OBS profile. Storage can be unavailable (private
 // windows, locked-down CEF profiles), so every access is guarded and failures fall back to "none".
 //
-// Credentials belong to the server that issued them. The page's own server keeps the keys used
-// before v1.6.2; a server named with `?server=` gets keys of its own, so a crafted link can't make
-// this page send the tokens of one server to another. Credentials saved before v1.6.2 (when every
-// server shared the same keys) are only used with another server once the user trusts it.
+// Credentials belong to the server that issued them: `<prefix>self|<id>` for the page's own server,
+// `<prefix><server>|<id>` for a server named with `?server=`, so a crafted link can't make this page
+// send the tokens of one server to another. Keys without a server (`<prefix><id>`) were written
+// before v1.6.2, when every server shared them: the own server still reads them, and another server
+// only once the user trusts it with them.
 import { getServerBase } from './serverUrl';
 
 const HOST_TOKEN_PREFIX = 'streamcollab_host_token:';
@@ -98,18 +99,22 @@ export function serverAwaitingTrust(): string | null {
   return null;
 }
 
-// Pre-v1.6.2 key for the page's own server; `<prefix><server>|<id>` for another one
-const keyFor = (prefix: string, id: string, server: string) => (server ? `${prefix}${server}|${id}` : prefix + id);
+const keyFor = (prefix: string, id: string, server: string) => `${prefix}${server || 'self'}|${id}`;
+const legacyKey = (prefix: string, id: string) => prefix + id;
 
 function readScoped(prefix: string, id: string): string | undefined {
   const server = remoteServer();
-  const own = read(keyFor(prefix, id, server));
-  if (own || !server) return own;
-  return isServerTrusted(server) ? read(prefix + id) : undefined;
+  const scoped = read(keyFor(prefix, id, server));
+  if (scoped) return scoped;
+  return !server || isServerTrusted(server) ? read(legacyKey(prefix, id)) : undefined;
 }
 
-const writeScoped = (prefix: string, id: string, value: string | null) =>
-  write(keyFor(prefix, id, remoteServer()), value);
+function writeScoped(prefix: string, id: string, value: string | null) {
+  const server = remoteServer();
+  write(keyFor(prefix, id, server), value);
+  // Clearing a token also clears its pre-v1.6.2 copy where that copy would be read back
+  if (value === null && (!server || isServerTrusted(server))) write(legacyKey(prefix, id), null);
+}
 
 export const getHostToken = (roomId: string) => readScoped(HOST_TOKEN_PREFIX, roomId);
 export const saveHostToken = (roomId: string, token: string | null) => writeScoped(HOST_TOKEN_PREFIX, roomId, token);

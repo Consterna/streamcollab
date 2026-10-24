@@ -23,7 +23,7 @@ export const es: Messages = {
   'error.INVALID_MESSAGE': 'El servidor rechazó la petición: {detail}',
   'app.dismiss': 'Cerrar',
   'app.trustServer':
-    'Esta página se conecta a {server}. ¿Usar con ese servidor las credenciales de sala y de streamer guardadas en este dispositivo? Acepta solo si confías en él.',
+    'Esta página se conecta a {server}. ¿Usar con ese servidor las credenciales de sala y de streamer que una versión anterior de StreamCollab guardó en este dispositivo? Acepta solo si confías en él.',
   'app.trustServerYes': 'Usarlas',
   'app.trustServerNo': 'No con este servidor',
 

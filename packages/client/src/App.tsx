@@ -126,6 +126,8 @@ export function App() {
 
   const exitHudPreview = useCallback(() => navigateTo(returnView), [navigateTo, returnView]);
   const [roomId, setRoomId] = useState<string>(initialRoom);
+  // Bumped to join the same room code again after the server refused it
+  const [joinAttempt, setJoinAttempt] = useState(0);
   const [userName, setUserName] = useState<string>(() => {
     // Names longer than the server accepts (possible before v1.6.2) would keep the dock out of every room
     const saved = getStoredUserName()?.trim().slice(0, LIMITS.memberName);
@@ -147,6 +149,8 @@ export function App() {
       setRoomId(next);
     } else {
       setRoomDraft(roomId);
+      // The same code again: ask the server once more (the room may exist now)
+      if (next && joinError) setJoinAttempt((n) => n + 1);
     }
   };
 
@@ -240,7 +244,8 @@ export function App() {
 
   // Initialize socket and listeners
   useEffect(() => {
-    if (serverToTrust) return;
+    // The HUD only observes and sends no stored credentials: it doesn't wait for the answer
+    if (serverToTrust && clientKind !== 'hud') return;
     const subscriptions: Array<() => void> = [];
     const setJoinError = (error: JoinError | null) =>
       setJoinState((state) => ({ key: joinKey, isHost: state.key === joinKey && state.isHost, error }));
@@ -402,7 +407,7 @@ export function App() {
       subscriptions.forEach((unsubscribe) => unsubscribe());
       socketClient.disconnect();
     };
-  }, [socketClient, roomId, member, clientKind, joinKey, serverToTrust]);
+  }, [socketClient, roomId, member, clientKind, joinKey, serverToTrust, joinAttempt]);
 
   // Legacy #/dock, #/hud, #/dashboard links typed into the address bar
   useEffect(() => {

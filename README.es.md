@@ -199,8 +199,9 @@ Content-Type: application/json
 **Variables de entorno del servidor** (ver `.env.example`):
 - `ALLOWED_ORIGIN`: orígenes, separados por comas, que pueden llamar a la API REST desde otro origen. Déjala vacía si el cliente se sirve desde el mismo servidor (por defecto).
 - `ADMIN_TOKEN`: habilita `GET /api/rooms` con `Authorization: Bearer <ADMIN_TOKEN>` (16 caracteres o más).
-- `TRUST_PROXY`: `true` detrás de un proxy inverso, para que los límites de peticiones usen la IP real del cliente. Actívala solo detrás de un proxy que **sobrescriba** `X-Forwarded-For` con la dirección que ve. Caddy lo hace por defecto (`docker-compose.yml` ya pone `TRUST_PROXY=true` para él). Con otro proxy, configúralo así (en Nginx, `proxy_set_header X-Forwarded-For $remote_addr;`); si no, un cliente puede enviar una IP falsa y saltarse los límites.
+- `TRUST_PROXY`: `true` detrás de un proxy inverso, para que los límites de peticiones usen la IP real del cliente. Actívala solo detrás de un proxy que **sobrescriba** `X-Forwarded-For` con la dirección que ve. Caddy lo hace por defecto (`docker-compose.yml` ya pone `TRUST_PROXY=true` para él). Con otro proxy, configúralo así (en Nginx, `proxy_set_header X-Forwarded-For $remote_addr;`); si no, un cliente puede enviar una IP falsa y saltarse los límites. Detrás de un proxy con `TRUST_PROXY=false`, todos los clientes comparten la IP del proxy, así que los límites por IP (creación de salas, códigos de sala desconocidos, 64 conexiones WebSocket simultáneas) se aplican a todos juntos.
 - `ROOM_CREATE_LIMIT_PER_MINUTE`: salas que una IP puede crear por minuto (10 por defecto).
+- `MAX_SOCKETS_PER_IP`: conexiones WebSocket simultáneas (docks, HUD, Paneles del director) desde una misma IP (64 por defecto). Súbelo para un evento LAN en el que muchos streamers comparten una IP pública.
 
 Los códigos de sala se aceptan en mayúsculas o minúsculas (`kq7p-m3xd` entra en `KQ7P-M3XD`). Una IP que prueba más de 20 códigos de sala inexistentes en un minuto queda bloqueada el resto de ese minuto.
 
@@ -408,7 +409,7 @@ streamcollab/
 
 ### 🧪 Tests y verificación
 
-En la v1.6.2 la suite automática tiene **289 tests**: 263 tests unitarios y de integración (28 archivos), 9 tests de componentes en Chromium y 17 tests end-to-end con Playwright (3 archivos, incluidos los escaneos de accesibilidad con axe):
+En la v1.6.2 la suite automática tiene **295 tests**: 268 tests unitarios y de integración (28 archivos), 9 tests de componentes en Chromium y 18 tests end-to-end con Playwright (3 archivos, incluidos los escaneos de accesibilidad con axe):
 ```bash
 npm test               # tests unitarios y de integración (Node)
 npm run test:browser   # tests de componentes en Chromium (ejecuta `npx playwright install chromium` una vez)

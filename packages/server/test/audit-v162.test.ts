@@ -148,10 +148,10 @@ describe('v1.6.2 database integrity', () => {
     expect(db.getSession(second.id)?.stoppedAt).toBeNull();
   });
 
-  it('never stores a marker in a session that already stopped', () => {
+  it('never stores a key pressed after the stop in the stopped session', () => {
     rooms.createRoom('LATE-ROOM', 'x');
     const stopped = rooms.startSession('LATE-ROOM', { name: 'ended' });
-    rooms.stopSession('LATE-ROOM', stopped.id);
+    const stoppedAt = rooms.stopSession('LATE-ROOM', stopped.id)!.stoppedAt!;
     const running = rooms.startSession('LATE-ROOM', { name: 'running' });
 
     const marker = rooms.createMarker({
@@ -161,9 +161,29 @@ describe('v1.6.2 database integrity', () => {
       memberName: 'm1',
       category: 'kill',
       label: 'late',
+      clientTimestamp: stoppedAt + 500,
     });
     expect(marker.sessionId).toBe(running.id);
     expect(db.getSessionMarkers(stopped.id)).toEqual([]);
+  });
+
+  it('keeps a key pressed before the stop in the stopped session instead of opening an Auto Session', () => {
+    rooms.createRoom('RACE-ROOM', 'x');
+    const session = rooms.startSession('RACE-ROOM', { name: 'match' });
+    const stopped = rooms.stopSession('RACE-ROOM', session.id)!;
+
+    const marker = rooms.createMarker({
+      roomId: 'RACE-ROOM',
+      sessionId: session.id,
+      memberId: 'm1',
+      memberName: 'm1',
+      category: 'clutch',
+      label: 'in flight',
+      clientTimestamp: stopped.stoppedAt! - 200, // pressed just before the host's Stop arrived
+    });
+    expect(marker.sessionId).toBe(session.id);
+    expect(db.getActiveSession('RACE-ROOM')).toBeNull();
+    expect(db.listSessions('RACE-ROOM')).toHaveLength(1);
   });
 
   it('undo only reaches markers of the running session', () => {
@@ -444,6 +464,12 @@ describe('v1.6.2 small fixes', () => {
       logLevel: 'info',
       roomCreateLimitPerMinute: 10,
     });
+  });
+
+  it('reads MAX_SOCKETS_PER_IP (default 64) and rejects nonsense', () => {
+    expect(loadConfig({}).maxSocketsPerIp).toBe(64);
+    expect(loadConfig({ MAX_SOCKETS_PER_IP: '300' }).maxSocketsPerIp).toBe(300);
+    expect(() => loadConfig({ MAX_SOCKETS_PER_IP: '0' })).toThrow(/MAX_SOCKETS_PER_IP/);
   });
 
   it("percent-encodes ' ( ) * in the RFC 5987 file name", () => {

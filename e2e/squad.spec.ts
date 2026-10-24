@@ -149,6 +149,23 @@ test.describe('Director tools', () => {
     const dock = await openView(context, 'dock', 'NOPE-0000');
     await expect(dock.getByText(/Room NOPE-0000 not found/)).toBeVisible();
   });
+
+  test('entering the same code again joins once the host has created the room', async ({ browser, request }) => {
+    const context = await newIdentity(browser);
+    const dock = await openView(context, 'dock', 'LATER-ROOM-1');
+    await expect(dock.getByText(/Room LATER-ROOM-1 not found/)).toBeVisible();
+
+    const created = await request.post('/api/rooms', { data: { id: 'LATER-ROOM-1', name: 'Late squad' } });
+    expect(created.status()).toBe(201);
+
+    const code = dock.getByRole('textbox', { name: 'Active room code' });
+    await code.fill('LATER-ROOM-1');
+    await code.press('Enter');
+    await expect(dock.getByText(/not found/)).toBeHidden();
+    await markersCaptured(dock, 0);
+    await dock.keyboard.press('1');
+    await markersCaptured(dock, 1);
+  });
 });
 
 test.describe('Room cleanup', () => {

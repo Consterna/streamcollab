@@ -457,9 +457,10 @@ export class RoomManager {
     obsRecordMs?: number;
   }): SquadMarker {
     const now = resolveMarkerTimestamp(data.clientTimestamp, Date.now());
-    // A dock may still name a session the host just stopped: markers only go into running sessions
+    // A dock may still name a session the host just stopped (SESSION_STOPPED is on its way): the marker
+    // belongs to it if the key was pressed before the stop, otherwise to the running session
     let session = data.sessionId ? this.db.getSession(data.sessionId) : null;
-    if (!session || session.roomId !== data.roomId || session.stoppedAt !== null) {
+    if (!session || session.roomId !== data.roomId || (session.stoppedAt !== null && now > session.stoppedAt)) {
       session = this.db.getActiveSession(data.roomId);
     }
 

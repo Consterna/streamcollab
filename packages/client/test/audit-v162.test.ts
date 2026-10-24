@@ -112,6 +112,25 @@ describe('credentials are kept per server (v1.6.2)', () => {
     expect(c.getHostToken('ROOM-1')).toBeUndefined();
   });
 
+  it('keeps tokens saved now for the own server out of the legacy keys (never offered to another server)', async () => {
+    storage = new MemoryStorage();
+    const own = await load('');
+    own.saveHostToken('ROOM-NEW', 'own-token-saved-today');
+    expect(own.getHostToken('ROOM-NEW')).toBe('own-token-saved-today');
+
+    const remote = await load('?server=https://other.example');
+    expect(remote.serverAwaitingTrust()).toBeNull(); // nothing from before v1.6.2 to offer
+    remote.trustCurrentServer();
+    expect(remote.getHostToken('ROOM-NEW')).toBeUndefined();
+  });
+
+  it('clearing a token also clears its pre-v1.6.2 copy', async () => {
+    const c = await load('');
+    c.saveHostToken('ROOM-1', null);
+    expect(c.getHostToken('ROOM-1')).toBeUndefined();
+    expect(storage.getItem('streamcollab_host_token:ROOM-1')).toBeNull();
+  });
+
   it('treats ?server= pointing at the page itself as the own server', async () => {
     const c = await load('?server=https://app.example');
     expect(c.getHostToken('ROOM-1')).toBe('legacy-host-token');
@@ -194,6 +213,25 @@ describe('socket client recovery (v1.6.2)', () => {
     ws = FakeWebSocket.all.at(-1)!;
     ws.open();
     expect(ws.sent.filter((m) => m.type === 'JOIN_ROOM')).toEqual([]);
+    client.disconnect();
+  });
+
+  it('asks again for a room that was unknown when the user requests it (it may exist now)', () => {
+    const client = new StreamCollabSocketClient('ws://test/ws');
+    client.connect();
+    let ws = FakeWebSocket.all.at(-1)!;
+    ws.open();
+    client.joinRoom('LATE-ROOM', 'dock', member);
+    ws.receive({ type: 'ERROR', payload: { code: 'ROOM_NOT_FOUND', message: 'not found' } });
+    ws.serverClose(); // join timeout
+    vi.advanceTimersToNextTimer();
+    ws = FakeWebSocket.all.at(-1)!;
+    ws.open();
+    expect(ws.sent.filter((m) => m.type === 'JOIN_ROOM')).toEqual([]);
+
+    // The host has created it meanwhile; the user enters the same code again
+    client.rejoin();
+    expect(ws.sent.filter((m) => m.type === 'JOIN_ROOM').map((m) => m.payload.roomId)).toEqual(['LATE-ROOM']);
     client.disconnect();
   });
 

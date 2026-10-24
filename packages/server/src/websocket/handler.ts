@@ -71,6 +71,7 @@ export function registerWebSocketHandler(
 
     const open = (socketsPerIp.get(ip) ?? 0) + 1;
     if (open > maxSocketsPerIp) {
+      fastify.log.warn({ ip, limit: maxSocketsPerIp }, 'WebSocket refused: too many connections from this IP');
       const refusal: ServerMessage = {
         type: 'ERROR',
         payload: { code: 'RATE_LIMITED', message: 'Too many connections from your network' },

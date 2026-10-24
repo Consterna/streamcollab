@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
+import { DEFAULT_MAX_SOCKETS_PER_IP } from './websocket/handler.js';
 
 // Empty strings from .env files / compose (`PORT=`, `${PORT:-}`) mean "not set"
 const unsetIfEmpty = <T extends z.ZodType>(schema: T) =>
@@ -28,6 +29,7 @@ const envSchema = z.object({
   ),
   TRUST_PROXY: booleanFlag,
   ROOM_CREATE_LIMIT_PER_MINUTE: unsetIfEmpty(z.coerce.number().int().min(1).max(10_000).default(10)),
+  MAX_SOCKETS_PER_IP: unsetIfEmpty(z.coerce.number().int().min(1).max(100_000).default(DEFAULT_MAX_SOCKETS_PER_IP)),
   LOG_LEVEL: unsetIfEmpty(z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info')),
 });
 
@@ -41,6 +43,7 @@ export interface ServerConfig {
   trustProxy: boolean;
   logLevel: string;
   roomCreateLimitPerMinute: number;
+  maxSocketsPerIp: number;
 }
 
 const serverDir = path.dirname(fileURLToPath(import.meta.url));
@@ -84,6 +87,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     trustProxy: e.TRUST_PROXY,
     logLevel: e.LOG_LEVEL,
     roomCreateLimitPerMinute: e.ROOM_CREATE_LIMIT_PER_MINUTE,
+    maxSocketsPerIp: e.MAX_SOCKETS_PER_IP,
   };
 }
 

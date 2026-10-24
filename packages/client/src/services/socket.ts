@@ -64,6 +64,9 @@ export class StreamCollabSocketClient {
 
   // Current session/room context
   private currentRoomId = '';
+  // Rejoin currentRoomId by itself on every reconnect; off once the server said the room is gone
+  // (an explicit joinRoom() / rejoin() still asks for it, e.g. after the host created it)
+  private autoRejoin = true;
   private currentKind: ClientKind = 'dock';
   private currentMember: Omit<SquadMember, 'lastHeartbeat' | 'clockOffsetMs' | 'rttMs'> | undefined;
 
@@ -162,7 +165,7 @@ export class StreamCollabSocketClient {
         this.startSntpCalibration();
 
         // If we were already in a room, rejoin
-        if (this.currentRoomId) {
+        if (this.currentRoomId && this.autoRejoin) {
           this.joinRoom(this.currentRoomId, this.currentKind, this.currentMember);
         }
       };
@@ -285,7 +288,7 @@ export class StreamCollabSocketClient {
       case 'ROOM_DELETED':
         this.isJoined = false;
         // Never rejoin a deleted room on the next reconnect
-        if (msg.payload.roomId === this.currentRoomId) this.currentRoomId = '';
+        if (msg.payload.roomId === this.currentRoomId) this.autoRejoin = false;
         this.emit('onRoomDeleted', msg.payload.roomId);
         break;
 
@@ -310,9 +313,10 @@ export class StreamCollabSocketClient {
         if (msg.payload.code && JOIN_REFUSED_CODES.has(msg.payload.code)) {
           this.isJoined = false;
         }
-        // An unknown room stays unknown: don't retry it on every reconnect (the user types another code)
+        // An unknown room isn't retried on every reconnect (each try counts against this IP); typing the
+        // code again calls rejoin(), which asks once more
         if (msg.payload.code === 'ROOM_NOT_FOUND') {
-          this.currentRoomId = '';
+          this.autoRejoin = false;
         }
         this.emit('onError', msg.payload);
         break;
@@ -375,6 +379,7 @@ export class StreamCollabSocketClient {
     member?: Omit<SquadMember, 'lastHeartbeat' | 'clockOffsetMs' | 'rttMs'>
   ) {
     this.currentRoomId = roomId;
+    this.autoRejoin = true;
     this.currentKind = clientKind;
     this.currentMember = clientKind === 'dock' ? member : undefined;
     this.isJoined = false;

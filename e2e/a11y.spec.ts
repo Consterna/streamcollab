@@ -25,6 +25,8 @@ for (const lang of ['en', 'es'] as const) {
       const host = await newIdentity(browser);
       await becomeHost(host, room);
       const page = await host.newPage();
+      // Panels fade in: without this, axe could measure text halfway through the animation
+      await page.emulateMedia({ reducedMotion: 'reduce' });
       page.on('dialog', (dialog) => dialog.accept());
 
       await page.goto(`/?view=dock&room=${room.id}&lang=${lang}`);

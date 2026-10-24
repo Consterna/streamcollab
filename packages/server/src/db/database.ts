@@ -302,7 +302,15 @@ export class DatabaseService {
       const queued = this.afterCommitQueue;
       this.afterCommitQueue = [];
       if (committed) {
-        for (const callback of queued) callback();
+        // The commit already happened: a failing callback (a broadcast) must neither turn it into an
+        // error for the caller nor keep the other callbacks from running
+        for (const callback of queued) {
+          try {
+            callback();
+          } catch (err) {
+            console.error('[StreamCollab] after-commit callback failed:', err);
+          }
+        }
       }
     }
   }

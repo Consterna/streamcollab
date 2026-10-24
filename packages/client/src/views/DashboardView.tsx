@@ -48,7 +48,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // Session history: null = follow the current session; otherwise browse a past one
   // Both belong to one room: after switching rooms they read as empty until the new room answers
   const [sessionList, setSessionList] = useState<{ roomId: string; list: SessionSummary[] }>({ roomId: '', list: [] });
-  const sessions = sessionList.roomId === room?.id ? sessionList.list : [];
+  // (keyed by the room in use, not `room`, which still holds the previous room until ROOM_STATE arrives)
+  // (room codes match in any letter case)
+  const sessions = sessionList.roomId.toLowerCase() === roomId.toLowerCase() ? sessionList.list : [];
   const [selection, setSelection] = useState<{ roomId: string; sessionId: string | null }>({
     roomId,
     sessionId: null,

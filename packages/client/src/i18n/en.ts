@@ -21,7 +21,7 @@ export const en = {
   'error.INVALID_MESSAGE': 'The server rejected the request: {detail}',
   'app.dismiss': 'Dismiss',
   'app.trustServer':
-    'This page connects to {server}. Use the room and streamer credentials saved on this device with that server? Only accept if you trust it.',
+    'This page connects to {server}. Use with that server the room and streamer credentials an earlier StreamCollab version saved on this device? Only accept if you trust it.',
   'app.trustServerYes': 'Use them',
   'app.trustServerNo': 'Not with this server',
 
