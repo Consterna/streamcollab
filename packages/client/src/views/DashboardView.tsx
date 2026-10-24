@@ -162,6 +162,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [showStartModal, setShowStartModal] = useState(false);
   const startDialogRef = useRef<HTMLFormElement>(null);
   useDialogFocus(startDialogRef, showStartModal);
+
+  // Start and Stop replace each other once the server confirms. The button that appears takes the
+  // focus the removed one had, instead of letting it fall to the page body (WCAG 2.4.3).
+  const sessionButtonRef = useRef<HTMLButtonElement>(null);
+  const sessionButtonFocusPending = useRef(false);
+  useEffect(() => {
+    if (!sessionButtonFocusPending.current) return;
+    sessionButtonFocusPending.current = false;
+    if (!document.activeElement || document.activeElement === document.body) sessionButtonRef.current?.focus();
+  }, [activeSession?.id]);
   const [sessionName, setSessionName] = useState(() => t('dash.defaultSessionName'));
   const [baseTimecode, setBaseTimecode] = useState('01:00:00:00');
   const [selectedFramerate, setSelectedFramerate] = useState('60');
@@ -202,6 +212,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       framerateDenominator: rate.den,
       dropFrame: dropFrameAvailable && isDropFrame,
     });
+    sessionButtonFocusPending.current = true;
     setShowStartModal(false);
   };
 
@@ -209,6 +220,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     if (!activeSession) return;
     if (window.confirm(t('dash.stopConfirm', { name: activeSession.name }))) {
       socketClient.stopSession(roomId, activeSession.id);
+      sessionButtonFocusPending.current = true;
     }
   };
 
@@ -266,6 +278,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </span>
               </div>
               <button
+                ref={sessionButtonRef}
                 onClick={handleStopSession}
                 disabled={!isHost}
                 title={isHost ? undefined : t('dash.onlyHostStop')}
@@ -277,6 +290,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           ) : (
             <button
+              ref={sessionButtonRef}
               onClick={() => setShowStartModal(true)}
               disabled={!isHost || !room}
               title={isHost ? undefined : t('dash.onlyHostStart')}

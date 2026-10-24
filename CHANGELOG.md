@@ -42,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Text contrast raised to at least 4.5:1 where axe found less; labels added to the filter, search, category and OBS settings fields.
 - The accessibility statement is rewritten to say only what is tested (axe-core WCAG 2.1 A/AA rules on the main screens in both languages) and what isn't yet (screen readers, Firefox, Safari).
 - The Director Panel reflows down to 320 CSS px (WCAG 1.4.10): the header with a live session, the marker filters and the room setup panel used to push the page to about 650 px wide on a phone. The end-to-end suite now checks it at 320 px, and the axe scans also cover the live HUD with a toast, the panel with members and markers, and a marker being edited.
+- Starting or stopping a session no longer drops keyboard focus to the page: the Start and Stop buttons replace each other when the server confirms, and the new one now takes the focus (WCAG 2.4.3).
 
 ### Tests
 - Component tests in a real Chromium (Vitest Browser Mode), axe-core accessibility scans in the end-to-end suite, coverage thresholds over every source file, and regression tests for each fix above.

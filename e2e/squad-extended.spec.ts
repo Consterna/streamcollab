@@ -58,6 +58,8 @@ test.describe('Extended squad flow: multi-streamer squad synchronization', () =>
     // 6. Host stops session
     await dashboard.getByRole('button', { name: 'Stop Session' }).click();
     await expect(dashboard.getByRole('button', { name: 'Start New Session' })).toBeVisible();
+    // Focus follows the button swap instead of falling to the page body
+    await expect(dashboard.getByRole('button', { name: 'Start New Session' })).toBeFocused();
 
     // Docks observe session transition to ended
     await expect(dock1.getByText(/Championship Match \(Ended\)/)).toBeVisible();

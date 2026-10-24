@@ -46,6 +46,8 @@ for (const lang of ['en', 'es'] as const) {
         .getByRole('button', { name: lang === 'en' ? 'Start Recording' : 'Iniciar grabación' })
         .click();
       await expect(page.getByRole('dialog')).toBeHidden();
+      // The Start button is gone: focus moves to the Stop button that replaced it, not to the page body
+      await expect(page.getByRole('button', { name: lang === 'en' ? 'Stop Session' : 'Detener sesión' })).toBeFocused();
 
       await page.getByRole('button', { name: lang === 'en' ? 'Export Timeline' : 'Exportar línea de tiempo' }).click();
       await expect(page.getByRole('dialog')).toBeVisible();
