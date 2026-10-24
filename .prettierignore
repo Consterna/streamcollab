@@ -3,5 +3,4 @@ coverage
 node_modules
 package-lock.json
 *.sqlite*
-.claude
 CHANGELOG.md

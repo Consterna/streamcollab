@@ -15,7 +15,6 @@ playwright-report/
 blob-report/
 
 # Local launch configs
-.claude/
 build/
 out/
 .cache/
