@@ -112,7 +112,9 @@ function readScoped(prefix: string, id: string): string | undefined {
 function writeScoped(prefix: string, id: string, value: string | null) {
   const server = remoteServer();
   write(keyFor(prefix, id, server), value);
-  // Clearing a token also clears its pre-v1.6.2 copy where that copy would be read back
+  // Clearing a token also clears its pre-v1.6.2 copy where that copy would be read back (it would keep
+  // failing). That copy is shared by the own server and every trusted one: the same room code on
+  // two of them loses the older token for both, which then has to be pasted again.
   if (value === null && (!server || isServerTrusted(server))) write(legacyKey(prefix, id), null);
 }
 

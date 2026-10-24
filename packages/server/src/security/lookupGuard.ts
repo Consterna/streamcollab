@@ -8,6 +8,10 @@ export interface LookupLimit {
   windowMs: number;
 }
 
+// Simultaneous WebSocket connections from one IP: a squad behind one home router opens a dock, a HUD
+// and maybe a Director Panel per streamer (MAX_SOCKETS_PER_IP)
+export const DEFAULT_MAX_SOCKETS_PER_IP = 64;
+
 // Unknown room codes tolerated per IP and window before lookups from that IP are refused
 export const DEFAULT_JOIN_FAILURE_LIMIT: LookupLimit = { max: 20, windowMs: 60_000 };
 

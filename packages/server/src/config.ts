@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
-import { DEFAULT_MAX_SOCKETS_PER_IP } from './websocket/handler.js';
+import { DEFAULT_MAX_SOCKETS_PER_IP } from './security/lookupGuard.js';
 
 // Empty strings from .env files / compose (`PORT=`, `${PORT:-}`) mean "not set"
 const unsetIfEmpty = <T extends z.ZodType>(schema: T) =>

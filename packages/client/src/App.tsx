@@ -35,6 +35,9 @@ interface JoinError {
   room?: string;
 }
 
+// Errors after which this client is no longer in the room
+const LEAVES_ROOM = new Set(['ROOM_NOT_FOUND', 'ROOM_DELETED', 'HOST_TOKEN_INVALID', 'MEMBER_TOKEN_INVALID']);
+
 const TRANSLATED_ERRORS: Record<string, MessageKey> = {
   ROOM_DELETED: 'error.ROOM_DELETED',
   ROOM_NOT_FOUND: 'error.ROOM_NOT_FOUND',
@@ -149,8 +152,9 @@ export function App() {
       setRoomId(next);
     } else {
       setRoomDraft(roomId);
-      // The same code again: ask the server once more (the room may exist now)
-      if (next && joinError) setJoinAttempt((n) => n + 1);
+      // The same code while not in that room (refused, or the room was deleted): ask the server once
+      // more, it may exist now. A dock that is in the room keeps its connection.
+      if (next && !inRoom) setJoinAttempt((n) => n + 1);
     }
   };
 
@@ -226,12 +230,20 @@ export function App() {
   // Join outcome for one (room, view, member) combination; anything else reads as "not joined yet",
   // so switching rooms needs no reset
   const joinKey = `${roomId}|${clientKind}|${member.id}`;
-  const [joinState, setJoinState] = useState<{ key: string; isHost: boolean; error: JoinError | null }>({
+  const [joinState, setJoinState] = useState<{
+    key: string;
+    isHost: boolean;
+    error: JoinError | null;
+    // The server accepted this client into the room (JOINED) and hasn't refused or deleted it since
+    joined: boolean;
+  }>({
     key: '',
     isHost: false,
     error: null,
+    joined: false,
   });
   const isHost = joinState.key === joinKey && joinState.isHost;
+  const inRoom = joinState.key === joinKey && joinState.joined;
   const joinError = joinState.key === joinKey ? joinState.error : null;
   const dismissJoinError = () => setJoinState((state) => ({ ...state, error: null }));
 
@@ -244,11 +256,19 @@ export function App() {
 
   // Initialize socket and listeners
   useEffect(() => {
-    // The HUD only observes and sends no stored credentials: it doesn't wait for the answer
+    // The HUD only observes, so it doesn't wait for the answer; until the server is trusted it only
+    // gets that server's own credentials, never the older shared ones
     if (serverToTrust && clientKind !== 'hud') return;
     const subscriptions: Array<() => void> = [];
     const setJoinError = (error: JoinError | null) =>
-      setJoinState((state) => ({ key: joinKey, isHost: state.key === joinKey && state.isHost, error }));
+      setJoinState((state) => ({
+        key: joinKey,
+        isHost: state.key === joinKey && state.isHost,
+        error,
+        // Refusals and deletion take this client out of the room; other errors (a forbidden edit,
+        // a rate limit) don't
+        joined: state.key === joinKey && state.joined && !LEAVES_ROOM.has(error?.code ?? ''),
+      }));
     subscriptions.push(
       socketClient.on('onRoomState', (state) => {
         setRoom(state.room);
@@ -364,7 +384,7 @@ export function App() {
 
     subscriptions.push(
       socketClient.on('onJoined', (info) => {
-        setJoinState({ key: joinKey, isHost: info.isHost, error: null });
+        setJoinState({ key: joinKey, isHost: info.isHost, error: null, joined: true });
       })
     );
 

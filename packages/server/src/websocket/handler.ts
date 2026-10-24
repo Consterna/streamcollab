@@ -2,7 +2,12 @@ import { FastifyInstance } from 'fastify';
 import { WebSocket } from 'ws';
 import { RoomManager, RoomError } from '../rooms/roomManager.js';
 import { SntpClockEngine } from '../sntp/clock.js';
-import { RoomLookupGuard, LookupLimit, DEFAULT_JOIN_FAILURE_LIMIT } from '../security/lookupGuard.js';
+import {
+  RoomLookupGuard,
+  LookupLimit,
+  DEFAULT_JOIN_FAILURE_LIMIT,
+  DEFAULT_MAX_SOCKETS_PER_IP,
+} from '../security/lookupGuard.js';
 import { clientMessageSchema, formatValidationError, ErrorCode, ServerMessage } from '@streamcollab/shared';
 
 export const DEFAULT_HEARTBEAT_INTERVAL_MS = 15_000;
@@ -20,12 +25,9 @@ export interface WebSocketHandlerOptions {
   maxSocketsPerIp?: number;
 }
 
-export { DEFAULT_JOIN_FAILURE_LIMIT };
+export { DEFAULT_JOIN_FAILURE_LIMIT, DEFAULT_MAX_SOCKETS_PER_IP };
 
 export const DEFAULT_UNJOINED_SOCKET_TIMEOUT_MS = 15_000;
-
-// A squad behind one home router opens a dock, a HUD and maybe a dashboard per streamer
-export const DEFAULT_MAX_SOCKETS_PER_IP = 64;
 
 export function registerWebSocketHandler(
   fastify: FastifyInstance,

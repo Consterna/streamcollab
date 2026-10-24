@@ -146,25 +146,46 @@ test.describe('Director tools', () => {
 
   test('a wrong room code shows a clear message', async ({ browser }) => {
     const context = await newIdentity(browser);
-    const dock = await openView(context, 'dock', 'NOPE-0000');
+    const dock = await openView(context, 'dock', 'NOPE-0000', { joined: false });
     await expect(dock.getByText(/Room NOPE-0000 not found/)).toBeVisible();
   });
 
   test('entering the same code again joins once the host has created the room', async ({ browser, request }) => {
     const context = await newIdentity(browser);
-    const dock = await openView(context, 'dock', 'LATER-ROOM-1');
+    const dock = await openView(context, 'dock', 'LATER-ROOM-1', { joined: false });
     await expect(dock.getByText(/Room LATER-ROOM-1 not found/)).toBeVisible();
+
+    // Dismissing the message must not stop the retry below
+    await dock.getByRole('button', { name: 'Dismiss' }).click();
 
     const created = await request.post('/api/rooms', { data: { id: 'LATER-ROOM-1', name: 'Late squad' } });
     expect(created.status()).toBe(201);
 
+    // Entering the same code reconnects; wait for the server to accept the join on the new socket
+    // ("0 markers captured" alone also shows while not in a room)
+    const joined = dock
+      .waitForEvent('websocket', (ws) => ws.url().endsWith('/ws'))
+      .then((ws) => ws.waitForEvent('framereceived', (frame) => String(frame.payload).includes('"type":"JOINED"')));
     const code = dock.getByRole('textbox', { name: 'Active room code' });
     await code.fill('LATER-ROOM-1');
     await code.press('Enter');
+    await joined;
     await expect(dock.getByText(/not found/)).toBeHidden();
     await markersCaptured(dock, 0);
     await dock.keyboard.press('1');
     await markersCaptured(dock, 1);
+
+    // Once in the room, leaving the code field unchanged keeps the same connection
+    let newSockets = 0;
+    dock.on('websocket', (ws) => {
+      if (ws.url().endsWith('/ws')) newSockets++;
+    });
+    await code.click();
+    await dock.getByText('1 markers captured').click();
+    await code.click();
+    await code.press('Enter');
+    await dock.waitForTimeout(500);
+    expect(newSockets).toBe(0);
   });
 });
 
@@ -309,7 +330,7 @@ test.describe('Server connection', () => {
         ws.close({ code: 1001, reason: 'E2E: server unreachable' });
       }
     });
-    const dock = await openView(context, 'dock', room.id);
+    const dock = await openView(context, 'dock', room.id, { joined: false });
     await expect(dock.getByText('Server disconnected · reconnecting')).toBeVisible();
 
     await dock.keyboard.press('1');
