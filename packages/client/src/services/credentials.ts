@@ -14,15 +14,26 @@ const LAST_ROOM_KEY = 'streamcollab_room';
 const TRUSTED_SERVERS_KEY = 'streamcollab_trusted_servers';
 const DECLINED_SERVERS_KEY = 'streamcollab_declined_servers';
 
+// Copy kept for this page load: without it, a profile with storage blocked lost its member token
+// right away and every reconnect was refused (MEMBER_TOKEN_INVALID), creating a new identity each time
+const pageMemory = new Map<string, string>();
+
 function read(key: string): string | undefined {
   try {
-    return localStorage.getItem(key) || undefined;
+    const stored = localStorage.getItem(key);
+    if (stored) return stored;
   } catch {
-    return undefined;
+    // storage unavailable: fall back to this page load's copy
   }
+  return pageMemory.get(key);
 }
 
 function write(key: string, value: string | null) {
+  if (value === null) {
+    pageMemory.delete(key);
+  } else {
+    pageMemory.set(key, value);
+  }
   try {
     if (value === null) {
       localStorage.removeItem(key);
@@ -30,7 +41,7 @@ function write(key: string, value: string | null) {
       localStorage.setItem(key, value);
     }
   } catch {
-    // storage unavailable: the token only lives for this page load
+    // storage unavailable: the value only lives for this page load (pageMemory)
   }
 }
 

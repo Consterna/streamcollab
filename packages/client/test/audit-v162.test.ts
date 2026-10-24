@@ -131,6 +131,39 @@ describe('credentials are kept per server (v1.6.2)', () => {
     expect(storage.getItem('streamcollab_host_token:ROOM-1')).toBeNull();
   });
 
+  it('keeps credentials for the page load when storage is blocked (locked-down OBS profiles)', async () => {
+    const blocked = {
+      get length(): number {
+        throw new Error('SecurityError');
+      },
+      key: () => {
+        throw new Error('SecurityError');
+      },
+      getItem: () => {
+        throw new Error('SecurityError');
+      },
+      setItem: () => {
+        throw new Error('SecurityError');
+      },
+      removeItem: () => {
+        throw new Error('SecurityError');
+      },
+    };
+    vi.resetModules();
+    vi.stubGlobal('window', { location: { search: '', origin: 'https://app.example' } });
+    vi.stubGlobal('localStorage', blocked);
+    const c = await import('../src/services/credentials');
+    c.saveMemberToken('mem_blocked', 'member-token-from-join');
+    c.saveHostToken('ROOM-9', 'host-token');
+    c.saveMemberId('mem_blocked');
+    // A reconnect a minute later must still prove the same identity
+    expect(c.getMemberToken('mem_blocked')).toBe('member-token-from-join');
+    expect(c.getHostToken('ROOM-9')).toBe('host-token');
+    expect(c.getStoredMemberId()).toBe('mem_blocked');
+    c.saveHostToken('ROOM-9', null);
+    expect(c.getHostToken('ROOM-9')).toBeUndefined();
+  });
+
   it('treats ?server= pointing at the page itself as the own server', async () => {
     const c = await load('?server=https://app.example');
     expect(c.getHostToken('ROOM-1')).toBe('legacy-host-token');
