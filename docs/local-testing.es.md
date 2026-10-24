@@ -60,7 +60,7 @@ volumen `streamcollab-data`.
 ## 7. Export a DaVinci Resolve
 
 - [ ] Panel del director → **Exportar línea de tiempo** → **Línea de tiempo**: tu nombre (POV) → DaVinci Resolve → descargar `.edl`.
-- [ ] Pon tu grabación en una línea de tiempo que empiece en 00:00:00:00 y luego, clic derecho en la línea de tiempo en el Media Pool → **Timelines** → **Import** → **Timeline Markers from EDL...**: los marcadores caen donde marcaste, con sus colores.
+- [ ] Pon tu grabación al principio de una línea de tiempo que empiece en el timecode base de la sesión (01:00:00:00 por defecto) y luego, clic derecho en la línea de tiempo en el Media Pool → **Timelines** → **Import** → **Timeline Markers from EDL...**: los marcadores caen donde marcaste, con sus colores.
 
 ## 8. Varias personas sin VPS
 

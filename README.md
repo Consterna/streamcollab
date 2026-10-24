@@ -243,7 +243,7 @@ The HUD and Director Panel never talk to OBS's WebSocket, so they can always be 
 ### DaVinci Resolve
 1. In StreamCollab Dock or Director Panel, click **Export NLE** -> select **DaVinci Resolve**.
 2. Click **Download File** (`.edl`).
-3. In DaVinci Resolve, put your recording on a timeline whose start timecode matches the session's base timecode (01:00:00:00 by default; 00:00:00:00 for a per-POV export).
+3. In DaVinci Resolve, put your recording on a timeline whose start timecode matches the session's base timecode (01:00:00:00 by default, also for a per-POV export, where your recording file starts at that timecode).
 4. In the Media Pool, right-click that timeline -> **Timelines** -> **Import** -> **Timeline Markers from EDL...** and select the downloaded `.edl`.
    - Markers dropped by several streamers on the same frame arrive as one marker with all their names, because Resolve keeps one marker per frame.
    - Each marker gets the color of its event type (Red for Kills, Fuchsia for Wipes, Yellow for Clutches, Cyan for Funny, Blue for Notes, Green for custom). If no marker appears, zoom out: they may be outside the visible part of the timeline.
