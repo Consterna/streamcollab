@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { WebSocket } from 'ws';
 import { RoomManager, RoomError } from '../rooms/roomManager.js';
 import { SntpClockEngine } from '../sntp/clock.js';
+import { RoomLookupGuard, LookupLimit, DEFAULT_JOIN_FAILURE_LIMIT } from '../security/lookupGuard.js';
 import { clientMessageSchema, formatValidationError, ErrorCode, ServerMessage } from '@streamcollab/shared';
 
 export const DEFAULT_HEARTBEAT_INTERVAL_MS = 15_000;
@@ -12,15 +13,19 @@ export const WS_RATE_LIMIT = { burst: 40, refillPerSecond: 20 };
 export interface WebSocketHandlerOptions {
   heartbeatIntervalMs?: number;
   // Unknown room codes tolerated per IP and window before joins from that IP are refused
-  joinFailureLimit?: { max: number; windowMs: number };
+  joinFailureLimit?: LookupLimit;
+  // Shared with the REST API so both count the same guesses (created here when omitted)
+  lookupGuard?: RoomLookupGuard;
   unjoinedTimeoutMs?: number;
+  maxSocketsPerIp?: number;
 }
+
+export { DEFAULT_JOIN_FAILURE_LIMIT };
 
 export const DEFAULT_UNJOINED_SOCKET_TIMEOUT_MS = 15_000;
 
-// Room codes are the invite, so stop clients that try many codes (they can't be throttled
-// per socket alone, since opening new sockets is free)
-export const DEFAULT_JOIN_FAILURE_LIMIT = { max: 20, windowMs: 60_000 };
+// A squad behind one home router opens a dock, a HUD and maybe a dashboard per streamer
+export const DEFAULT_MAX_SOCKETS_PER_IP = 64;
 
 export function registerWebSocketHandler(
   fastify: FastifyInstance,
@@ -46,39 +51,36 @@ export function registerWebSocketHandler(
     clearInterval(heartbeat);
   });
 
-  const joinFailureLimit = options.joinFailureLimit ?? DEFAULT_JOIN_FAILURE_LIMIT;
-  const failedJoins = new Map<string, { count: number; windowStart: number }>();
-  const joinsBlocked = (ip: string) => {
-    const entry = failedJoins.get(ip);
-    if (!entry) return false;
-    if (Date.now() - entry.windowStart > joinFailureLimit.windowMs) {
-      failedJoins.delete(ip);
-      return false;
-    }
-    return entry.count >= joinFailureLimit.max;
-  };
-  const recordFailedJoin = (ip: string) => {
-    const now = Date.now();
-    const entry = failedJoins.get(ip);
-    if (!entry || now - entry.windowStart > joinFailureLimit.windowMs) {
-      failedJoins.set(ip, { count: 1, windowStart: now });
-    } else {
-      entry.count++;
-    }
-  };
-  const pruneFailedJoins = setInterval(() => {
-    const now = Date.now();
-    for (const [ip, entry] of failedJoins) {
-      if (now - entry.windowStart > joinFailureLimit.windowMs) failedJoins.delete(ip);
-    }
-  }, joinFailureLimit.windowMs);
-  pruneFailedJoins.unref();
+  const ownsGuard = !options.lookupGuard;
+  const lookupGuard =
+    options.lookupGuard ?? new RoomLookupGuard(options.joinFailureLimit ?? DEFAULT_JOIN_FAILURE_LIMIT);
   fastify.addHook('onClose', async () => {
-    clearInterval(pruneFailedJoins);
+    if (ownsGuard) lookupGuard.close();
   });
+
+  const unjoinedTimeoutMs = options.unjoinedTimeoutMs ?? DEFAULT_UNJOINED_SOCKET_TIMEOUT_MS;
+  const maxSocketsPerIp = options.maxSocketsPerIp ?? DEFAULT_MAX_SOCKETS_PER_IP;
+  const socketsPerIp = new Map<string, number>();
+  // Sockets the room manager detached without closing them (their room was deleted) start the
+  // unjoined countdown again
+  const rearmUnjoined = new Map<WebSocket, () => void>();
+  roomManager.onClientDetached((socket) => rearmUnjoined.get(socket)?.());
 
   fastify.get('/ws', { websocket: true }, (socket: WebSocket, req) => {
     const ip = req.ip;
+
+    const open = (socketsPerIp.get(ip) ?? 0) + 1;
+    if (open > maxSocketsPerIp) {
+      const refusal: ServerMessage = {
+        type: 'ERROR',
+        payload: { code: 'RATE_LIMITED', message: 'Too many connections from your network' },
+      };
+      socket.send(JSON.stringify(refusal));
+      socket.close(1008, 'Too many connections');
+      return;
+    }
+    socketsPerIp.set(ip, open);
+
     liveSockets.set(socket, true);
     socket.on('pong', () => {
       liveSockets.set(socket, true);
@@ -91,15 +93,24 @@ export function registerWebSocketHandler(
     };
     const sendError = (code: ErrorCode, message: string) => send({ type: 'ERROR', payload: { code, message } });
 
-    // Unjoined socket timeout (15s default): auto-close connections that do not join a room
-    const unjoinedTimeoutMs = options.unjoinedTimeoutMs ?? DEFAULT_UNJOINED_SOCKET_TIMEOUT_MS;
-    const unjoinedTimer = setTimeout(() => {
-      if (!roomManager.getClient(socket)) {
-        sendError('TIMEOUT', 'Socket did not join a room within 15 seconds');
-        socket.close(1008, 'Join timeout');
-      }
-    }, unjoinedTimeoutMs);
-    unjoinedTimer.unref();
+    // A socket in no room (never joined, left, or its room was deleted) is closed after a while
+    let unjoinedTimer: ReturnType<typeof setTimeout> | null = null;
+    const clearUnjoinedTimer = () => {
+      if (unjoinedTimer) clearTimeout(unjoinedTimer);
+      unjoinedTimer = null;
+    };
+    const armUnjoinedTimer = () => {
+      clearUnjoinedTimer();
+      unjoinedTimer = setTimeout(() => {
+        if (!roomManager.getClient(socket)) {
+          sendError('TIMEOUT', `Socket did not join a room within ${Math.round(unjoinedTimeoutMs / 1000)} seconds`);
+          socket.close(1008, 'Join timeout');
+        }
+      }, unjoinedTimeoutMs);
+      unjoinedTimer.unref();
+    };
+    armUnjoinedTimer();
+    rearmUnjoined.set(socket, armUnjoinedTimer);
 
     let tokens: number = WS_RATE_LIMIT.burst;
     let lastRefill = Date.now();
@@ -140,7 +151,7 @@ export function registerWebSocketHandler(
         }
 
         if (message.type === 'JOIN_ROOM') {
-          if (joinsBlocked(ip)) {
+          if (lookupGuard.isBlocked(ip)) {
             sendError('RATE_LIMITED', 'Too many unknown room codes from your network; try again in a minute');
             socket.close(1008, 'Too many failed joins');
             return;
@@ -148,9 +159,9 @@ export function registerWebSocketHandler(
           const { roomId, member, clientKind, memberToken, hostToken } = message.payload;
           try {
             roomManager.joinRoom(socket, roomId, clientKind, member, { memberToken, hostToken });
-            clearTimeout(unjoinedTimer);
+            clearUnjoinedTimer();
           } catch (err) {
-            if (err instanceof RoomError && err.code === 'ROOM_NOT_FOUND') recordFailedJoin(ip);
+            if (err instanceof RoomError && err.code === 'ROOM_NOT_FOUND') lookupGuard.recordFailure(ip);
             throw err;
           }
           return;
@@ -158,6 +169,7 @@ export function registerWebSocketHandler(
 
         if (message.type === 'LEAVE_ROOM') {
           roomManager.removeClient(socket);
+          armUnjoinedTimer();
           return;
         }
 
@@ -252,9 +264,17 @@ export function registerWebSocketHandler(
       }
     });
 
+    // 'error' is followed by 'close': release the per-IP slot once
+    let cleanedUp = false;
     const cleanup = () => {
-      clearTimeout(unjoinedTimer);
+      if (cleanedUp) return;
+      cleanedUp = true;
+      clearUnjoinedTimer();
+      rearmUnjoined.delete(socket);
       liveSockets.delete(socket);
+      const remaining = (socketsPerIp.get(ip) ?? 1) - 1;
+      if (remaining > 0) socketsPerIp.set(ip, remaining);
+      else socketsPerIp.delete(ip);
       roomManager.removeClient(socket);
     };
 

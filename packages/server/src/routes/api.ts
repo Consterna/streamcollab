@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { RoomManager, RoomError } from '../rooms/roomManager.js';
 import { DatabaseService } from '../db/database.js';
 import { bearerToken } from '../auth/tokens.js';
+import { RoomLookupGuard } from '../security/lookupGuard.js';
 import {
   exportToEdl,
   exportToFcpXml,
@@ -17,6 +18,8 @@ import {
   stopSessionBodySchema,
   quickMarkBodySchema,
   undoMarkerBodySchema,
+  markersQuerySchema,
+  exportQuerySchema,
   formatValidationError,
 } from '@streamcollab/shared';
 
@@ -28,7 +31,12 @@ export function attachmentDisposition(filename: string): string {
   // Also drop characters Windows forbids in filenames (e.g. the ':' in "Auto Session 23:07:27")
   const cleaned = filename.replace(/[\r\n"\\/:*?<>|]/g, '').replace(/\s+/g, '_') || 'export';
   const ascii = cleaned.normalize('NFKD').replace(/[^\x20-\x7E]/g, '') || 'export';
-  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(cleaned)}`;
+  // RFC 5987 attr-char excludes ' ( ) * , which encodeURIComponent leaves as they are
+  const encoded = encodeURIComponent(cleaned).replace(
+    /['()*]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`
+  );
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
 }
 
 export interface ApiRouteOptions {
@@ -36,6 +44,8 @@ export interface ApiRouteOptions {
   adminToken?: string;
   // Rooms one IP may create per minute (default 10)
   roomCreateLimitPerMinute?: number;
+  // Unknown room codes per IP, shared with the WebSocket joins (created here when omitted)
+  lookupGuard?: RoomLookupGuard;
 }
 
 // Room creation and HTTP markers are the only unauthenticated-ish writes; keep them cheap to abuse
@@ -68,8 +78,19 @@ export function registerApiRoutes(
     }
   });
 
-  const requireRoom = (id: string, reply: FastifyReply) => {
+  const lookupGuard = options.lookupGuard ?? new RoomLookupGuard();
+  if (!options.lookupGuard) {
+    fastify.addHook('onClose', async () => lookupGuard.close());
+  }
+
+  // Room codes are the invite: unknown codes count against the caller's IP, like WebSocket joins
+  const requireRoom = (id: string, req: FastifyRequest, reply: FastifyReply) => {
+    if (lookupGuard.isBlocked(req.ip)) {
+      reply.status(429).send({ error: 'Too many unknown room codes from your network; try again in a minute' });
+      return false;
+    }
     if (!roomIdSchema.safeParse(id).success || !db.roomExists(id)) {
+      lookupGuard.recordFailure(req.ip);
       reply.status(404).send({ error: `Room ${id} not found` });
       return false;
     }
@@ -127,7 +148,7 @@ export function registerApiRoutes(
   // Get room
   fastify.get('/api/rooms/:id', async (req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     const { id } = req.params;
-    if (!requireRoom(id, reply)) return reply;
+    if (!requireRoom(id, req, reply)) return reply;
     const room = roomManager.getRoom(id);
     const activeSession = roomManager.getActiveSession(id);
     return { room, activeSession, isHost: roomManager.isHostToken(id, bearerToken(req.headers.authorization)) };
@@ -138,7 +159,7 @@ export function registerApiRoutes(
     '/api/rooms/:id/session/start',
     async (req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       const { id } = req.params;
-      if (!requireRoom(id, reply) || !requireHost(id, req, reply)) return reply;
+      if (!requireRoom(id, req, reply) || !requireHost(id, req, reply)) return reply;
 
       const body = sessionSettingsSchema.safeParse(req.body ?? {});
       if (!body.success) return badRequest(reply, body.error);
@@ -156,7 +177,7 @@ export function registerApiRoutes(
     '/api/rooms/:id/session/stop',
     async (req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       const { id } = req.params;
-      if (!requireRoom(id, reply) || !requireHost(id, req, reply)) return reply;
+      if (!requireRoom(id, req, reply) || !requireHost(id, req, reply)) return reply;
 
       const body = stopSessionBodySchema.safeParse(req.body ?? {});
       if (!body.success) return badRequest(reply, body.error);
@@ -180,7 +201,7 @@ export function registerApiRoutes(
     { config: { rateLimit: QUICK_MARK_RATE_LIMIT } },
     async (req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       const { id } = req.params;
-      if (!requireRoom(id, reply)) return reply;
+      if (!requireRoom(id, req, reply)) return reply;
 
       const body = quickMarkBodySchema.safeParse(req.body ?? {});
       if (!body.success) return badRequest(reply, body.error);
@@ -212,7 +233,7 @@ export function registerApiRoutes(
     { config: { rateLimit: QUICK_MARK_RATE_LIMIT } },
     async (req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       const { id } = req.params;
-      if (!requireRoom(id, reply)) return reply;
+      if (!requireRoom(id, req, reply)) return reply;
 
       const body = undoMarkerBodySchema.safeParse(req.body ?? {});
       if (!body.success) return badRequest(reply, body.error);
@@ -240,7 +261,7 @@ export function registerApiRoutes(
     '/api/rooms/:id/sessions/:sessionId',
     async (req: FastifyRequest<{ Params: { id: string; sessionId: string } }>, reply: FastifyReply) => {
       const { id, sessionId } = req.params;
-      if (!requireRoom(id, reply) || !requireHost(id, req, reply)) return reply;
+      if (!requireRoom(id, req, reply) || !requireHost(id, req, reply)) return reply;
       try {
         roomManager.deleteSession(id, sessionId);
         return reply.status(204).send();
@@ -256,7 +277,7 @@ export function registerApiRoutes(
   // Delete the whole room (host only)
   fastify.delete('/api/rooms/:id', async (req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     const { id } = req.params;
-    if (!requireRoom(id, reply) || !requireHost(id, req, reply)) return reply;
+    if (!requireRoom(id, req, reply) || !requireHost(id, req, reply)) return reply;
     roomManager.deleteRoom(id);
     return reply.status(204).send();
   });
@@ -266,7 +287,7 @@ export function registerApiRoutes(
     '/api/rooms/:id/sessions',
     async (req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       const { id } = req.params;
-      if (!requireRoom(id, reply)) return reply;
+      if (!requireRoom(id, req, reply)) return reply;
       return roomManager.listSessions(id);
     }
   );
@@ -274,13 +295,12 @@ export function registerApiRoutes(
   // List markers
   fastify.get(
     '/api/rooms/:id/markers',
-    async (
-      req: FastifyRequest<{ Params: { id: string }; Querystring: { sessionId?: string } }>,
-      reply: FastifyReply
-    ) => {
+    async (req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       const { id } = req.params;
-      if (!requireRoom(id, reply)) return reply;
-      const { sessionId } = req.query;
+      if (!requireRoom(id, req, reply)) return reply;
+      const query = markersQuerySchema.safeParse(req.query ?? {});
+      if (!query.success) return badRequest(reply, query.error);
+      const { sessionId } = query.data;
 
       if (sessionId) {
         const session = db.getSession(sessionId);
@@ -307,28 +327,20 @@ export function registerApiRoutes(
   // NLE Timeline Exporters
   fastify.get(
     '/api/rooms/:id/export/:format',
-    async (
-      req: FastifyRequest<{
-        Params: { id: string; format: string };
-        Querystring: { sessionId?: string; memberId?: string };
-      }>,
-      reply: FastifyReply
-    ) => {
+    async (req: FastifyRequest<{ Params: { id: string; format: string } }>, reply: FastifyReply) => {
       const { id, format } = req.params;
-      const { sessionId, memberId } = req.query;
+      if (!requireRoom(id, req, reply)) return reply;
+      const query = exportQuerySchema.safeParse(req.query ?? {});
+      if (!query.success) return badRequest(reply, query.error);
+      const { sessionId, memberId } = query.data;
 
-      const room = roomManager.getRoom(id);
-      if (!room) {
-        return reply.status(404).send({ error: `Room ${id} not found` });
-      }
-
-      let session = sessionId ? db.getSession(sessionId) : roomManager.getActiveSession(id);
-      if (session && session.roomId !== id) {
+      // A named session must exist in this room (never silently export another one); without a name,
+      // the running session or else the most recent one
+      let session = sessionId
+        ? db.getSession(sessionId)
+        : (roomManager.getActiveSession(id) ?? db.getLatestSession(id));
+      if (sessionId && (!session || session.roomId !== id)) {
         return reply.status(404).send({ error: `Session ${sessionId} not found in room ${id}` });
-      }
-      if (!session) {
-        // Fallback: get the most recent session in this room
-        session = db.getLatestSession(id);
       }
 
       if (!session) {

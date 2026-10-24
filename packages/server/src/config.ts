@@ -3,8 +3,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 
-// Empty strings from .env files / compose mean "not set"
-const optionalString = z.preprocess((v) => (v === '' ? undefined : v), z.string().optional());
+// Empty strings from .env files / compose (`PORT=`, `${PORT:-}`) mean "not set"
+const unsetIfEmpty = <T extends z.ZodType>(schema: T) =>
+  z.preprocess((v) => (typeof v === 'string' && v.trim() === '' ? undefined : v), schema);
+const optionalString = unsetIfEmpty(z.string().optional());
 
 const booleanFlag = z.preprocess(
   (v) => (v === '' || v === undefined ? undefined : String(v).toLowerCase()),
@@ -15,8 +17,8 @@ const booleanFlag = z.preprocess(
 );
 
 const envSchema = z.object({
-  PORT: z.coerce.number().int().min(1).max(65535).default(3000),
-  HOST: z.string().min(1).default('0.0.0.0'),
+  PORT: unsetIfEmpty(z.coerce.number().int().min(1).max(65535).default(3000)),
+  HOST: unsetIfEmpty(z.string().min(1).default('0.0.0.0')),
   DATABASE_PATH: optionalString,
   CLIENT_DIST: optionalString,
   ALLOWED_ORIGIN: optionalString,
@@ -25,8 +27,8 @@ const envSchema = z.object({
     z.string().min(16, 'ADMIN_TOKEN must be at least 16 characters').optional()
   ),
   TRUST_PROXY: booleanFlag,
-  ROOM_CREATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).max(10_000).default(10),
-  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  ROOM_CREATE_LIMIT_PER_MINUTE: unsetIfEmpty(z.coerce.number().int().min(1).max(10_000).default(10)),
+  LOG_LEVEL: unsetIfEmpty(z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info')),
 });
 
 export interface ServerConfig {
