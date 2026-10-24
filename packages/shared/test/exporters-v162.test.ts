@@ -57,6 +57,25 @@ describe('DaVinci Resolve marker EDL (v1.6.2)', () => {
     );
   });
 
+  it('merges markers that land on the same frame (Resolve keeps one marker per frame)', () => {
+    // 1000 ms and 1040 ms are both frame 24 at 24 fps; 1042 ms is frame 25
+    const edl = exportToEdl(session, [
+      marker({ id: 'b', relativeTimeMs: 1040, label: 'Second', memberName: 'Bravo', color: 'Red' }),
+      marker({ id: 'a', relativeTimeMs: 1000, label: 'First', memberName: 'Alpha', color: 'Blue' }),
+      marker({ id: 'c', relativeTimeMs: 1042, label: 'Third' }),
+    ]);
+    const lines = edl.split('\r\n');
+    const fields = lines.filter((line) => line.startsWith(' |C:'));
+    expect(fields).toEqual([
+      ' |C:ResolveColorBlue |M:First [Alpha] / Second [Bravo] |D:1',
+      ' |C:ResolveColorBlue |M:Third |D:1',
+    ]);
+    expect(lines.filter((line) => RESOLVE_EVENT_LINE.test(line)).map((line) => line.slice(0, 3))).toEqual([
+      '001',
+      '002',
+    ]);
+  });
+
   it('maps every StreamCollab color to one of the 16 Resolve marker colors', () => {
     expect(toResolveMarkerColor('Fuchsia')).toBe('ResolveColorFuchsia');
     expect(toResolveMarkerColor('Cocoa')).toBe('ResolveColorCocoa');
@@ -93,8 +112,12 @@ describe('DaVinci Resolve marker EDL (v1.6.2)', () => {
           expect(edl.match(/[^\r]\n/g)).toBeNull(); // CRLF only
           const events = lines.filter((line) => RESOLVE_EVENT_LINE.test(line));
           const fields = lines.filter((line) => line.startsWith(' |C:ResolveColor'));
-          expect(events).toHaveLength(inputs.length);
-          expect(fields).toHaveLength(inputs.length);
+          // One event per distinct frame (markers on the same frame are merged)
+          const frames = new Set(
+            inputs.map((input) => Math.floor((input.relativeTimeMs * rate.num) / (rate.den * 1000) + 1e-6))
+          );
+          expect(events).toHaveLength(frames.size);
+          expect(fields).toHaveLength(frames.size);
           for (const line of fields) {
             expect(line).toMatch(/^ \|C:ResolveColor[A-Za-z]+ \|M:.* \|D:1$/);
             expect(line.split('|')).toHaveLength(4);

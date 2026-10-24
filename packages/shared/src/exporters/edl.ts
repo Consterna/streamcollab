@@ -81,19 +81,30 @@ export function exportToEdl(session: RecordingSession, markers: SquadMarker[], o
 
   const baseFrames = tc.timecodeToFrames(session.baseTimecode || '01:00:00:00');
 
-  sortedMarkers.forEach((marker, index) => {
+  // Resolve keeps at most one marker per frame (its timeline markers are keyed by frame), so markers
+  // two streamers dropped on the same frame become one marker carrying both names
+  const byFrame = new Map<number, SquadMarker[]>();
+  for (const marker of sortedMarkers) {
+    const frame = baseFrames + tc.millisecondsToFrames(marker.relativeTimeMs);
+    byFrame.set(frame, [...(byFrame.get(frame) ?? []), marker]);
+  }
+
+  [...byFrame].forEach(([startFrames, frameMarkers], index) => {
     const eventNum = String(index + 1).padStart(3, '0');
-    const elapsedFrames = tc.millisecondsToFrames(marker.relativeTimeMs);
-    const startFrames = baseFrames + elapsedFrames;
     const endFrames = startFrames + 1; // 1-frame event: the marker's position
 
     const startTc = tc.framesToTimecode(startFrames);
     const endTc = tc.framesToTimecode(endFrames);
 
-    const color = toResolveMarkerColor(marker.color || CATEGORY_TO_DAVINCI_COLOR[marker.category]);
-    const creatorTag = marker.memberName ? ` [${marker.memberName}]` : '';
-    const commentPart = marker.comment ? ` - ${marker.comment}` : '';
-    const name = toMarkerText(`${marker.label}${creatorTag}${commentPart}`);
+    const first = frameMarkers[0];
+    const color = toResolveMarkerColor(first.color || CATEGORY_TO_DAVINCI_COLOR[first.category]);
+    const name = frameMarkers
+      .map((marker) => {
+        const creatorTag = marker.memberName ? ` [${marker.memberName}]` : '';
+        const commentPart = marker.comment ? ` - ${marker.comment}` : '';
+        return toMarkerText(`${marker.label}${creatorTag}${commentPart}`);
+      })
+      .join(' / ');
 
     // Event Reel Track Edit SourceIn SourceOut RecordIn RecordOut
     lines.push(`${eventNum}  001      V     C        ${startTc} ${endTc} ${startTc} ${endTc}  `);

@@ -247,6 +247,7 @@ El HUD y el Panel del director nunca hablan con el WebSocket de OBS, así que si
 2. Pulsa **Descargar archivo** (`.edl`).
 3. En DaVinci Resolve, pon tu grabación en una línea de tiempo cuyo timecode inicial coincida con el timecode base de la sesión (01:00:00:00 por defecto; 00:00:00:00 en un export por POV).
 4. En el Media Pool, clic derecho en esa línea de tiempo → **Timelines** → **Import** → **Timeline Markers from EDL...** y elige el `.edl` descargado.
+   - Los marcadores que varios streamers pusieron en el mismo fotograma llegan como uno solo con todos sus nombres, porque Resolve guarda un marcador por fotograma.
    - Cada marcador lleva el color de su tipo de evento (rojo para kills, fucsia para wipes, amarillo para clutches, cian para momentos graciosos, azul para notas, verde para los personalizados). Si no aparece ningún marcador, aleja el zoom: pueden estar fuera de la parte visible de la línea de tiempo.
 
 Desde la v1.6.2 el archivo usa el formato de EDL de marcadores del propio Resolve (las versiones anteriores escribían localizadores `* LOC:` al estilo de Avid).
