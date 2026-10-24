@@ -6,13 +6,15 @@ node_modules/
 # Production & Build outputs
 dist/
 
-# Playwright E2E artifacts
+# Playwright E2E and Vitest browser-mode artifacts
 e2e/.data/
+.vitest/
+.preview-data/
 test-results/
 playwright-report/
 blob-report/
 
-# Local Claude Code launch configs
+# Local launch configs
 .claude/
 build/
 out/

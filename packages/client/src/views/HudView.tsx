@@ -232,9 +232,9 @@ export const HudView: React.FC<HudViewProps> = ({ socketClient, members, activeS
                       ) : isPaused ? (
                         <span className="text-amber-400 font-bold">{t('hud.pause')}</span>
                       ) : (
-                        <span className="text-zinc-500 font-medium">{t('hud.idle')}</span>
+                        <span className="text-zinc-400 font-medium">{t('hud.idle')}</span>
                       )}
-                      <span className="text-zinc-600">|</span>
+                      <span className="text-zinc-400">|</span>
                       <span className="text-zinc-400">{m.fps || 60}fps</span>
                     </div>
                   </div>

@@ -525,7 +525,7 @@ export function App() {
           <span className="flex gap-2">
             <button
               onClick={() => answerServerTrust(true)}
-              className="rounded-sm bg-sky-600 px-2 py-1 font-semibold text-white hover:bg-sky-500"
+              className="rounded-sm bg-sky-700 px-2 py-1 font-semibold text-white hover:bg-sky-600"
             >
               {t('app.trustServerYes')}
             </button>

@@ -20,27 +20,6 @@ describe('Accessibility & WCAG Conformance Verification', () => {
     expect(en['hudPreview.backTitle']).toContain('(Esc)');
     expect(es['hudPreview.backTitle']).toContain('(Esc)');
   });
-
-  it('verifies ExportModal markup provides WAI-ARIA dialog semantics and Escape key handler', () => {
-    const modalPath = path.resolve(__dirname, '../src/components/ExportModal.tsx');
-    const modalContent = fs.readFileSync(modalPath, 'utf8');
-
-    expect(modalContent).toContain('role="dialog"');
-    expect(modalContent).toContain('aria-modal="true"');
-    expect(modalContent).toContain('aria-labelledby="export-modal-title"');
-    expect(modalContent).toContain('id="export-modal-title"');
-    expect(modalContent).toContain("aria-label={t('common.close')}");
-    expect(modalContent).toContain("e.key === 'Escape'");
-  });
-
-  it('verifies DashboardView Start Session modal provides WAI-ARIA dialog semantics and Escape handler', () => {
-    const dashPath = path.resolve(__dirname, '../src/views/DashboardView.tsx');
-    const dashContent = fs.readFileSync(dashPath, 'utf8');
-
-    expect(dashContent).toContain('role="dialog"');
-    expect(dashContent).toContain('aria-modal="true"');
-    expect(dashContent).toContain('aria-labelledby="start-session-modal-title"');
-    expect(dashContent).toContain('id="start-session-modal-title"');
-    expect(dashContent).toContain("e.key === 'Escape'");
-  });
+  // Dialog semantics, focus and Escape are tested on the rendered components (components.browser.test.tsx)
+  // and with axe in the E2E run (e2e/a11y.spec.ts)
 });

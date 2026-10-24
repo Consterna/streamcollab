@@ -258,7 +258,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <div className="flex items-center gap-2 rounded-lg bg-red-500/10 px-3 py-1.5 border border-red-500/30 text-xs">
                 <span className="h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
                 <span className="font-bold text-red-400">{activeSession.name}</span>
-                <span className="text-zinc-500">|</span>
+                <span className="text-zinc-400">|</span>
                 <span className="font-mono text-zinc-300">
                   {activeSession.framerateNumerator}/{activeSession.framerateDenominator} fps
                 </span>
@@ -278,7 +278,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               onClick={() => setShowStartModal(true)}
               disabled={!isHost || !room}
               title={isHost ? undefined : t('dash.onlyHostStart')}
-              className="disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-500 shadow-lg shadow-emerald-600/20 transition"
+              className="disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-600 shadow-lg shadow-emerald-600/20 transition"
             >
               <Play className="h-4 w-4" />
               {t('dash.startSession')}
@@ -321,10 +321,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             {members.length === 0 ? (
-              <div className="flex flex-col items-center justify-center p-8 text-zinc-500 text-xs">
+              <div className="flex flex-col items-center justify-center p-8 text-zinc-400 text-xs">
                 <Users className="h-8 w-8 text-zinc-700 mb-2" />
                 <p>{t('dash.noMembers')}</p>
-                <p className="text-[11px] text-zinc-600 mt-1">{t('dash.noMembersHint')}</p>
+                <p className="text-[11px] text-zinc-400 mt-1">{t('dash.noMembersHint')}</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -359,7 +359,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           <td className="py-2.5 font-sans">
                             {isOffline ? (
                               <span
-                                className="inline-flex items-center gap-1.5 rounded-full bg-zinc-900 px-2 py-0.5 text-[10px] font-medium text-zinc-500 border border-zinc-800"
+                                className="inline-flex items-center gap-1.5 rounded-full bg-zinc-900 px-2 py-0.5 text-[10px] font-medium text-zinc-400 border border-zinc-800"
                                 title={m.lastHeartbeat ? new Date(m.lastHeartbeat).toLocaleString() : undefined}
                               >
                                 {t('dash.status.offline')}
@@ -401,7 +401,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                               {isOffline && (
                                 <button
                                   onClick={() => handleRemoveMember(m.id, m.name)}
-                                  className="rounded-sm px-2 py-0.5 text-[11px] text-zinc-500 hover:bg-zinc-800 hover:text-red-400"
+                                  className="rounded-sm px-2 py-0.5 text-[11px] text-zinc-400 hover:bg-zinc-800 hover:text-red-400"
                                   title={t('dash.removeTitle')}
                                 >
                                   {t('dash.remove')}
@@ -436,12 +436,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               {/* Filters */}
               <div className="flex items-center gap-2">
                 <div className="relative">
-                  <Search className="h-3.5 w-3.5 text-zinc-500 absolute left-2.5 top-2.5" />
+                  <Search className="h-3.5 w-3.5 text-zinc-400 absolute left-2.5 top-2.5" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder={t('dash.search')}
+                    aria-label={t('dash.search')}
                     className="rounded-lg border border-zinc-700 bg-zinc-950 pl-8 pr-3 py-1 text-xs text-zinc-200 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-hidden w-40 sm:w-48"
                   />
                 </div>
@@ -449,6 +450,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <select
                   value={filterCategory}
                   onChange={(e) => setFilterCategory(e.target.value)}
+                  aria-label={t('markerRow.category')}
                   className="rounded-lg border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-xs text-zinc-200 focus:border-indigo-500 focus:outline-hidden"
                 >
                   <option value="all">{t('dash.filter.all')}</option>
@@ -463,7 +465,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             {filteredMarkers.length === 0 ? (
-              <div className="p-8 text-center text-zinc-500 text-xs">{t('dash.noMatches')}</div>
+              <div className="p-8 text-center text-zinc-400 text-xs">{t('dash.noMatches')}</div>
             ) : (
               <div className="divide-y divide-zinc-800/80 max-h-96 overflow-y-auto">
                 {filteredMarkers.map((m) => (
@@ -513,27 +515,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {viewedSession ? (
               <div className="space-y-3 text-xs">
                 <div>
-                  <span className="text-zinc-500 block text-[11px]">{t('dash.sessionName')}</span>
+                  <span className="text-zinc-400 block text-[11px]">{t('dash.sessionName')}</span>
                   <span className="font-semibold text-white">{viewedSession.name}</span>
                 </div>
                 <div>
-                  <span className="text-zinc-500 block text-[11px]">{t('dash.framerate')}</span>
+                  <span className="text-zinc-400 block text-[11px]">{t('dash.framerate')}</span>
                   <span className="font-mono text-zinc-200">
                     {viewedSession.framerateNumerator}/{viewedSession.framerateDenominator} fps
                     {viewedSession.dropFrame ? t('dash.dropFrame') : t('dash.nonDropFrame')}
                   </span>
                 </div>
                 <div>
-                  <span className="text-zinc-500 block text-[11px]">{t('dash.baseTimecode')}</span>
+                  <span className="text-zinc-400 block text-[11px]">{t('dash.baseTimecode')}</span>
                   <span className="font-mono text-zinc-200">{viewedSession.baseTimecode}</span>
                 </div>
                 <div>
-                  <span className="text-zinc-500 block text-[11px]">{t('dash.startedAt')}</span>
+                  <span className="text-zinc-400 block text-[11px]">{t('dash.startedAt')}</span>
                   <span className="text-zinc-300">{new Date(viewedSession.startedAt).toLocaleString()}</span>
                 </div>
                 {viewedSession.stoppedAt && (
                   <div>
-                    <span className="text-zinc-500 block text-[11px]">{t('dash.duration')}</span>
+                    <span className="text-zinc-400 block text-[11px]">{t('dash.duration')}</span>
                     <span className="text-zinc-300 font-mono">
                       {Math.floor((viewedSession.stoppedAt - viewedSession.startedAt) / 60000)}m{' '}
                       {Math.floor(((viewedSession.stoppedAt - viewedSession.startedAt) % 60000) / 1000)}s
@@ -542,7 +544,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 )}
               </div>
             ) : (
-              <div className="text-xs text-zinc-500">{t('dash.noActiveSession')}</div>
+              <div className="text-xs text-zinc-400">{t('dash.noActiveSession')}</div>
             )}
           </div>
 
@@ -556,56 +558,71 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <a
                 href={viewedSession ? apiUrl(exportPath('edl', roomId, viewedSession.id)) : '#'}
                 download
+                // No session yet: inactive (not focusable, and announced as unavailable)
+                aria-disabled={viewedSession ? undefined : true}
+                tabIndex={viewedSession ? undefined : -1}
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
                   !viewedSession ? 'pointer-events-none opacity-40' : ''
                 }`}
               >
                 <span className="font-medium text-zinc-200">{t('dash.dl.edl')}</span>
-                <span className="font-mono text-[10px] text-zinc-500">.edl</span>
+                <span className="font-mono text-[10px] text-zinc-400">.edl</span>
               </a>
 
               <a
                 href={viewedSession ? apiUrl(exportPath('xml', roomId, viewedSession.id)) : '#'}
                 download
+                // No session yet: inactive (not focusable, and announced as unavailable)
+                aria-disabled={viewedSession ? undefined : true}
+                tabIndex={viewedSession ? undefined : -1}
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
                   !viewedSession ? 'pointer-events-none opacity-40' : ''
                 }`}
               >
                 <span className="font-medium text-zinc-200">{t('dash.dl.xml')}</span>
-                <span className="font-mono text-[10px] text-zinc-500">.xml</span>
+                <span className="font-mono text-[10px] text-zinc-400">.xml</span>
               </a>
 
               <a
                 href={viewedSession ? apiUrl(exportPath('csv', roomId, viewedSession.id)) : '#'}
                 download
+                // No session yet: inactive (not focusable, and announced as unavailable)
+                aria-disabled={viewedSession ? undefined : true}
+                tabIndex={viewedSession ? undefined : -1}
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
                   !viewedSession ? 'pointer-events-none opacity-40' : ''
                 }`}
               >
                 <span className="font-medium text-zinc-200">{t('dash.dl.csv')}</span>
-                <span className="font-mono text-[10px] text-zinc-500">.csv</span>
+                <span className="font-mono text-[10px] text-zinc-400">.csv</span>
               </a>
 
               <a
                 href={viewedSession ? apiUrl(exportPath('youtube', roomId, viewedSession.id)) : '#'}
                 download
+                // No session yet: inactive (not focusable, and announced as unavailable)
+                aria-disabled={viewedSession ? undefined : true}
+                tabIndex={viewedSession ? undefined : -1}
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
                   !viewedSession ? 'pointer-events-none opacity-40' : ''
                 }`}
               >
                 <span className="font-medium text-zinc-200">{t('dash.dl.youtube')}</span>
-                <span className="font-mono text-[10px] text-zinc-500">.txt</span>
+                <span className="font-mono text-[10px] text-zinc-400">.txt</span>
               </a>
 
               <a
                 href={viewedSession ? apiUrl(exportPath('matrix', roomId, viewedSession.id)) : '#'}
                 download
+                // No session yet: inactive (not focusable, and announced as unavailable)
+                aria-disabled={viewedSession ? undefined : true}
+                tabIndex={viewedSession ? undefined : -1}
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
                   !viewedSession ? 'pointer-events-none opacity-40' : ''
                 }`}
               >
                 <span className="font-medium text-zinc-200">{t('dash.dl.matrix')}</span>
-                <span className="font-mono text-[10px] text-zinc-500">.json</span>
+                <span className="font-mono text-[10px] text-zinc-400">.json</span>
               </a>
             </div>
           </div>
@@ -702,7 +719,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 title="HH:MM:SS:FF"
                 className="w-full rounded-sm border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs font-mono text-white focus:border-indigo-500 focus:outline-hidden"
               />
-              <p className="text-[10px] text-zinc-500 mt-1">{t('dash.form.baseHint')}</p>
+              <p className="text-[10px] text-zinc-400 mt-1">{t('dash.form.baseHint')}</p>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
@@ -715,7 +732,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </button>
               <button
                 type="submit"
-                className="rounded-sm bg-emerald-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-emerald-500"
+                className="rounded-sm bg-emerald-700 px-4 py-1.5 text-xs font-bold text-white hover:bg-emerald-600"
               >
                 {t('dash.form.start')}
               </button>

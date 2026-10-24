@@ -123,7 +123,7 @@ export const MarkerRow: React.FC<MarkerRowProps> = ({ marker, canEdit, onSave, o
           )}
           <div className="text-right">
             <span className="text-xs font-medium text-zinc-300">{marker.memberName}</span>
-            <p className="text-[10px] font-mono text-zinc-500">{new Date(marker.timestamp).toLocaleTimeString()}</p>
+            <p className="text-[10px] font-mono text-zinc-400">{new Date(marker.timestamp).toLocaleTimeString()}</p>
           </div>
         </div>
       )}

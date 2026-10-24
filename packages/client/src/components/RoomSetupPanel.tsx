@@ -115,7 +115,7 @@ export const RoomSetupPanel: React.FC<RoomSetupPanelProps> = ({ socketClient, ro
             </button>
           </div>
           {error && <span className="text-red-400">{error}</span>}
-          <span className="text-zinc-500">{t('room.hostHint')}</span>
+          <span className="text-zinc-400">{t('room.hostHint')}</span>
         </form>
 
         {room && (
@@ -155,7 +155,7 @@ export const RoomSetupPanel: React.FC<RoomSetupPanelProps> = ({ socketClient, ro
               </span>
               {isHost && hostToken ? (
                 <div className="flex items-center gap-2">
-                  <span className="text-zinc-500">{t('room.hostToken')}</span>
+                  <span className="text-zinc-400">{t('room.hostToken')}</span>
                   <CopyButton value={hostToken} label={t('room.hostTokenLabel')} />
                   <button
                     onClick={handleDeleteRoom}

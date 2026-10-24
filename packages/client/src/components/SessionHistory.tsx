@@ -46,7 +46,7 @@ export const SessionHistory: React.FC<SessionHistoryProps> = ({
       </h2>
 
       {sessions.length === 0 ? (
-        <p className="text-xs text-zinc-500">{t('history.empty')}</p>
+        <p className="text-xs text-zinc-400">{t('history.empty')}</p>
       ) : (
         <ul className="space-y-1 max-h-64 overflow-y-auto">
           {sessions.map((session) => {
@@ -69,7 +69,7 @@ export const SessionHistory: React.FC<SessionHistoryProps> = ({
                       </span>
                     )}
                   </div>
-                  <div className="mt-0.5 flex items-center justify-between text-[11px] text-zinc-500">
+                  <div className="mt-0.5 flex items-center justify-between text-[11px] text-zinc-400">
                     <span>{new Date(session.startedAt).toLocaleString()}</span>
                     <span>
                       {t('common.markers', { count: session.markerCount })} · {formatDuration(session, t)}
@@ -79,7 +79,7 @@ export const SessionHistory: React.FC<SessionHistoryProps> = ({
                 {onDelete && session.stoppedAt && (
                   <button
                     onClick={() => onDelete(session)}
-                    className="absolute right-2 top-2 rounded-sm p-1 text-zinc-500 opacity-0 transition hover:bg-zinc-800 hover:text-red-400 group-hover:opacity-100 focus:opacity-100"
+                    className="absolute right-2 top-2 rounded-sm p-1 text-zinc-400 opacity-0 transition hover:bg-zinc-800 hover:text-red-400 group-hover:opacity-100 focus:opacity-100"
                     title={t('history.deleteTitle')}
                     aria-label={t('history.deleteAria', { name: session.name })}
                   >

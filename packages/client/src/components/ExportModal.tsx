@@ -210,7 +210,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, sessi
               >
                 <Icon className={`h-5 w-5 mb-1 ${isSelected ? 'text-indigo-400' : 'text-zinc-400'}`} />
                 <span className="text-xs font-semibold">{f.label}</span>
-                <span className="text-[10px] text-zinc-500 hidden sm:block truncate max-w-full">{f.desc}</span>
+                <span className="text-[10px] text-zinc-400 hidden sm:block truncate max-w-full">{f.desc}</span>
               </button>
             );
           })}
@@ -223,6 +223,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, sessi
             <select
               value={povMemberId}
               onChange={(e) => setPovMemberId(e.target.value)}
+              aria-label={t('export.timeline')}
               className="rounded-sm border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-200"
             >
               <option value="">{t('export.master')}</option>
@@ -232,7 +233,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, sessi
                 </option>
               ))}
             </select>
-            {povMemberId && <span className="text-zinc-500">{t('export.povHint')}</span>}
+            {povMemberId && <span className="text-zinc-400">{t('export.povHint')}</span>}
           </div>
         )}
 

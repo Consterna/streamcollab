@@ -369,7 +369,7 @@ export const DockView: React.FC<DockViewProps> = ({
           <div className="hidden sm:flex items-center gap-1.5 text-[10px] text-zinc-400 font-mono bg-zinc-950 px-2 py-1 rounded-sm border border-zinc-800/80">
             <Activity className="h-3 w-3 text-indigo-400" />
             <span>RTT: {sntpStats.rtt}ms</span>
-            <span className="text-zinc-600">|</span>
+            <span className="text-zinc-400">|</span>
             <span>Δ: {sntpStats.offset > 0 ? `+${sntpStats.offset}` : sntpStats.offset}ms</span>
           </div>
 
@@ -421,7 +421,7 @@ export const DockView: React.FC<DockViewProps> = ({
               {obsConnected ? t('dock.disconnect') : obsRetryMs !== null ? t('dock.retryNow') : t('dock.connect')}
             </button>
           </div>
-          <p className="pl-22 text-[10px] text-zinc-500">
+          <p className="pl-22 text-[10px] text-zinc-400">
             {t('dock.savedHint')}
             {obsRetryMs !== null ? t('dock.nextTry', { seconds: Math.round(obsRetryMs / 1000) }) : ''}.
           </p>
@@ -430,7 +430,7 @@ export const DockView: React.FC<DockViewProps> = ({
             <div className="flex-1 space-y-1">
               <div className="text-[11px]">
                 {chapterSupport.state === 'unknown' && (
-                  <span className="text-zinc-500">{t('dock.chaptersUnknown')}</span>
+                  <span className="text-zinc-400">{t('dock.chaptersUnknown')}</span>
                 )}
                 {chapterSupport.state === 'unsupported' && (
                   <span className="text-amber-400">
@@ -472,7 +472,7 @@ export const DockView: React.FC<DockViewProps> = ({
           </div>
           <div className="flex items-center gap-2">
             <span className="w-20 text-zinc-400 font-medium">{t('dock.httpToken')}</span>
-            <span className="flex-1 text-[11px] text-zinc-500">
+            <span className="flex-1 text-[11px] text-zinc-400">
               {t('dock.httpTokenHint', { room: roomId })} <span className="font-mono">{member.id}</span>
             </span>
             <button
@@ -690,10 +690,10 @@ export const DockView: React.FC<DockViewProps> = ({
         </div>
 
         {markers.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-48 text-zinc-500 text-xs">
+          <div className="flex flex-col items-center justify-center h-48 text-zinc-400 text-xs">
             <Radio className="h-8 w-8 text-zinc-700 mb-2 animate-pulse" />
             <p>{t('dock.empty')}</p>
-            <p className="text-[11px] text-zinc-600 mt-1">{t('dock.emptyHint')}</p>
+            <p className="text-[11px] text-zinc-400 mt-1">{t('dock.emptyHint')}</p>
           </div>
         ) : (
           <div className="divide-y divide-zinc-900">
@@ -726,7 +726,7 @@ export const DockView: React.FC<DockViewProps> = ({
 
                   <div className="flex flex-col items-end text-right shrink-0">
                     <span className="text-[11px] font-semibold text-zinc-300">{m.memberName}</span>
-                    <span className="text-[10px] font-mono text-zinc-500">+{Math.round(m.relativeTimeMs / 1000)}s</span>
+                    <span className="text-[10px] font-mono text-zinc-400">+{Math.round(m.relativeTimeMs / 1000)}s</span>
                   </div>
                 </div>
               );
