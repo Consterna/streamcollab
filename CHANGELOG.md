@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 - **zod 4.6.7:** zod before 4.6.6 could exhaust memory while validating large arrays ([GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5), high). StreamCollab's request limits (64 KB bodies, 16 KB WebSocket messages) already bounded it.
 - **Credentials per server:** a link with `?server=` could make the page send the host and member tokens it had saved to another server. Tokens and the member id are now kept per server; credentials saved by earlier versions are only reused with another server after you accept it in a banner that names it.
+- Generated room codes drew their characters with a modulo bias (8 of the 31 characters came up slightly more often); they are now uniform. New member ids come from the browser's cryptographic random generator instead of `Math.random`, so they can't be guessed and claimed by another device.
 - Unknown room codes now count per IP across the REST API and the WebSocket (before, only WebSocket joins were limited), and a custom room code needs at least 8 characters.
 - Sockets that leave their room, or whose room is deleted, are closed after the join timeout; simultaneous WebSocket connections per IP are capped (`MAX_SOCKETS_PER_IP`, default 64). Behind a reverse proxy, set `TRUST_PROXY=true` so these limits apply per client, not to everyone together.
 

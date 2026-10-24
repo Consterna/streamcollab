@@ -12,6 +12,7 @@ y este proyecto se adhiere al [Versionado Semántico](https://semver.org/lang/es
 ### Seguridad
 - **zod 4.6.7:** las versiones de zod anteriores a la 4.6.6 podían agotar la memoria al validar arrays grandes ([GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5), alta). Los límites de StreamCollab (cuerpos de 64 KB, mensajes WebSocket de 16 KB) ya lo acotaban.
 - **Credenciales por servidor:** un enlace con `?server=` podía hacer que la página enviara a otro servidor los tokens de host y de miembro que tenía guardados. Ahora los tokens y el id de miembro se guardan por servidor; las credenciales guardadas por versiones anteriores solo se usan con otro servidor si lo aceptas en un aviso que lo nombra.
+- Los códigos de sala generados elegían sus caracteres con sesgo de módulo (8 de los 31 caracteres salían algo más a menudo); ahora son uniformes. Los ids de miembro nuevos salen del generador criptográfico del navegador en vez de `Math.random`, así que otro dispositivo no puede adivinarlos y reclamarlos.
 - Los códigos de sala desconocidos cuentan por IP en la API REST y en el WebSocket a la vez (antes solo se limitaban las uniones por WebSocket), y un código de sala personalizado necesita al menos 8 caracteres.
 - Los sockets que salen de su sala, o cuya sala se borra, se cierran al pasar el tiempo de espera de unión; las conexiones WebSocket simultáneas por IP tienen un tope (`MAX_SOCKETS_PER_IP`, 64 por defecto). Detrás de un proxy inverso, pon `TRUST_PROXY=true` para que estos límites se apliquen por cliente y no a todos juntos.
 
