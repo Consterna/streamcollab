@@ -378,7 +378,9 @@ export class RoomManager {
       framerateNumerator?: number;
       framerateDenominator?: number;
       dropFrame?: boolean;
-    }
+    },
+    // Normally now; an Auto Session starts at the key press that opened it
+    startedAt: number = Date.now()
   ): RecordingSession {
     const session = this.db.transaction(() => {
       // One running session per room: a new start closes the previous one instead of orphaning it
@@ -392,7 +394,7 @@ export class RoomManager {
         id: sessionId,
         roomId,
         name: sessionData.name || `Session ${new Date().toLocaleTimeString()}`,
-        startedAt: Date.now(),
+        startedAt,
         stoppedAt: null,
         baseTimecode: sessionData.baseTimecode || '01:00:00:00',
         framerateNumerator: sessionData.framerateNumerator || 60,
@@ -466,13 +468,18 @@ export class RoomManager {
 
     // If no active session, auto-create one or fallback to base epoch session
     if (!session) {
-      session = this.startSession(data.roomId, {
-        name: `Auto Session ${new Date().toLocaleTimeString()}`,
-        baseTimecode: '01:00:00:00',
-        framerateNumerator: 60,
-        framerateDenominator: 1,
-        dropFrame: false,
-      });
+      // Start it at the key press, so markers right after it keep their real spacing (none clamps to 0)
+      session = this.startSession(
+        data.roomId,
+        {
+          name: `Auto Session ${new Date().toLocaleTimeString()}`,
+          baseTimecode: '01:00:00:00',
+          framerateNumerator: 60,
+          framerateDenominator: 1,
+          dropFrame: false,
+        },
+        now
+      );
     }
 
     const tc = new SMPTETimecode({

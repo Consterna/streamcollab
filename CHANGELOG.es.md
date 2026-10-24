@@ -22,6 +22,7 @@ y este proyecto se adhiere al [Versionado Semántico](https://semver.org/lang/es
 - **Base de datos:** la migración v5 repara las sesiones que la migración v4 podía cerrar antes de empezar; una base de datos escrita por un StreamCollab más nuevo se rechaza, y el archivo ya no se queda abierto (bloqueado en Windows) cuando no se puede usar.
 - Exportar una sesión que no existe devolvía el archivo de otra sesión; ahora responde 404. Un parámetro de consulta repetido respondía 500; ahora responde 400.
 - Deshacer (`0`, `Ctrl+Z`, HTTP) solo alcanza la sesión en curso, como estaba documentado.
+- Una Auto Session (la que abre un marcador cuando no hay sesión) empieza ahora en esa pulsación, así que los marcadores justo después conservan su separación real en vez de caer todos en su primer fotograma.
 - Una actualización de estado parcial podía guardar un framerate de OBS imposible.
 - `PORT=`, `HOST=`, `LOG_LEVEL=` o `ROOM_CREATE_LIMIT_PER_MINUTE=` vacíos en el `.env` impedían arrancar el servidor; ahora significan "valor por defecto".
 - **Conexión con OBS:** pulsar Conectar dos veces (o el modo de desarrollo de React) podía iniciar un bucle de reconexión sin fin.

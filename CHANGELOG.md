@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Database:** migration v5 repairs sessions that the v4 migration could close before they started; a database written by a newer StreamCollab is refused, and the file is no longer left open (locked on Windows) when it can't be used.
 - Exporting a session that doesn't exist answered with another session's file; it now answers 404. A repeated query parameter answered 500; it now answers 400.
 - Undo (`0`, `Ctrl+Z`, HTTP) only reaches the running session, as documented.
+- An Auto Session (opened by a marker when no session runs) now starts at that key press, so the markers right after it keep their real spacing instead of all landing on its first frame.
 - A partial status update could store an impossible OBS framerate.
 - Empty `PORT=`, `HOST=`, `LOG_LEVEL=` or `ROOM_CREATE_LIMIT_PER_MINUTE=` in `.env` stopped the server from starting; they now mean "default".
 - **OBS connection:** pressing Connect twice (or React's development mode) could start an endless reconnect loop.

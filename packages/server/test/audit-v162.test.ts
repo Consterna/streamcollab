@@ -187,6 +187,30 @@ describe('v1.6.2 database integrity', () => {
     expect(db.listSessions('RACE-ROOM')).toHaveLength(1);
   });
 
+  it('starts an Auto Session at the key press that opens it, so quick follow-ups keep their spacing', () => {
+    rooms.createRoom('AUTO-ROOM', 'x');
+    const pressed = Date.now() - 300; // calibrated key press, before the message reached the server
+    const first = rooms.createMarker({
+      roomId: 'AUTO-ROOM',
+      memberId: 'm1',
+      memberName: 'm1',
+      category: 'kill',
+      label: 'a',
+      clientTimestamp: pressed,
+    });
+    const second = rooms.createMarker({
+      roomId: 'AUTO-ROOM',
+      memberId: 'm1',
+      memberName: 'm1',
+      category: 'kill',
+      label: 'b',
+      clientTimestamp: pressed + 40,
+    });
+    expect(db.getSession(first.sessionId)?.startedAt).toBe(pressed);
+    expect(first.relativeTimeMs).toBe(0);
+    expect(second.relativeTimeMs).toBe(40);
+  });
+
   it('undo only reaches markers of the running session', () => {
     rooms.createRoom('UNDO-ROOM', 'x');
     rooms.startSession('UNDO-ROOM', { name: 'ended' });
