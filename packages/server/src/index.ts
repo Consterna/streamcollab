@@ -8,7 +8,7 @@ import { LIMITS } from '@streamcollab/shared';
 import { DatabaseService } from './db/database.js';
 import { RoomManager } from './rooms/roomManager.js';
 import { registerApiRoutes } from './routes/api.js';
-import { registerWebSocketHandler } from './websocket/handler.js';
+import { registerWebSocketHandler, handleSocketError } from './websocket/handler.js';
 import { registerClientApp } from './static/clientApp.js';
 import { RoomLookupGuard, DEFAULT_JOIN_FAILURE_LIMIT } from './security/lookupGuard.js';
 import { loadConfig, loadDotEnv, parseOriginList } from './config.js';
@@ -63,6 +63,7 @@ export async function createServer(options: ServerOptions = {}) {
 
   await fastify.register(websocket, {
     options: { maxPayload: LIMITS.wsMessageBytes },
+    errorHandler: handleSocketError,
   });
 
   const db = new DatabaseService(options.dbPath);

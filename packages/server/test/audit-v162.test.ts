@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import path from 'node:path';
 import fs from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
@@ -8,6 +8,7 @@ import { DatabaseService, SCHEMA_VERSION, RESUME_AFTER_CLEAN_SHUTDOWN_MS } from 
 import { RoomManager, RoomError } from '../src/rooms/roomManager.js';
 import { attachmentDisposition } from '../src/routes/api.js';
 import { loadConfig } from '../src/config.js';
+import { handleSocketError } from '../src/websocket/handler.js';
 
 function removeDb(dbPath: string) {
   for (const suffix of ['', '-wal', '-shm']) {
@@ -457,6 +458,20 @@ describe('v1.6.2 HTTP and WebSocket hardening', () => {
 });
 
 describe('v1.6.2 small fixes', () => {
+  it('logs client protocol errors (an oversized frame) as warnings, other socket errors as errors', () => {
+    const log = { warn: vi.fn(), error: vi.fn() };
+    const socket = { terminate: vi.fn() };
+    const tooLarge = Object.assign(new RangeError('Max payload size exceeded'), {
+      code: 'WS_ERR_UNSUPPORTED_MESSAGE_LENGTH',
+    });
+    handleSocketError(tooLarge, socket, { log });
+    expect(log.warn).toHaveBeenCalledTimes(1);
+    expect(log.error).not.toHaveBeenCalled();
+    handleSocketError(new Error('boom'), socket, { log });
+    expect(log.error).toHaveBeenCalledTimes(1);
+    expect(socket.terminate).toHaveBeenCalledTimes(2);
+  });
+
   it('treats empty PORT / HOST / LOG_LEVEL / ROOM_CREATE_LIMIT_PER_MINUTE as unset', () => {
     expect(loadConfig({ PORT: '', HOST: '', LOG_LEVEL: '', ROOM_CREATE_LIMIT_PER_MINUTE: ' ' })).toMatchObject({
       port: 3000,

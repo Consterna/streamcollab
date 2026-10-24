@@ -12,6 +12,26 @@ import { clientMessageSchema, formatValidationError, ErrorCode, ServerMessage } 
 
 export const DEFAULT_HEARTBEAT_INTERVAL_MS = 15_000;
 
+/**
+ * Errors of an established socket (@fastify/websocket `errorHandler`). Frames a client breaks the
+ * protocol with (too large, bad opcode, invalid UTF-8: ws codes `WS_ERR_*`) and abrupt disconnects
+ * are the client's doing: logged as warnings so a misbehaving client can't flood the error log.
+ * Anything else is a server problem and stays an error. The socket is dropped either way.
+ */
+export function handleSocketError(
+  error: Error & { code?: string },
+  socket: { terminate(): void },
+  request: { log: { warn(obj: object, msg: string): void; error(obj: object, msg: string): void } }
+) {
+  const clientCaused = error.code?.startsWith('WS_ERR_') || error.code === 'ECONNRESET' || error.code === 'EPIPE';
+  if (clientCaused) {
+    request.log.warn({ code: error.code, reason: error.message }, 'WebSocket dropped: client protocol error');
+  } else {
+    request.log.error({ err: error }, 'WebSocket error');
+  }
+  socket.terminate();
+}
+
 // Token bucket per socket: generous for SNTP pings, 1s status updates and hotkey bursts
 export const WS_RATE_LIMIT = { burst: 40, refillPerSecond: 20 };
 
