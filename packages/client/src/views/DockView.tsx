@@ -19,6 +19,7 @@ import { StreamCollabSocketClient } from '../services/socket';
 import { getMemberToken } from '../services/credentials';
 import { useT } from '../i18n';
 import { ExportModal } from '../components/ExportModal';
+import { dockClockMs } from './dockClock';
 import {
   Crosshair,
   Skull,
@@ -169,14 +170,15 @@ export const DockView: React.FC<DockViewProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [obsService]);
 
-  // Wall clock for the session timecode while OBS isn't recording (ticks only when it is shown)
-  const [now, setNow] = useState(() => Date.now());
-  const showSessionClock = Boolean(activeSession) && !recordStatus?.outputActive;
+  // Server-calibrated clock for the session timecode, the one markers are stamped with (ticks only
+  // while a session runs, which is when the clock shows it)
+  const [now, setNow] = useState(() => socketClient.getCalibratedNow());
+  const showSessionClock = Boolean(activeSession);
   useEffect(() => {
     if (!showSessionClock) return;
-    const interval = setInterval(() => setNow(Date.now()), 250);
+    const interval = setInterval(() => setNow(socketClient.getCalibratedNow()), 250);
     return () => clearInterval(interval);
-  }, [showSessionClock]);
+  }, [showSessionClock, socketClient]);
 
   // Keep local duration ticking smoothly if recording
   useEffect(() => {
@@ -316,7 +318,12 @@ export const DockView: React.FC<DockViewProps> = ({
   });
 
   const displayTimecode = tc.relativeMsToTimecode(
-    recordStatus?.outputActive ? elapsedDurationMs : activeSession ? Math.max(0, now - activeSession.startedAt) : 0,
+    dockClockMs({
+      now,
+      session: activeSession,
+      recording: Boolean(recordStatus?.outputActive),
+      recordingElapsedMs: elapsedDurationMs,
+    }),
     activeSession?.baseTimecode || '01:00:00:00'
   );
 

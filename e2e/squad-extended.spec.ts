@@ -132,6 +132,9 @@ test.describe('Export downloads validation', () => {
     // DaVinci Resolve marker EDL: one-frame event, then ` |C:ResolveColor<Color> |M:<name> |D:1`
     expect(edlContent).toMatch(/^\d{3} {2}001 {6}V {5}C {8}\d\d:\d\d:\d\d:\d\d /m);
     expect(edlContent).toMatch(/^ \|C:ResolveColor(Red|Fuchsia|Yellow|Blue) \|M:.+ \|D:1\r$/m);
+    // Each category keeps its own color (Kill red, Wipe fuchsia, Clutch yellow, Note blue), in marking order
+    const colors = [...edlContent.matchAll(/^ \|C:ResolveColor(\w+) /gm)].map((m) => m[1]);
+    expect(colors).toEqual(['Red', 'Fuchsia', 'Yellow', 'Blue']);
 
     // 2. Final Cut Pro XML
     const xmlContent = await downloadFormat('Premiere Pro', 'xml');

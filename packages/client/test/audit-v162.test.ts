@@ -275,6 +275,35 @@ describe('socket client recovery (v1.6.2)', () => {
     client.disconnect();
   });
 
+  it("leaves a marker's color to the server unless one was chosen (category colors)", () => {
+    const client = new StreamCollabSocketClient('ws://test/ws');
+    client.connect();
+    const ws = FakeWebSocket.all.at(-1)!;
+    client.joinRoom('ROOM-1', 'dock', member);
+    ws.open();
+    ws.receive({ type: 'JOINED', payload: { roomId: 'ROOM-1', clientKind: 'dock', isHost: false } });
+    client.createMarker({
+      roomId: 'ROOM-1',
+      sessionId: '',
+      memberId: 'mem_1',
+      memberName: 'P',
+      category: 'kill',
+      label: 'Kill',
+    });
+    client.createMarker({
+      roomId: 'ROOM-1',
+      sessionId: '',
+      memberId: 'mem_1',
+      memberName: 'P',
+      category: 'note',
+      label: 'Note',
+      color: 'Mint',
+    });
+    const sent = ws.sent.filter((m) => m.type === 'CREATE_MARKER').map((m) => m.payload.marker.color);
+    expect(sent).toEqual([undefined, 'Mint']);
+    client.disconnect();
+  });
+
   it('forgets the room on disconnect(), so a later connect() only joins what it is told', () => {
     const client = new StreamCollabSocketClient('ws://test/ws');
     client.connect();

@@ -447,7 +447,8 @@ export class StreamCollabSocketClient {
           category: data.category,
           label: data.label,
           comment: data.comment,
-          color: data.color || 'Blue',
+          // No color chosen: the server gives the category's NLE color (kill red, wipe fuchsia...)
+          color: data.color,
           tags: data.tags,
           obsRecordMs: data.obsRecordMs ?? undefined,
         },
