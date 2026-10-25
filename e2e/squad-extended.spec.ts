@@ -70,6 +70,14 @@ test.describe('Extended squad flow: multi-streamer squad synchronization', () =>
     await expect(dock2.getByText(/Championship Match \(Ended\)/)).toBeVisible();
     await markersCaptured(dock1, 4);
     await markersCaptured(dock2, 4);
+
+    // A user who moved focus away (a click on plain content) keeps it there when the buttons swap
+    await dashboard2.locator('h1').click();
+    await expect.poll(() => dashboard2.evaluate(() => document.activeElement === document.body)).toBe(true);
+    await dashboard.getByRole('button', { name: 'Start New Session' }).click();
+    await dashboard.getByRole('button', { name: 'Start Recording' }).click();
+    await expect(dashboard2.getByRole('button', { name: 'Stop Session' })).toBeVisible();
+    await expect.poll(() => dashboard2.evaluate(() => document.activeElement === document.body)).toBe(true);
   });
 });
 

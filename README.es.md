@@ -410,7 +410,7 @@ streamcollab/
 
 ### 🧪 Tests y verificación
 
-En la v1.6.2 la suite automática tiene **308 tests**: 281 tests unitarios y de integración (29 archivos), 9 tests de componentes en Chromium y 18 tests end-to-end con Playwright (3 archivos, incluidos los escaneos de accesibilidad con axe):
+En la v1.6.2 la suite automática tiene **309 tests**: 282 tests unitarios y de integración (29 archivos), 9 tests de componentes en Chromium y 18 tests end-to-end con Playwright (3 archivos, incluidos los escaneos de accesibilidad con axe):
 ```bash
 npm test               # tests unitarios y de integración (Node)
 npm run test:browser   # tests de componentes en Chromium (ejecuta `npx playwright install chromium` una vez)

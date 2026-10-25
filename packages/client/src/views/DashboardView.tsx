@@ -172,8 +172,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     const track = (e: FocusEvent) => {
       focusedSessionButton.current = e.target === sessionButtonRef.current ? sessionButtonRef.current : null;
     };
+    // Focus left for the page itself (a click on plain content): forget it, unless the button was removed
+    const leave = (e: FocusEvent) => {
+      const button = e.target;
+      if (e.relatedTarget || button !== focusedSessionButton.current) return;
+      setTimeout(() => {
+        if (button instanceof HTMLElement && button.isConnected && document.activeElement !== button) {
+          focusedSessionButton.current = null;
+        }
+      });
+    };
     document.addEventListener('focusin', track);
-    return () => document.removeEventListener('focusin', track);
+    document.addEventListener('focusout', leave);
+    return () => {
+      document.removeEventListener('focusin', track);
+      document.removeEventListener('focusout', leave);
+    };
   }, []);
   useEffect(() => {
     const previous = focusedSessionButton.current;
