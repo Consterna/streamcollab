@@ -47,7 +47,7 @@ y este proyecto se adhiere al [Versionado Semántico](https://semver.org/lang/es
 ### Tests
 - Tests de componentes en un Chromium real (Vitest Browser Mode), escaneos de accesibilidad con axe-core en la suite end-to-end, umbrales de cobertura sobre todos los archivos fuente y tests de regresión para cada corrección anterior.
 - El test de estrés de la base de datos ahora intercala de verdad sus 20 escritores y hace la copia en caliente en medio de ellos (antes se ejecutaban uno tras otro y la copia, después de todos).
-- Mutation testing del motor de timecode y los exportadores con Stryker, bajo demanda (`stryker.config.mjs`).
+- Mutation testing del motor de timecode y los exportadores con Stryker, bajo demanda (`stryker.config.mjs`), con un límite de 60 s para que el resultado ya no dependa de la carga de la máquina; tests nuevos para los mutantes que encontró vivos (anclas del parser de timecode, validación del drop frame en los framerates de sesión, capítulos de más de una hora, limpieza del texto del EDL y otros). Los que siguen vivos se enumeran en `packages/shared/test/mutants-v162.test.ts`, con el motivo por el que no se distinguen del código real.
 
 ### Cambiado
 - `@fastify/cors` 11, `@fastify/rate-limit` 11.2.1, `@fastify/static` 10.1.7, vite 8.3.5, lucide-react 1.61.

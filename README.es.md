@@ -410,7 +410,7 @@ streamcollab/
 
 ### 🧪 Tests y verificación
 
-En la v1.6.2 la suite automática tiene **310 tests**: 283 tests unitarios y de integración (29 archivos), 9 tests de componentes en Chromium y 18 tests end-to-end con Playwright (3 archivos, incluidos los escaneos de accesibilidad con axe):
+En la v1.6.2 la suite automática tiene **330 tests**: 303 tests unitarios y de integración (30 archivos), 9 tests de componentes en Chromium y 18 tests end-to-end con Playwright (3 archivos, incluidos los escaneos de accesibilidad con axe):
 ```bash
 npm test               # tests unitarios y de integración (Node)
 npm run test:browser   # tests de componentes en Chromium (ejecuta `npx playwright install chromium` una vez)
@@ -426,6 +426,7 @@ El mutation testing del motor de timecode y los exportadores (Stryker, bajo dema
 - `packages/shared/test/perMember.test.ts`: reajuste de líneas de tiempo por POV y localizadores EDL sobre el archivo del propio creador.
 - `packages/shared/test/regressions.test.ts`: capítulos de YouTube que empiezan en 00:00, neutralización de fórmulas en el CSV, acentos en los títulos EDL, drop frame solo a 29.97 / 59.94, validación de framerates.
 - `packages/shared/test/exporters-v162.test.ts`: formato del EDL de marcadores de Resolve, marcadores en el mismo frame unidos en uno (Resolve guarda uno por frame), los 16 colores de Resolve, salida solo con CRLF (propiedad), timecode base drop frame en FCP 7.
+- `packages/shared/test/mutants-v162.test.ts`: casos límite del parser y del constructor de timecode, validación del drop frame en los framerates de sesión, detalles de EDL / XML / CSV / YouTube encontrados con mutation testing; enumera los mutantes supervivientes equivalentes al código real.
 - `packages/shared/test/exporters-mutants.test.ts`: detalles de los exportadores encontrados con mutation testing: resolución del framerate, offsets de la Sync Matrix, reajuste por POV, separación de capítulos, orden del CSV y duración de la secuencia FCP 7.
 - `packages/server/test/server.test.ts`: rutas de Fastify, `node:sqlite` nativo de Node 24 en modo WAL, motor SNTP de 4 marcas (desfase de reloj y RTT).
 - `packages/server/test/db-concurrency.test.ts`: 2.000 escrituras de marcadores de 20 escritores intercalados con una copia en caliente hecha en medio de ellas (sin perder ninguna) y transacciones que nunca fallan con `SQLITE_BUSY`.

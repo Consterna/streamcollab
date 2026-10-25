@@ -4,6 +4,8 @@ export interface FramerateSpec {
   nominalFps: number;
   isDropFrameSupported: boolean;
   dropFramesPerMinute: number;
+  // Informative: SMPTETimecode derives its own values from the rate, and the session schema only reads
+  // numerator, denominator and isDropFrameSupported from STANDARD_FRAMERATES
   framesPerTenMinutes: number;
 }
 

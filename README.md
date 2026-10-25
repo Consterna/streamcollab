@@ -408,7 +408,7 @@ streamcollab/
 
 ### 🧪 Testing & Verification
 
-At v1.6.2 the automated suite has **310 tests**: 283 unit / integration tests (29 files), 9 component tests in Chromium and 18 Playwright end-to-end tests (3 files, including the axe accessibility scans):
+At v1.6.2 the automated suite has **330 tests**: 303 unit / integration tests (30 files), 9 component tests in Chromium and 18 Playwright end-to-end tests (3 files, including the axe accessibility scans):
 ```bash
 npm test               # unit / integration tests (Node)
 npm run test:browser   # component tests in Chromium (run `npx playwright install chromium` once)
@@ -424,6 +424,7 @@ Mutation testing of the timecode engine and exporters (Stryker, on demand) is de
 - `packages/shared/test/perMember.test.ts`: Per-POV timeline rebasing and EDL locators on the creator's own file.
 - `packages/shared/test/regressions.test.ts`: YouTube chapters opening at 00:00, CSV formula neutralization, accent folding in EDL titles, drop-frame only at 29.97 / 59.94, framerate validation.
 - `packages/shared/test/exporters-v162.test.ts`: Resolve marker EDL layout, markers on the same frame merged into one (Resolve keeps one per frame), the 16 Resolve colors, CRLF-only output (property), FCP 7 drop-frame base timecode.
+- `packages/shared/test/mutants-v162.test.ts`: Timecode parser and constructor edge cases, drop-frame validation of session framerates, EDL / XML / CSV / YouTube details found by mutation testing; lists the surviving mutants that are equivalent to the real code.
 - `packages/shared/test/exporters-mutants.test.ts`: Exporter details found by mutation testing: framerate resolution, Sync Matrix offsets, per-POV rebasing, chapter spacing, CSV ordering and FCP 7 sequence length.
 - `packages/server/test/server.test.ts`: Fastify routes, Node 24 native `node:sqlite` WAL mode, SNTP 4-timestamp clock offset and RTT engine.
 - `packages/server/test/db-concurrency.test.ts`: 2,000 marker writes from 20 interleaved writers with a hot backup taken in the middle of them (none lost), and transactions that never fail with `SQLITE_BUSY`.

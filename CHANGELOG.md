@@ -47,7 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Tests
 - Component tests in a real Chromium (Vitest Browser Mode), axe-core accessibility scans in the end-to-end suite, coverage thresholds over every source file, and regression tests for each fix above.
 - The database stress test now really interleaves its 20 writers and takes the hot backup in the middle of them (before, they ran one after another and the backup ran after all of them).
-- Mutation testing of the timecode engine and exporters with Stryker, run on demand (`stryker.config.mjs`).
+- Mutation testing of the timecode engine and exporters with Stryker, run on demand (`stryker.config.mjs`), with a 60 s timeout so its result no longer depends on machine load; new tests for the mutants it found alive (timecode parser anchors, drop-frame validation of session framerates, chapters past one hour, EDL text cleanup and more). The mutants still alive are listed in `packages/shared/test/mutants-v162.test.ts` with why they can't be told apart from the real code.
 
 ### Changed
 - `@fastify/cors` 11, `@fastify/rate-limit` 11.2.1, `@fastify/static` 10.1.7, vite 8.3.5, lucide-react 1.61.
