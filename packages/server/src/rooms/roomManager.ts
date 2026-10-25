@@ -468,7 +468,10 @@ export class RoomManager {
 
     // If no active session, auto-create one or fallback to base epoch session
     if (!session) {
-      // Start it at the key press, so markers right after it keep their real spacing (none clamps to 0)
+      // Start it at the key press, so markers right after it keep their real spacing (none clamps to 0),
+      // but never before the previous session stopped: the two would overlap on the timeline
+      const previousStop = this.db.getLatestSession(data.roomId)?.stoppedAt ?? null;
+      const startedAt = previousStop === null ? now : Math.max(now, previousStop);
       session = this.startSession(
         data.roomId,
         {
@@ -478,7 +481,7 @@ export class RoomManager {
           framerateDenominator: 1,
           dropFrame: false,
         },
-        now
+        startedAt
       );
     }
 

@@ -212,6 +212,26 @@ describe('v1.6.2 database integrity', () => {
     expect(second.relativeTimeMs).toBe(40);
   });
 
+  it('never starts an Auto Session before the previous session stopped', () => {
+    rooms.createRoom('AUTO-AFTER', 'x');
+    rooms.startSession('AUTO-AFTER', { name: 'first' });
+    const first = db.getActiveSession('AUTO-AFTER')!;
+    rooms.stopSession('AUTO-AFTER', first.id);
+    const stoppedAt = db.getSession(first.id)!.stoppedAt!;
+    // A quick-mark without a session id, pressed 500 ms before the stop
+    const marker = rooms.createMarker({
+      roomId: 'AUTO-AFTER',
+      memberId: 'm1',
+      memberName: 'm1',
+      category: 'kill',
+      label: 'late',
+      clientTimestamp: stoppedAt - 500,
+    });
+    expect(marker.sessionId).not.toBe(first.id);
+    expect(db.getSession(marker.sessionId)!.startedAt).toBeGreaterThanOrEqual(stoppedAt);
+    expect(marker.relativeTimeMs).toBe(0);
+  });
+
   it('undo only reaches markers of the running session', () => {
     rooms.createRoom('UNDO-ROOM', 'x');
     rooms.startSession('UNDO-ROOM', { name: 'ended' });
