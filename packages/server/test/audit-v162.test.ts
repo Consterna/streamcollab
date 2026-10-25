@@ -212,6 +212,16 @@ describe('v1.6.2 database integrity', () => {
     expect(second.relativeTimeMs).toBe(40);
   });
 
+  it('takes the session created last as the latest one when two start at the same instant', () => {
+    rooms.createRoom('TIE-ROOM', 'x');
+    const t = Date.now() - 1000;
+    rooms.startSession('TIE-ROOM', { name: 'zero length' }, t);
+    const first = db.getActiveSession('TIE-ROOM')!;
+    rooms.stopSession('TIE-ROOM', first.id);
+    rooms.startSession('TIE-ROOM', { name: 'same start' }, t);
+    expect(db.getLatestSession('TIE-ROOM')!.name).toBe('same start');
+  });
+
   it('never starts an Auto Session before the previous session stopped', () => {
     rooms.createRoom('AUTO-AFTER', 'x');
     rooms.startSession('AUTO-AFTER', { name: 'first' });

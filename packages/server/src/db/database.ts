@@ -713,9 +713,9 @@ export class DatabaseService {
   }
 
   getLatestSession(roomId: string): RecordingSession | null {
-    const row = this.stmt('SELECT * FROM recording_sessions WHERE room_id = ? ORDER BY started_at DESC LIMIT 1').get(
-      roomId
-    ) as SessionRow | undefined;
+    const row = this.stmt(
+      'SELECT * FROM recording_sessions WHERE room_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1'
+    ).get(roomId) as SessionRow | undefined;
     return row ? this.mapSession(row) : null;
   }
 
