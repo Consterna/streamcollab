@@ -461,7 +461,7 @@ El mutation testing del motor de timecode y los exportadores (Stryker, bajo dema
 
 ## 🤝 Comunidad y accesibilidad
 
-StreamCollab da la bienvenida a todas las personas. Por favor, consulta nuestro [Código de conducta](.github/CODE_OF_CONDUCT.es.md) y nuestra [Declaración de accesibilidad](docs/ACCESSIBILITY.es.md) (objetivo: WCAG 2.1 nivel AA; qué está probado y qué no). Para contribuir código, traducciones o informes de errores, consulta [CONTRIBUTING.md](.github/CONTRIBUTING.md).
+StreamCollab da la bienvenida a todas las personas. Por favor, consulta nuestro [Código de conducta](.github/CODIGO_DE_CONDUCTA.md) y nuestra [Declaración de accesibilidad](docs/ACCESSIBILITY.es.md) (objetivo: WCAG 2.1 nivel AA; qué está probado y qué no). Para contribuir código, traducciones o informes de errores, consulta [CONTRIBUTING.md](.github/CONTRIBUTING.md).
 
 ---
 

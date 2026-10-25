@@ -71,7 +71,7 @@ By contributing, you agree that your contributions are licensed under the [MIT L
 
 - **Errores e ideas:** abre un issue con el formulario de error o de propuesta.
 - **Vulnerabilidades:** nunca en un issue público, consulta [SECURITY.md](SECURITY.md).
-- **Código de conducta:** todos los colaboradores deben cumplir con nuestro [Código de conducta](CODE_OF_CONDUCT.es.md).
+- **Código de conducta:** todos los colaboradores deben cumplir con nuestro [Código de conducta](CODIGO_DE_CONDUCTA.md).
 - **Accesibilidad:** los cambios de interfaz deben mantener en verde las comprobaciones de accesibilidad (`e2e/a11y.spec.ts`, reglas WCAG 2.1 AA) y seguir nuestra [Declaración de accesibilidad](../docs/ACCESSIBILITY.es.md).
 
 ## Preparar el entorno
