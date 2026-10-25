@@ -314,7 +314,9 @@ export class StreamCollabSocketClient {
           this.isJoined = false;
         }
         // An unknown room isn't retried on every reconnect (each try counts against this IP); typing the
-        // code again calls rejoin(), which asks once more
+        // code again calls rejoin(), which asks once more. RATE_LIMITED is retried: it is temporary, the
+        // backoff spaces the tries up to 15 s and a refused try doesn't count against the limit, so the
+        // Dock gets back in by itself once it clears
         if (msg.payload.code === 'ROOM_NOT_FOUND') {
           this.autoRejoin = false;
         }

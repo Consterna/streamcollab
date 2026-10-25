@@ -279,6 +279,23 @@ describe('socket client recovery (v1.6.2)', () => {
     client.disconnect();
   });
 
+  it('rejoins by itself after a rate-limit refusal, once the server lets it in again', () => {
+    // RATE_LIMITED is temporary (socket cap per IP, or a minute of unknown codes from the network) and
+    // the refused tries do not count against the limit: the room is valid, so it keeps retrying
+    const client = new StreamCollabSocketClient('ws://test/ws');
+    client.connect();
+    let ws = FakeWebSocket.all.at(-1)!;
+    client.joinRoom('BUSY-ROOM', 'dock', member);
+    ws.open();
+    ws.receive({ type: 'ERROR', payload: { code: 'RATE_LIMITED', message: 'Too many connections from your network' } });
+    ws.serverClose();
+    vi.advanceTimersToNextTimer();
+    ws = FakeWebSocket.all.at(-1)!;
+    ws.open();
+    expect(ws.sent.filter((m) => m.type === 'JOIN_ROOM').map((m) => m.payload.roomId)).toEqual(['BUSY-ROOM']);
+    client.disconnect();
+  });
+
   it('asks again for a room that was unknown when the user requests it (it may exist now)', () => {
     const client = new StreamCollabSocketClient('ws://test/ws');
     client.connect();
