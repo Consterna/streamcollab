@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Community files are organized like GitHub expects: the code of conduct, contributing guide and security policy (with their Spanish versions) live in `.github/`, and the accessibility statement in `docs/`. GitHub still shows them on the repository page; every link points to the new place.
+
 ## [1.6.2] - 2026-10-25
 
 ### Security

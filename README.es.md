@@ -207,7 +207,7 @@ Los códigos de sala se aceptan en mayúsculas o minúsculas (`kq7p-m3xd` entra 
 
 Las salas creadas con v1.0/v1.1 no tienen host token: se pueden ver y se puede marcar en ellas, pero no iniciar ni detener sesiones. Crea una sala nueva.
 
-Para informar de una vulnerabilidad, consulta [SECURITY.md](SECURITY.md).
+Para informar de una vulnerabilidad, consulta [SECURITY.md](.github/SECURITY.md).
 
 ---
 
@@ -328,7 +328,7 @@ En desarrollo, `@streamcollab/shared` se resuelve desde sus fuentes TypeScript m
 
 GitHub Actions (`.github/workflows/ci.yml`) ejecuta las mismas comprobaciones más `npm audit` sobre las dependencias de producción, y después construye la imagen Docker y la prueba (salud, cliente, creación de sala, código de salida del apagado ordenado).
 
-Las contribuciones son bienvenidas: consulta [CONTRIBUTING.md](CONTRIBUTING.md).
+Las contribuciones son bienvenidas: consulta [CONTRIBUTING.md](.github/CONTRIBUTING.md).
 
 ### 4. Arrancar los servidores de desarrollo
 En dos terminales:
@@ -392,12 +392,14 @@ streamcollab/
 ├── obs-scripts/
 │   └── streamcollab-hotkeys.lua  # Atajos globales de OBS → Dock (vía obs-websocket)
 │
-├── docs/                  # Guía de Stream Deck y lista de pruebas con OBS real (inglés / español)
+├── docs/                  # Declaración de accesibilidad, guía de Stream Deck, lista de pruebas con OBS real (inglés / español)
 ├── e2e/                   # Tests end-to-end con Playwright
+├── scripts/               # Notas de release generadas a partir de los changelogs
 ├── deploy/Caddyfile       # Proxy inverso HTTPS para docker-compose
 ├── Dockerfile             # Imagen de producción multi-etapa
 ├── docker-compose.yml     # App + Caddy (HTTPS / WSS automáticos)
-├── .github/workflows/ci.yml  # Lint, formato, typecheck, tests, build, prueba de la imagen Docker
+├── .github/               # Workflows de CI / release / mutation testing, plantillas de issues, guía para contribuir,
+│                          # política de seguridad y código de conducta
 ├── .env.example           # Plantilla de variables de entorno
 ├── package.json           # Configuración del monorepo con npm workspaces
 ├── tsconfig.json          # Solución: `tsc -b` compila shared -> server
@@ -405,6 +407,7 @@ streamcollab/
 ├── eslint.config.mjs      # Configuración plana de ESLint 10 (typescript-eslint, react-hooks)
 ├── .prettierrc.json
 ├── playwright.config.ts
+├── stryker.config.mjs     # Mutation testing, bajo demanda
 └── vitest.config.mts
 ```
 
@@ -458,7 +461,7 @@ El mutation testing del motor de timecode y los exportadores (Stryker, bajo dema
 
 ## 🤝 Comunidad y accesibilidad
 
-StreamCollab da la bienvenida a todas las personas. Por favor, consulta nuestro [Código de conducta](CODE_OF_CONDUCT.es.md) y nuestra [Declaración de accesibilidad](ACCESSIBILITY.es.md) (objetivo: WCAG 2.1 nivel AA; qué está probado y qué no). Para contribuir código, traducciones o informes de errores, consulta [CONTRIBUTING.md](CONTRIBUTING.md).
+StreamCollab da la bienvenida a todas las personas. Por favor, consulta nuestro [Código de conducta](.github/CODE_OF_CONDUCT.es.md) y nuestra [Declaración de accesibilidad](docs/ACCESSIBILITY.es.md) (objetivo: WCAG 2.1 nivel AA; qué está probado y qué no). Para contribuir código, traducciones o informes de errores, consulta [CONTRIBUTING.md](.github/CONTRIBUTING.md).
 
 ---
 

@@ -8,7 +8,7 @@ body:
       value: |
         Thanks for reporting! Please search the existing issues first. / ¡Gracias por avisar! Busca antes entre los issues existentes.
 
-        **Security vulnerabilities:** don't open an issue, report them privately as described in [SECURITY.md](https://github.com/Consterna/streamcollab/blob/main/SECURITY.md). / **Vulnerabilidades de seguridad:** no abras un issue, infórmalas en privado como se explica en [SECURITY.md](https://github.com/Consterna/streamcollab/blob/main/SECURITY.md).
+        **Security vulnerabilities:** don't open an issue, report them privately as described in [SECURITY.md](https://github.com/Consterna/streamcollab/blob/main/.github/SECURITY.md). / **Vulnerabilidades de seguridad:** no abras un issue, infórmalas en privado como se explica en [SECURITY.md](https://github.com/Consterna/streamcollab/blob/main/.github/SECURITY.md).
 
         Never paste host tokens, member tokens or OBS passwords. / No pegues nunca host tokens, member tokens ni contraseñas de OBS.
 

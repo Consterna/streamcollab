@@ -205,7 +205,7 @@ Room codes are accepted in any letter case (`kq7p-m3xd` joins `KQ7P-M3XD`). An I
 
 Rooms created with v1.0/v1.1 have no host token: they stay readable and markable but sessions can't be started or stopped there. Create a new room.
 
-To report a vulnerability, see [SECURITY.md](SECURITY.md).
+To report a vulnerability, see [SECURITY.md](.github/SECURITY.md).
 
 ---
 
@@ -326,7 +326,7 @@ In development, `@streamcollab/shared` is resolved from its TypeScript sources t
 
 GitHub Actions (`.github/workflows/ci.yml`) runs the same checks plus `npm audit` on production dependencies, then builds the Docker image and smoke-tests it (health, client, room creation, graceful shutdown exit code).
 
-Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md).
+Contributions are welcome: see [CONTRIBUTING.md](.github/CONTRIBUTING.md).
 
 ### 4. Start Development Servers
 In two terminal windows:
@@ -390,12 +390,14 @@ streamcollab/
 ├── obs-scripts/
 │   └── streamcollab-hotkeys.lua  # OBS global hotkeys → Dock (via obs-websocket)
 │
-├── docs/                  # Stream Deck guide and real-OBS test checklist (English / Spanish)
+├── docs/                  # Accessibility statement, Stream Deck guide, real-OBS test checklist (English / Spanish)
 ├── e2e/                   # Playwright end-to-end tests
+├── scripts/               # Release notes built from the changelogs
 ├── deploy/Caddyfile       # HTTPS reverse proxy for docker-compose
 ├── Dockerfile             # Multi-stage production image
 ├── docker-compose.yml     # App + Caddy (automatic HTTPS / WSS)
-├── .github/workflows/ci.yml  # Lint, format, typecheck, test, build, Docker smoke test
+├── .github/               # CI / release / mutation workflows, issue templates, contributing guide,
+│                          # security policy and code of conduct
 ├── .env.example           # Environment template
 ├── package.json           # npm workspaces monorepo configuration
 ├── tsconfig.json          # Solution file: `tsc -b` builds shared -> server
@@ -403,6 +405,7 @@ streamcollab/
 ├── eslint.config.mjs      # ESLint 10 flat config (typescript-eslint, react-hooks)
 ├── .prettierrc.json
 ├── playwright.config.ts
+├── stryker.config.mjs     # Mutation testing, run on demand
 └── vitest.config.mts
 ```
 
@@ -456,7 +459,7 @@ Mutation testing of the timecode engine and exporters (Stryker, on demand) is de
 
 ## 🤝 Community & Accessibility
 
-StreamCollab welcomes everyone. Please review our [Code of Conduct](CODE_OF_CONDUCT.md) and our [Accessibility Statement](ACCESSIBILITY.md) (target: WCAG 2.1 Level AA; what is and isn't tested yet). To contribute code, translations, or bug reports, see [CONTRIBUTING.md](CONTRIBUTING.md).
+StreamCollab welcomes everyone. Please review our [Code of Conduct](.github/CODE_OF_CONDUCT.md) and our [Accessibility Statement](docs/ACCESSIBILITY.md) (target: WCAG 2.1 Level AA; what is and isn't tested yet). To contribute code, translations, or bug reports, see [CONTRIBUTING.md](.github/CONTRIBUTING.md).
 
 ---
 

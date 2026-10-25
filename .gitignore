@@ -14,7 +14,7 @@ test-results/
 playwright-report/
 blob-report/
 
-# Local launch configs
+# Other build outputs and tool caches
 build/
 out/
 .cache/

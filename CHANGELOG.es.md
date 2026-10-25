@@ -9,6 +9,9 @@ y este proyecto se adhiere al [Versionado Semántico](https://semver.org/lang/es
 
 ## [Unreleased]
 
+### Cambiado
+- Los archivos de la comunidad se ordenan como espera GitHub: el código de conducta, la guía para contribuir y la política de seguridad (con sus versiones en español) están en `.github/`, y la declaración de accesibilidad en `docs/`. GitHub los sigue mostrando en la página del repositorio; todos los enlaces apuntan al nuevo lugar.
+
 ## [1.6.2] - 2026-10-25
 
 ### Seguridad

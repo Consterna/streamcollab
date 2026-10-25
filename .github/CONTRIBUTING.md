@@ -7,7 +7,7 @@ Thanks for helping with StreamCollab! Bug reports, fixes, translations and docum
 - **Bugs and ideas:** open an issue with the bug report or feature request form.
 - **Vulnerabilities:** never in a public issue, see [SECURITY.md](SECURITY.md).
 - **Code of Conduct:** all contributors must adhere to our [Code of Conduct](CODE_OF_CONDUCT.md).
-- **Accessibility:** UI changes must keep the accessibility checks passing (`e2e/a11y.spec.ts`, WCAG 2.1 AA rules) and follow our [Accessibility Statement](ACCESSIBILITY.md).
+- **Accessibility:** UI changes must keep the accessibility checks passing (`e2e/a11y.spec.ts`, WCAG 2.1 AA rules) and follow our [Accessibility Statement](../docs/ACCESSIBILITY.md).
 
 ## Setup
 
@@ -25,7 +25,7 @@ npm run e2e      # Playwright end-to-end tests against the compiled server
 > On Windows PowerShell, use `npm.cmd` / `npx.cmd` if script execution is blocked.
 
 For day-to-day work run `npm run dev:server` and `npm run dev:client` in two terminals and open
-`http://localhost:5173/?view=dashboard`. The README's [Developer Workflow](README.md#developer-workflow) table lists every script.
+`http://localhost:5173/?view=dashboard`. The README's [Developer Workflow](../README.md#developer-workflow) table lists every script.
 
 ## Making a change
 
@@ -59,7 +59,7 @@ If you can only write one of the languages, say so in the pull request and we wi
 
 ## License
 
-By contributing, you agree that your contributions are licensed under the [MIT License](LICENSE).
+By contributing, you agree that your contributions are licensed under the [MIT License](../LICENSE).
 
 ---
 
@@ -72,7 +72,7 @@ By contributing, you agree that your contributions are licensed under the [MIT L
 - **Errores e ideas:** abre un issue con el formulario de error o de propuesta.
 - **Vulnerabilidades:** nunca en un issue público, consulta [SECURITY.md](SECURITY.md).
 - **Código de conducta:** todos los colaboradores deben cumplir con nuestro [Código de conducta](CODE_OF_CONDUCT.es.md).
-- **Accesibilidad:** los cambios de interfaz deben mantener en verde las comprobaciones de accesibilidad (`e2e/a11y.spec.ts`, reglas WCAG 2.1 AA) y seguir nuestra [Declaración de accesibilidad](ACCESSIBILITY.es.md).
+- **Accesibilidad:** los cambios de interfaz deben mantener en verde las comprobaciones de accesibilidad (`e2e/a11y.spec.ts`, reglas WCAG 2.1 AA) y seguir nuestra [Declaración de accesibilidad](../docs/ACCESSIBILITY.es.md).
 
 ## Preparar el entorno
 
@@ -90,7 +90,7 @@ npm run e2e      # tests end-to-end con Playwright contra el servidor compilado
 > En Windows PowerShell, usa `npm.cmd` / `npx.cmd` si la ejecución de scripts está bloqueada.
 
 Para el trabajo diario, ejecuta `npm run dev:server` y `npm run dev:client` en dos terminales y abre
-`http://localhost:5173/?view=dashboard`. La tabla [Flujo de trabajo](README.es.md#flujo-de-trabajo) del README lista todos los scripts.
+`http://localhost:5173/?view=dashboard`. La tabla [Flujo de trabajo](../README.es.md#flujo-de-trabajo) del README lista todos los scripts.
 
 ## Hacer un cambio
 
@@ -124,4 +124,4 @@ Si solo puedes escribir en uno de los dos idiomas, dilo en el pull request y te 
 
 ## Licencia
 
-Al contribuir, aceptas que tus contribuciones se publiquen bajo la [licencia MIT](LICENSE).
+Al contribuir, aceptas que tus contribuciones se publiquen bajo la [licencia MIT](../LICENSE).
