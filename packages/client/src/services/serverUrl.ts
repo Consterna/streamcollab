@@ -29,6 +29,13 @@ export function apiUrl(pathname: string): string {
   return `${SERVER_BASE}${pathname}`;
 }
 
+/** REST path of an export download (room, session and member ids URL-encoded) */
+export function exportPath(format: string, roomId: string, sessionId: string, memberId?: string): string {
+  const params = new URLSearchParams({ sessionId });
+  if (memberId) params.set('memberId', memberId);
+  return `/api/rooms/${encodeURIComponent(roomId)}/export/${format}?${params}`;
+}
+
 /** WebSocket endpoint (ws:// or wss:// to match the server's scheme) */
 export function wsUrl(): string {
   if (SERVER_BASE) {

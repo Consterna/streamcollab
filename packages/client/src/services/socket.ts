@@ -16,6 +16,9 @@ import { wsUrl } from './serverUrl';
 // Errors after which the server did not add this socket to the room
 const JOIN_REFUSED_CODES = new Set<ErrorCode>(['ROOM_NOT_FOUND', 'HOST_TOKEN_INVALID', 'MEMBER_TOKEN_INVALID']);
 
+// Consecutive RTT spikes (one ping every 5 s) after which the clock filter re-baselines
+export const SNTP_REBASELINE_AFTER_SPIKES = 3;
+
 export interface JoinedInfo {
   roomId: string;
   clientKind: ClientKind;
@@ -56,9 +59,14 @@ export class StreamCollabSocketClient {
   private clockOffsetMs = 0;
   private rttMs = 0;
   private hasSntpSample = false;
+  // Spikes rejected in a row: that many means the network path itself changed (Wi-Fi to 4G, VPN...)
+  private sntpRejectedInARow = 0;
 
   // Current session/room context
   private currentRoomId = '';
+  // Rejoin currentRoomId by itself on every reconnect; off once the server said the room is gone
+  // (an explicit joinRoom() / rejoin() still asks for it, e.g. after the host created it)
+  private autoRejoin = true;
   private currentKind: ClientKind = 'dock';
   private currentMember: Omit<SquadMember, 'lastHeartbeat' | 'clockOffsetMs' | 'rttMs'> | undefined;
 
@@ -143,21 +151,27 @@ export class StreamCollabSocketClient {
     }
 
     try {
-      this.ws = new WebSocket(this.serverUrl);
+      const ws = new WebSocket(this.serverUrl);
+      this.ws = ws;
+      // Late events of a socket this client already replaced must not touch the current one
+      const current = () => this.ws === ws;
 
-      this.ws.onopen = () => {
+      ws.onopen = () => {
+        if (!current()) return;
+        // The backoff only resets once the server accepts this client into its room (JOINED):
+        // a server that opens and then closes (join timeout, rate limit) keeps backing off
         this.isConnected = true;
-        this.reconnectAttempts = 0;
         this.emitConnectionChange(true);
         this.startSntpCalibration();
 
         // If we were already in a room, rejoin
-        if (this.currentRoomId) {
+        if (this.currentRoomId && this.autoRejoin) {
           this.joinRoom(this.currentRoomId, this.currentKind, this.currentMember);
         }
       };
 
-      this.ws.onmessage = (event) => {
+      ws.onmessage = (event) => {
+        if (!current()) return;
         try {
           const msg: ServerMessage = JSON.parse(event.data);
           this.handleServerMessage(msg);
@@ -166,12 +180,12 @@ export class StreamCollabSocketClient {
         }
       };
 
-      this.ws.onclose = () => {
-        this.handleDisconnect();
+      ws.onclose = () => {
+        if (current()) this.handleDisconnect();
       };
 
-      this.ws.onerror = () => {
-        this.handleDisconnect();
+      ws.onerror = () => {
+        if (current()) this.handleDisconnect();
       };
     } catch (err) {
       this.handleDisconnect();
@@ -207,9 +221,13 @@ export class StreamCollabSocketClient {
         // Jitter spike outlier rejection:
         // Reject samples with extreme RTT spikes (> 2.5x baseline and > 100ms)
         // to protect the calibrated timeline from transient network congestion / bufferbloat.
-        if (this.hasSntpSample && currentRtt > Math.max(100, this.rttMs * 2.5)) {
+        // Several spikes in a row are the new normal of a changed network path: start over from it.
+        const spike = this.hasSntpSample && currentRtt > Math.max(100, this.rttMs * 2.5);
+        if (spike && ++this.sntpRejectedInARow < SNTP_REBASELINE_AFTER_SPIKES) {
           break;
         }
+        if (spike) this.hasSntpSample = false;
+        this.sntpRejectedInARow = 0;
 
         // Exponential moving average filter
         if (!this.hasSntpSample) {
@@ -269,6 +287,8 @@ export class StreamCollabSocketClient {
 
       case 'ROOM_DELETED':
         this.isJoined = false;
+        // Never rejoin a deleted room on the next reconnect
+        if (msg.payload.roomId === this.currentRoomId) this.autoRejoin = false;
         this.emit('onRoomDeleted', msg.payload.roomId);
         break;
 
@@ -283,6 +303,7 @@ export class StreamCollabSocketClient {
           saveMemberToken(this.currentMember.id, memberToken);
         }
         this.isJoined = true;
+        this.reconnectAttempts = 0;
         this.emit('onJoined', info);
         break;
       }
@@ -291,6 +312,13 @@ export class StreamCollabSocketClient {
         // A refused join leaves this socket outside any room
         if (msg.payload.code && JOIN_REFUSED_CODES.has(msg.payload.code)) {
           this.isJoined = false;
+        }
+        // An unknown room isn't retried on every reconnect (each try counts against this IP); typing the
+        // code again calls rejoin(), which asks once more. RATE_LIMITED is retried: it is temporary, the
+        // backoff spaces the tries up to 15 s and a refused try doesn't count against the limit, so the
+        // Dock gets back in by itself once it clears
+        if (msg.payload.code === 'ROOM_NOT_FOUND') {
+          this.autoRejoin = false;
         }
         this.emit('onError', msg.payload);
         break;
@@ -353,6 +381,7 @@ export class StreamCollabSocketClient {
     member?: Omit<SquadMember, 'lastHeartbeat' | 'clockOffsetMs' | 'rttMs'>
   ) {
     this.currentRoomId = roomId;
+    this.autoRejoin = true;
     this.currentKind = clientKind;
     this.currentMember = clientKind === 'dock' ? member : undefined;
     this.isJoined = false;
@@ -420,7 +449,8 @@ export class StreamCollabSocketClient {
           category: data.category,
           label: data.label,
           comment: data.comment,
-          color: data.color || 'Blue',
+          // No color chosen: the server gives the category's NLE color (kill red, wipe fuchsia...)
+          color: data.color,
           tags: data.tags,
           obsRecordMs: data.obsRecordMs ?? undefined,
         },
@@ -500,6 +530,9 @@ export class StreamCollabSocketClient {
     this.isConnected = false;
     this.isJoined = false;
     this.hasSntpSample = false;
+    // A later connect() joins only the room it is told to (the App joins again after connecting)
+    this.currentRoomId = '';
+    this.currentMember = undefined;
     this.emitConnectionChange(false);
   }
 }

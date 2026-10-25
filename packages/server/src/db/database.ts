@@ -150,7 +150,22 @@ const MIGRATIONS: string[] = [
       WHERE stopped_at IS NULL
         AND id NOT IN (SELECT active_session_id FROM rooms WHERE active_session_id IS NOT NULL);
   `,
+  // v5 — (v1.6.2) v4 could close an orphan at a marker taken just before the session started, which
+  // left stopped_at < started_at. Also records when the server was last alive and whether it shut
+  // down cleanly, so a restart can tell a deploy from a crash.
+  `
+    UPDATE recording_sessions SET stopped_at = started_at
+      WHERE stopped_at IS NOT NULL AND stopped_at < started_at;
+
+    CREATE TABLE server_state (
+      key TEXT PRIMARY KEY,
+      value INTEGER NOT NULL
+    );
+  `,
 ];
+
+// A clean shutdown older than this is treated like a crash: nobody was recording through it
+export const RESUME_AFTER_CLEAN_SHUTDOWN_MS = 10 * 60_000;
 
 // Shapes of SQLite rows as returned by node:sqlite (snake_case columns)
 interface RoomRow {
@@ -232,7 +247,14 @@ export class DatabaseService {
     }
 
     this.db = new DatabaseSync(finalPath);
-    this.init();
+    try {
+      this.init();
+    } catch (err) {
+      // Don't keep the file open (and locked on Windows) when it can't be used
+      this.open = false;
+      this.db.close();
+      throw err;
+    }
   }
 
   private init() {
@@ -246,23 +268,59 @@ export class DatabaseService {
   }
 
   private inTx = false;
+  private afterCommitQueue: (() => void)[] = [];
 
-  /** Run a callback inside a BEGIN IMMEDIATE ... COMMIT transaction with rollback on error */
+  /**
+   * Run a callback inside a BEGIN IMMEDIATE ... COMMIT transaction with rollback on error.
+   * Nested calls join the outer transaction.
+   */
   transaction<T>(fn: () => T): T {
     if (this.inTx) {
       return fn();
     }
-    this.inTx = true;
+    // A BEGIN that fails (SQLITE_BUSY past busy_timeout) leaves nothing to undo: throw before inTx is set
     this.db.exec('BEGIN IMMEDIATE');
+    this.inTx = true;
+    let committed = false;
     try {
       const result = fn();
       this.db.exec('COMMIT');
+      committed = true;
       return result;
     } catch (err) {
-      this.db.exec('ROLLBACK');
+      // SQLite may have rolled back on its own already (SQLITE_FULL, IOERR); keep the original error
+      if (this.db.isTransaction) {
+        try {
+          this.db.exec('ROLLBACK');
+        } catch {
+          // the original error is the useful one
+        }
+      }
       throw err;
     } finally {
       this.inTx = false;
+      const queued = this.afterCommitQueue;
+      this.afterCommitQueue = [];
+      if (committed) {
+        // The commit already happened: a failing callback (a broadcast) must neither turn it into an
+        // error for the caller nor keep the other callbacks from running
+        for (const callback of queued) {
+          try {
+            callback();
+          } catch (err) {
+            console.error('[StreamCollab] after-commit callback failed:', err);
+          }
+        }
+      }
+    }
+  }
+
+  /** Run `callback` once the current transaction commits (now, if there is none); dropped on rollback */
+  afterCommit(callback: () => void) {
+    if (this.inTx) {
+      this.afterCommitQueue.push(callback);
+    } else {
+      callback();
     }
   }
 
@@ -329,9 +387,75 @@ export class DatabaseService {
     return this.reconcileOrphanSessions({ closeActive: true });
   }
 
+  private getState(key: string): number | null {
+    const row = this.stmt('SELECT value FROM server_state WHERE key = ?').get(key) as { value: number } | undefined;
+    return row ? Number(row.value) : null;
+  }
+
+  private setState(key: string, value: number) {
+    this.stmt(
+      'INSERT INTO server_state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
+    ).run(key, value);
+  }
+
+  /** Written periodically while the server runs: after a crash, sessions ran at least until then */
+  markAlive(now: number = Date.now()) {
+    this.setState('last_alive_at', now);
+  }
+
+  /** Written by the graceful shutdown, just before the database closes */
+  markCleanShutdown(now: number = Date.now()) {
+    this.setState('last_alive_at', now);
+    this.setState('clean_shutdown_at', now);
+  }
+
+  /**
+   * Startup reconciliation.
+   * - After a recent clean shutdown (a deploy or restart), running sessions keep running: OBS kept
+   *   recording and the docks reconnect on their own.
+   * - After a crash, or a clean shutdown older than RESUME_AFTER_CLEAN_SHUTDOWN_MS, running sessions
+   *   are closed at the last moment they are known to have run (latest marker or server heartbeat).
+   * In both cases no dock is connected yet, so nobody is "recording": that status is reported again
+   * on rejoin, and a session started before then must not anchor a stale recording file.
+   */
+  recoverAfterRestart(now: number = Date.now()): { resumed: boolean; closedCount: number } {
+    return this.transaction(() => {
+      const cleanShutdownAt = this.getState('clean_shutdown_at');
+      const lastAliveAt = this.getState('last_alive_at');
+      this.stmt('DELETE FROM server_state WHERE key = ?').run('clean_shutdown_at');
+      this.db.exec("UPDATE members SET obs_status = 'disconnected' WHERE obs_status <> 'disconnected'");
+
+      const resumed = cleanShutdownAt !== null && now - cleanShutdownAt <= RESUME_AFTER_CLEAN_SHUTDOWN_MS;
+      if (resumed) {
+        return { resumed, ...this.reconcileOrphanSessions() };
+      }
+
+      const unstopped = this.stmt('SELECT id FROM recording_sessions WHERE stopped_at IS NULL').all();
+      this.stmt(
+        `UPDATE recording_sessions
+         SET stopped_at = MAX(
+           started_at,
+           COALESCE((SELECT MAX(timestamp) FROM markers WHERE markers.session_id = recording_sessions.id), started_at),
+           COALESCE(?, started_at)
+         )
+         WHERE stopped_at IS NULL`
+      ).run(lastAliveAt);
+      this.db.exec('UPDATE rooms SET active_session_id = NULL WHERE active_session_id IS NOT NULL');
+      return { resumed, closedCount: unstopped.length };
+    });
+  }
+
   private migrate() {
     const row = this.db.prepare('PRAGMA user_version').get() as { user_version: number };
     const current = Number(row.user_version);
+
+    // A database written by a newer StreamCollab has tables this build doesn't know how to keep consistent
+    if (current > MIGRATIONS.length) {
+      throw new Error(
+        `Database schema v${current} is newer than this StreamCollab build supports (v${MIGRATIONS.length}). ` +
+          'Upgrade StreamCollab or restore a backup made by this version.'
+      );
+    }
 
     for (let version = current; version < MIGRATIONS.length; version++) {
       this.db.exec('BEGIN IMMEDIATE');
@@ -540,13 +664,23 @@ export class DatabaseService {
     });
   }
 
+  /**
+   * Stop a running session. Returns null when it doesn't exist or already stopped (its stop time is
+   * never moved). The room's active session is only cleared if it is this one.
+   */
   stopSession(sessionId: string, stoppedAt: number = Date.now()): RecordingSession | null {
     return this.transaction(() => {
-      this.stmt('UPDATE recording_sessions SET stopped_at = ? WHERE id = ?').run(stoppedAt, sessionId);
+      const changed = this.stmt(
+        'UPDATE recording_sessions SET stopped_at = MAX(?, started_at) WHERE id = ? AND stopped_at IS NULL'
+      ).run(stoppedAt, sessionId).changes;
+      if (Number(changed) === 0) return null;
 
       const session = this.getSession(sessionId);
       if (session) {
-        this.setRoomActiveSession(session.roomId, null);
+        this.stmt('UPDATE rooms SET active_session_id = NULL WHERE id = ? AND active_session_id = ?').run(
+          session.roomId,
+          sessionId
+        );
       }
       return session;
     });
@@ -579,9 +713,9 @@ export class DatabaseService {
   }
 
   getLatestSession(roomId: string): RecordingSession | null {
-    const row = this.stmt('SELECT * FROM recording_sessions WHERE room_id = ? ORDER BY started_at DESC LIMIT 1').get(
-      roomId
-    ) as SessionRow | undefined;
+    const row = this.stmt(
+      'SELECT * FROM recording_sessions WHERE room_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1'
+    ).get(roomId) as SessionRow | undefined;
     return row ? this.mapSession(row) : null;
   }
 

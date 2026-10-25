@@ -1,5 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef, useEffectEvent } from 'react';
-import { SquadMarker, SquadMember, RecordingSession, Room, MarkerCategory, SMPTETimecode } from '@streamcollab/shared';
+import {
+  SquadMarker,
+  SquadMember,
+  RecordingSession,
+  Room,
+  MarkerCategory,
+  SMPTETimecode,
+  LIMITS,
+} from '@streamcollab/shared';
 import { ObsService, ObsRecordStatus, ObsVideoSettings, ObsHotkeySignal, ObsChapterSupport } from '../services/obs';
 import {
   getBoolPreference,
@@ -11,6 +19,7 @@ import { StreamCollabSocketClient } from '../services/socket';
 import { getMemberToken } from '../services/credentials';
 import { useT } from '../i18n';
 import { ExportModal } from '../components/ExportModal';
+import { dockClockMs } from './dockClock';
 import {
   Crosshair,
   Skull,
@@ -161,14 +170,15 @@ export const DockView: React.FC<DockViewProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [obsService]);
 
-  // Wall clock for the session timecode while OBS isn't recording (ticks only when it is shown)
-  const [now, setNow] = useState(() => Date.now());
-  const showSessionClock = Boolean(activeSession) && !recordStatus?.outputActive;
+  // Server-calibrated clock for the session timecode, the one markers are stamped with (ticks only
+  // while a session runs, which is when the clock shows it)
+  const [now, setNow] = useState(() => socketClient.getCalibratedNow());
+  const showSessionClock = Boolean(activeSession);
   useEffect(() => {
     if (!showSessionClock) return;
-    const interval = setInterval(() => setNow(Date.now()), 250);
+    const interval = setInterval(() => setNow(socketClient.getCalibratedNow()), 250);
     return () => clearInterval(interval);
-  }, [showSessionClock]);
+  }, [showSessionClock, socketClient]);
 
   // Keep local duration ticking smoothly if recording
   useEffect(() => {
@@ -278,14 +288,18 @@ export const DockView: React.FC<DockViewProps> = ({
       if (target && (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable)) {
         return;
       }
+      // Holding a key repeats it (one marker per press), and a dialog on top owns the keyboard
+      if (e.repeat || typeof e.key !== 'string' || document.querySelector('[aria-modal="true"]')) return;
 
-      if (e.key === '0' || (e.key.toLowerCase() === 'z' && (e.ctrlKey || e.metaKey))) {
+      const undoShortcut = e.key.toLowerCase() === 'z' && (e.ctrlKey || e.metaKey) && !e.altKey;
+      if (undoShortcut || (e.key === '0' && !e.ctrlKey && !e.metaKey && !e.altKey)) {
         e.preventDefault();
         handleUndo();
         return;
       }
 
-      const category = keyToCategory[e.key];
+      // Ctrl+1 / Alt+1 are browser and OBS shortcuts, not markers
+      const category = e.ctrlKey || e.metaKey || e.altKey ? undefined : keyToCategory[e.key];
       if (category) {
         e.preventDefault();
         handleQuickMark(category, quickLabel(category));
@@ -304,7 +318,12 @@ export const DockView: React.FC<DockViewProps> = ({
   });
 
   const displayTimecode = tc.relativeMsToTimecode(
-    recordStatus?.outputActive ? elapsedDurationMs : activeSession ? Math.max(0, now - activeSession.startedAt) : 0,
+    dockClockMs({
+      now,
+      session: activeSession,
+      recording: Boolean(recordStatus?.outputActive),
+      recordingElapsedMs: elapsedDurationMs,
+    }),
     activeSession?.baseTimecode || '01:00:00:00'
   );
 
@@ -357,7 +376,7 @@ export const DockView: React.FC<DockViewProps> = ({
           <div className="hidden sm:flex items-center gap-1.5 text-[10px] text-zinc-400 font-mono bg-zinc-950 px-2 py-1 rounded-sm border border-zinc-800/80">
             <Activity className="h-3 w-3 text-indigo-400" />
             <span>RTT: {sntpStats.rtt}ms</span>
-            <span className="text-zinc-600">|</span>
+            <span className="text-zinc-400">|</span>
             <span>Δ: {sntpStats.offset > 0 ? `+${sntpStats.offset}` : sntpStats.offset}ms</span>
           </div>
 
@@ -381,6 +400,7 @@ export const DockView: React.FC<DockViewProps> = ({
               type="text"
               value={obsAddress}
               onChange={(e) => setObsAddress(e.target.value)}
+              aria-label={t('dock.websocket')}
               className="flex-1 rounded-sm border border-zinc-700 bg-zinc-950 px-2 py-1 text-zinc-200 font-mono text-[11px]"
               placeholder="ws://127.0.0.1:4455"
             />
@@ -391,6 +411,7 @@ export const DockView: React.FC<DockViewProps> = ({
               type="password"
               value={obsPassword}
               onChange={(e) => setObsPassword(e.target.value)}
+              aria-label={t('dock.password')}
               className="flex-1 rounded-sm border border-zinc-700 bg-zinc-950 px-2 py-1 text-zinc-200 font-mono text-[11px]"
               placeholder={t('dock.passwordPlaceholder')}
             />
@@ -407,7 +428,7 @@ export const DockView: React.FC<DockViewProps> = ({
               {obsConnected ? t('dock.disconnect') : obsRetryMs !== null ? t('dock.retryNow') : t('dock.connect')}
             </button>
           </div>
-          <p className="pl-22 text-[10px] text-zinc-500">
+          <p className="pl-22 text-[10px] text-zinc-400">
             {t('dock.savedHint')}
             {obsRetryMs !== null ? t('dock.nextTry', { seconds: Math.round(obsRetryMs / 1000) }) : ''}.
           </p>
@@ -416,7 +437,7 @@ export const DockView: React.FC<DockViewProps> = ({
             <div className="flex-1 space-y-1">
               <div className="text-[11px]">
                 {chapterSupport.state === 'unknown' && (
-                  <span className="text-zinc-500">{t('dock.chaptersUnknown')}</span>
+                  <span className="text-zinc-400">{t('dock.chaptersUnknown')}</span>
                 )}
                 {chapterSupport.state === 'unsupported' && (
                   <span className="text-amber-400">
@@ -458,7 +479,7 @@ export const DockView: React.FC<DockViewProps> = ({
           </div>
           <div className="flex items-center gap-2">
             <span className="w-20 text-zinc-400 font-medium">{t('dock.httpToken')}</span>
-            <span className="flex-1 text-[11px] text-zinc-500">
+            <span className="flex-1 text-[11px] text-zinc-400">
               {t('dock.httpTokenHint', { room: roomId })} <span className="font-mono">{member.id}</span>
             </span>
             <button
@@ -615,7 +636,9 @@ export const DockView: React.FC<DockViewProps> = ({
           onSubmit={(e) => {
             e.preventDefault();
             if (customComment.trim()) {
-              handleQuickMark(selectedCategory, customComment.trim());
+              // The typed text is the marker's label; it is not repeated as its comment
+              handleQuickMark(selectedCategory, customComment.trim(), '');
+              setCustomComment('');
             }
           }}
           className="mt-2.5 flex flex-wrap items-center gap-2"
@@ -623,6 +646,7 @@ export const DockView: React.FC<DockViewProps> = ({
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value as MarkerCategory)}
+            aria-label={t('markerRow.category')}
             className="rounded-sm border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-200 focus:border-indigo-500 focus:outline-hidden"
           >
             <option value="kill">{t('dock.categoryOption.kill')}</option>
@@ -638,6 +662,8 @@ export const DockView: React.FC<DockViewProps> = ({
             value={customComment}
             onChange={(e) => setCustomComment(e.target.value)}
             placeholder={t('dock.customPlaceholder')}
+            aria-label={t('dock.customPlaceholder')}
+            maxLength={LIMITS.label}
             className="min-w-40 flex-1 rounded-sm border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-hidden"
           />
 
@@ -671,10 +697,10 @@ export const DockView: React.FC<DockViewProps> = ({
         </div>
 
         {markers.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-48 text-zinc-500 text-xs">
+          <div className="flex flex-col items-center justify-center h-48 text-zinc-400 text-xs">
             <Radio className="h-8 w-8 text-zinc-700 mb-2 animate-pulse" />
             <p>{t('dock.empty')}</p>
-            <p className="text-[11px] text-zinc-600 mt-1">{t('dock.emptyHint')}</p>
+            <p className="text-[11px] text-zinc-400 mt-1">{t('dock.emptyHint')}</p>
           </div>
         ) : (
           <div className="divide-y divide-zinc-900">
@@ -707,7 +733,7 @@ export const DockView: React.FC<DockViewProps> = ({
 
                   <div className="flex flex-col items-end text-right shrink-0">
                     <span className="text-[11px] font-semibold text-zinc-300">{m.memberName}</span>
-                    <span className="text-[10px] font-mono text-zinc-500">+{Math.round(m.relativeTimeMs / 1000)}s</span>
+                    <span className="text-[10px] font-mono text-zinc-400">+{Math.round(m.relativeTimeMs / 1000)}s</span>
                   </div>
                 </div>
               );

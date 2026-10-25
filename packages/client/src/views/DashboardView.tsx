@@ -1,13 +1,14 @@
-import React, { useEffect, useState } from 'react';
-import { MarkerChanges, Room, RecordingSession, SessionSummary, SquadMarker } from '@streamcollab/shared';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { LIMITS, MarkerChanges, Room, RecordingSession, SessionSummary, SquadMarker } from '@streamcollab/shared';
 import { StreamCollabSocketClient } from '../services/socket';
 import { ExportModal } from '../components/ExportModal';
 import { RoomSetupPanel } from '../components/RoomSetupPanel';
 import { MarkerRow } from '../components/MarkerRow';
 import { SessionHistory } from '../components/SessionHistory';
-import { apiUrl } from '../services/serverUrl';
+import { apiUrl, exportPath } from '../services/serverUrl';
 import { deleteSession } from '../services/api';
 import { useT, MessageKey, TranslateParams } from '../i18n';
+import { useDialogFocus } from '../hooks/useDialogFocus';
 import { Play, Square, Users, Film, Download, Radio, Search, Layers } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -45,8 +46,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const liveSession = activeSession || lastSession || null;
 
   // Session history: null = follow the current session; otherwise browse a past one
-  const [sessions, setSessions] = useState<SessionSummary[]>([]);
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  // Both belong to one room: after switching rooms they read as empty until the new room answers
+  const [sessionList, setSessionList] = useState<{ roomId: string; list: SessionSummary[] }>({ roomId: '', list: [] });
+  // (keyed by the room in use, not `room`, which still holds the previous room until ROOM_STATE arrives)
+  // (room codes match in any letter case)
+  const sessions = sessionList.roomId.toLowerCase() === roomId.toLowerCase() ? sessionList.list : [];
+  const [selection, setSelection] = useState<{ roomId: string; sessionId: string | null }>({
+    roomId,
+    sessionId: null,
+  });
+  const selectedSessionId = selection.roomId === roomId ? selection.sessionId : null;
+  const setSelectedSessionId = useCallback(
+    (update: string | null | ((current: string | null) => string | null)) =>
+      setSelection((prev) => {
+        const current = prev.roomId === roomId ? prev.sessionId : null;
+        return { roomId, sessionId: typeof update === 'function' ? update(current) : update };
+      }),
+    [roomId]
+  );
   const [history, setHistory] = useState<{ sessionId: string; markers: SquadMarker[] } | null>(null);
   const viewingHistory = Boolean(selectedSessionId && selectedSessionId !== liveSession?.id);
 
@@ -55,10 +72,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const sessionsKey = `${room?.id}|${activeSession?.id}|${lastSession?.stoppedAt}|${markers.length}|${deletedSessions}`;
   useEffect(() => {
     if (!room?.id) return;
+    const listRoomId = room.id;
     const controller = new AbortController();
-    fetch(apiUrl(`/api/rooms/${encodeURIComponent(room.id)}/sessions`), { signal: controller.signal })
+    fetch(apiUrl(`/api/rooms/${encodeURIComponent(listRoomId)}/sessions`), { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : []))
-      .then((list: SessionSummary[]) => setSessions(list))
+      .then((list: SessionSummary[]) => setSessionList({ roomId: listRoomId, list }))
       .catch(() => {
         // keep the previous list (network hiccup or aborted)
       });
@@ -96,7 +114,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     );
     const offSessionDeleted = socketClient.on('onSessionDeleted', (sessionId) => {
       setDeletedSessions((n) => n + 1);
-      setSelectedSessionId((current) => (current === sessionId ? null : current));
+      setSelection((prev) => (prev.sessionId === sessionId ? { ...prev, sessionId: null } : prev));
     });
     return () => {
       offUpdated();
@@ -112,7 +130,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     try {
       await deleteSession(roomId, session.id);
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : t('dash.deleteSessionFailed'));
+      window.alert(
+        err instanceof Error ? `${t('dash.deleteSessionFailed')}: ${err.message}` : t('dash.deleteSessionFailed')
+      );
     }
   };
 
@@ -140,6 +160,41 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   // Start session form state
   const [showStartModal, setShowStartModal] = useState(false);
+  const startDialogRef = useRef<HTMLFormElement>(null);
+  useDialogFocus(startDialogRef, showStartModal);
+
+  // Start and Stop replace each other whenever a session starts or stops (here, from another tab or
+  // by an Auto Session). If the removed button had the focus, the one that appears takes it instead of
+  // letting it fall to the page body (WCAG 2.4.3).
+  const sessionButtonRef = useRef<HTMLButtonElement>(null);
+  const focusedSessionButton = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const track = (e: FocusEvent) => {
+      focusedSessionButton.current = e.target === sessionButtonRef.current ? sessionButtonRef.current : null;
+    };
+    // Focus left for the page itself (a click on plain content): forget it, unless the button was removed
+    const leave = (e: FocusEvent) => {
+      const button = e.target;
+      if (e.relatedTarget || button !== focusedSessionButton.current) return;
+      setTimeout(() => {
+        if (button instanceof HTMLElement && button.isConnected && document.activeElement !== button) {
+          focusedSessionButton.current = null;
+        }
+      });
+    };
+    document.addEventListener('focusin', track);
+    document.addEventListener('focusout', leave);
+    return () => {
+      document.removeEventListener('focusin', track);
+      document.removeEventListener('focusout', leave);
+    };
+  }, []);
+  useEffect(() => {
+    const previous = focusedSessionButton.current;
+    if (!previous || previous.isConnected) return;
+    if (document.activeElement && document.activeElement !== document.body) return;
+    sessionButtonRef.current?.focus();
+  }, [activeSession?.id]);
   const [sessionName, setSessionName] = useState(() => t('dash.defaultSessionName'));
   const [baseTimecode, setBaseTimecode] = useState('01:00:00:00');
   const [selectedFramerate, setSelectedFramerate] = useState('60');
@@ -215,15 +270,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans select-none">
       {/* Top Navbar */}
-      <header className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900 px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/30">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 bg-zinc-900 px-6 py-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/30">
             <Radio className="h-5 w-5" />
           </div>
-          <div>
-            <h1 className="text-base font-bold text-white flex items-center gap-2">
+          <div className="min-w-0">
+            <h1 className="text-base font-bold text-white flex flex-wrap items-center gap-2">
               {t('dash.title')}
-              <span className="rounded-sm bg-indigo-500/20 px-2 py-0.5 text-xs font-mono text-indigo-400 border border-indigo-500/30">
+              <span className="break-all rounded-sm bg-indigo-500/20 px-2 py-0.5 text-xs font-mono text-indigo-400 border border-indigo-500/30">
                 {t('dash.room', { name: room?.name || roomId })}
               </span>
             </h1>
@@ -232,18 +287,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Master Recording Controls */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {activeSession ? (
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 rounded-lg bg-red-500/10 px-3 py-1.5 border border-red-500/30 text-xs">
-                <span className="h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
-                <span className="font-bold text-red-400">{activeSession.name}</span>
-                <span className="text-zinc-500">|</span>
+            <div className="flex min-w-0 flex-wrap items-center gap-3">
+              <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg bg-red-500/10 px-3 py-1.5 border border-red-500/30 text-xs">
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500 animate-pulse" />
+                <span className="min-w-0 break-words font-bold text-red-400">{activeSession.name}</span>
+                <span className="text-zinc-400">|</span>
                 <span className="font-mono text-zinc-300">
                   {activeSession.framerateNumerator}/{activeSession.framerateDenominator} fps
                 </span>
               </div>
               <button
+                ref={sessionButtonRef}
                 onClick={handleStopSession}
                 disabled={!isHost}
                 title={isHost ? undefined : t('dash.onlyHostStop')}
@@ -255,10 +311,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           ) : (
             <button
+              ref={sessionButtonRef}
               onClick={() => setShowStartModal(true)}
               disabled={!isHost || !room}
               title={isHost ? undefined : t('dash.onlyHostStart')}
-              className="disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-500 shadow-lg shadow-emerald-600/20 transition"
+              className="disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-600 shadow-lg shadow-emerald-600/20 transition"
             >
               <Play className="h-4 w-4" />
               {t('dash.startSession')}
@@ -301,10 +358,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             {members.length === 0 ? (
-              <div className="flex flex-col items-center justify-center p-8 text-zinc-500 text-xs">
+              <div className="flex flex-col items-center justify-center p-8 text-zinc-400 text-xs">
                 <Users className="h-8 w-8 text-zinc-700 mb-2" />
                 <p>{t('dash.noMembers')}</p>
-                <p className="text-[11px] text-zinc-600 mt-1">{t('dash.noMembersHint')}</p>
+                <p className="text-[11px] text-zinc-400 mt-1">{t('dash.noMembersHint')}</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -339,7 +396,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           <td className="py-2.5 font-sans">
                             {isOffline ? (
                               <span
-                                className="inline-flex items-center gap-1.5 rounded-full bg-zinc-900 px-2 py-0.5 text-[10px] font-medium text-zinc-500 border border-zinc-800"
+                                className="inline-flex items-center gap-1.5 rounded-full bg-zinc-900 px-2 py-0.5 text-[10px] font-medium text-zinc-400 border border-zinc-800"
                                 title={m.lastHeartbeat ? new Date(m.lastHeartbeat).toLocaleString() : undefined}
                               >
                                 {t('dash.status.offline')}
@@ -381,7 +438,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                               {isOffline && (
                                 <button
                                   onClick={() => handleRemoveMember(m.id, m.name)}
-                                  className="rounded-sm px-2 py-0.5 text-[11px] text-zinc-500 hover:bg-zinc-800 hover:text-red-400"
+                                  className="rounded-sm px-2 py-0.5 text-[11px] text-zinc-400 hover:bg-zinc-800 hover:text-red-400"
                                   title={t('dash.removeTitle')}
                                 >
                                   {t('dash.remove')}
@@ -414,22 +471,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
 
               {/* Filters */}
-              <div className="flex items-center gap-2">
-                <div className="relative">
-                  <Search className="h-3.5 w-3.5 text-zinc-500 absolute left-2.5 top-2.5" />
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative min-w-0 flex-1 sm:flex-none">
+                  <Search className="h-3.5 w-3.5 text-zinc-400 absolute left-2.5 top-2.5" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder={t('dash.search')}
-                    className="rounded-lg border border-zinc-700 bg-zinc-950 pl-8 pr-3 py-1 text-xs text-zinc-200 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-hidden w-40 sm:w-48"
+                    aria-label={t('dash.search')}
+                    className="rounded-lg border border-zinc-700 bg-zinc-950 pl-8 pr-3 py-1 text-xs text-zinc-200 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-hidden w-full sm:w-48"
                   />
                 </div>
 
                 <select
                   value={filterCategory}
                   onChange={(e) => setFilterCategory(e.target.value)}
-                  className="rounded-lg border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-xs text-zinc-200 focus:border-indigo-500 focus:outline-hidden"
+                  aria-label={t('markerRow.category')}
+                  className="min-w-0 max-w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-xs text-zinc-200 focus:border-indigo-500 focus:outline-hidden"
                 >
                   <option value="all">{t('dash.filter.all')}</option>
                   <option value="kill">{t('dash.filter.kill')}</option>
@@ -443,7 +502,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             {filteredMarkers.length === 0 ? (
-              <div className="p-8 text-center text-zinc-500 text-xs">{t('dash.noMatches')}</div>
+              <div className="p-8 text-center text-zinc-400 text-xs">{t('dash.noMatches')}</div>
             ) : (
               <div className="divide-y divide-zinc-800/80 max-h-96 overflow-y-auto">
                 {filteredMarkers.map((m) => (
@@ -493,27 +552,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {viewedSession ? (
               <div className="space-y-3 text-xs">
                 <div>
-                  <span className="text-zinc-500 block text-[11px]">{t('dash.sessionName')}</span>
+                  <span className="text-zinc-400 block text-[11px]">{t('dash.sessionName')}</span>
                   <span className="font-semibold text-white">{viewedSession.name}</span>
                 </div>
                 <div>
-                  <span className="text-zinc-500 block text-[11px]">{t('dash.framerate')}</span>
+                  <span className="text-zinc-400 block text-[11px]">{t('dash.framerate')}</span>
                   <span className="font-mono text-zinc-200">
                     {viewedSession.framerateNumerator}/{viewedSession.framerateDenominator} fps
                     {viewedSession.dropFrame ? t('dash.dropFrame') : t('dash.nonDropFrame')}
                   </span>
                 </div>
                 <div>
-                  <span className="text-zinc-500 block text-[11px]">{t('dash.baseTimecode')}</span>
+                  <span className="text-zinc-400 block text-[11px]">{t('dash.baseTimecode')}</span>
                   <span className="font-mono text-zinc-200">{viewedSession.baseTimecode}</span>
                 </div>
                 <div>
-                  <span className="text-zinc-500 block text-[11px]">{t('dash.startedAt')}</span>
+                  <span className="text-zinc-400 block text-[11px]">{t('dash.startedAt')}</span>
                   <span className="text-zinc-300">{new Date(viewedSession.startedAt).toLocaleString()}</span>
                 </div>
                 {viewedSession.stoppedAt && (
                   <div>
-                    <span className="text-zinc-500 block text-[11px]">{t('dash.duration')}</span>
+                    <span className="text-zinc-400 block text-[11px]">{t('dash.duration')}</span>
                     <span className="text-zinc-300 font-mono">
                       {Math.floor((viewedSession.stoppedAt - viewedSession.startedAt) / 60000)}m{' '}
                       {Math.floor(((viewedSession.stoppedAt - viewedSession.startedAt) % 60000) / 1000)}s
@@ -522,7 +581,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 )}
               </div>
             ) : (
-              <div className="text-xs text-zinc-500">{t('dash.noActiveSession')}</div>
+              <div className="text-xs text-zinc-400">{t('dash.noActiveSession')}</div>
             )}
           </div>
 
@@ -534,58 +593,73 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </h2>
             <div className="space-y-2">
               <a
-                href={viewedSession ? apiUrl(`/api/rooms/${roomId}/export/edl?sessionId=${viewedSession.id}`) : '#'}
+                href={viewedSession ? apiUrl(exportPath('edl', roomId, viewedSession.id)) : '#'}
                 download
+                // No session yet: inactive (not focusable, and announced as unavailable)
+                aria-disabled={viewedSession ? undefined : true}
+                tabIndex={viewedSession ? undefined : -1}
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
                   !viewedSession ? 'pointer-events-none opacity-40' : ''
                 }`}
               >
                 <span className="font-medium text-zinc-200">{t('dash.dl.edl')}</span>
-                <span className="font-mono text-[10px] text-zinc-500">.edl</span>
+                <span className="font-mono text-[10px] text-zinc-400">.edl</span>
               </a>
 
               <a
-                href={viewedSession ? apiUrl(`/api/rooms/${roomId}/export/xml?sessionId=${viewedSession.id}`) : '#'}
+                href={viewedSession ? apiUrl(exportPath('xml', roomId, viewedSession.id)) : '#'}
                 download
+                // No session yet: inactive (not focusable, and announced as unavailable)
+                aria-disabled={viewedSession ? undefined : true}
+                tabIndex={viewedSession ? undefined : -1}
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
                   !viewedSession ? 'pointer-events-none opacity-40' : ''
                 }`}
               >
                 <span className="font-medium text-zinc-200">{t('dash.dl.xml')}</span>
-                <span className="font-mono text-[10px] text-zinc-500">.xml</span>
+                <span className="font-mono text-[10px] text-zinc-400">.xml</span>
               </a>
 
               <a
-                href={viewedSession ? apiUrl(`/api/rooms/${roomId}/export/csv?sessionId=${viewedSession.id}`) : '#'}
+                href={viewedSession ? apiUrl(exportPath('csv', roomId, viewedSession.id)) : '#'}
                 download
+                // No session yet: inactive (not focusable, and announced as unavailable)
+                aria-disabled={viewedSession ? undefined : true}
+                tabIndex={viewedSession ? undefined : -1}
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
                   !viewedSession ? 'pointer-events-none opacity-40' : ''
                 }`}
               >
                 <span className="font-medium text-zinc-200">{t('dash.dl.csv')}</span>
-                <span className="font-mono text-[10px] text-zinc-500">.csv</span>
+                <span className="font-mono text-[10px] text-zinc-400">.csv</span>
               </a>
 
               <a
-                href={viewedSession ? apiUrl(`/api/rooms/${roomId}/export/youtube?sessionId=${viewedSession.id}`) : '#'}
+                href={viewedSession ? apiUrl(exportPath('youtube', roomId, viewedSession.id)) : '#'}
                 download
+                // No session yet: inactive (not focusable, and announced as unavailable)
+                aria-disabled={viewedSession ? undefined : true}
+                tabIndex={viewedSession ? undefined : -1}
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
                   !viewedSession ? 'pointer-events-none opacity-40' : ''
                 }`}
               >
                 <span className="font-medium text-zinc-200">{t('dash.dl.youtube')}</span>
-                <span className="font-mono text-[10px] text-zinc-500">.txt</span>
+                <span className="font-mono text-[10px] text-zinc-400">.txt</span>
               </a>
 
               <a
-                href={viewedSession ? apiUrl(`/api/rooms/${roomId}/export/matrix?sessionId=${viewedSession.id}`) : '#'}
+                href={viewedSession ? apiUrl(exportPath('matrix', roomId, viewedSession.id)) : '#'}
                 download
+                // No session yet: inactive (not focusable, and announced as unavailable)
+                aria-disabled={viewedSession ? undefined : true}
+                tabIndex={viewedSession ? undefined : -1}
                 className={`flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500 hover:bg-indigo-500/10 text-xs transition ${
                   !viewedSession ? 'pointer-events-none opacity-40' : ''
                 }`}
               >
                 <span className="font-medium text-zinc-200">{t('dash.dl.matrix')}</span>
-                <span className="font-mono text-[10px] text-zinc-500">.json</span>
+                <span className="font-mono text-[10px] text-zinc-400">.json</span>
               </a>
             </div>
           </div>
@@ -596,6 +670,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {showStartModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4">
           <form
+            ref={startDialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="start-session-modal-title"
@@ -616,6 +691,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 type="text"
                 required
                 value={sessionName}
+                maxLength={LIMITS.sessionName}
                 onChange={(e) => setSessionName(e.target.value)}
                 className="w-full rounded-sm border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs text-white focus:border-indigo-500 focus:outline-hidden"
               />
@@ -673,11 +749,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 type="text"
                 required
                 value={baseTimecode}
-                onChange={(e) => setBaseTimecode(e.target.value)}
+                onChange={(e) => setBaseTimecode(e.target.value.trim())}
                 placeholder="01:00:00:00"
+                // Same rule as the server: the form stays open instead of losing the input
+                pattern="\d{2}:\d{2}:\d{2}[:;]\d{2}"
+                title="HH:MM:SS:FF"
                 className="w-full rounded-sm border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs font-mono text-white focus:border-indigo-500 focus:outline-hidden"
               />
-              <p className="text-[10px] text-zinc-500 mt-1">{t('dash.form.baseHint')}</p>
+              <p className="text-[10px] text-zinc-400 mt-1">{t('dash.form.baseHint')}</p>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
@@ -690,7 +769,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </button>
               <button
                 type="submit"
-                className="rounded-sm bg-emerald-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-emerald-500"
+                className="rounded-sm bg-emerald-700 px-4 py-1.5 text-xs font-bold text-white hover:bg-emerald-600"
               >
                 {t('dash.form.start')}
               </button>

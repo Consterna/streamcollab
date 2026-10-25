@@ -79,14 +79,15 @@ describe('Exporters Conformance & Security Verification', () => {
 
       categories.forEach((cat) => {
         const expectedColor = CATEGORY_TO_DAVINCI_COLOR[cat];
-        expect(edl).toContain(
-          `* LOC: 01:00:${String(categories.indexOf(cat) * 5).padStart(2, '0')}:00 ${expectedColor}`
-        );
+        const tcIn = `01:00:${String(categories.indexOf(cat) * 5).padStart(2, '0')}:00`;
+        const event = edl.split('\r\n').findIndex((line) => line.includes(`C        ${tcIn} `));
+        expect(event).toBeGreaterThan(0);
+        expect(edl.split('\r\n')[event + 1]).toBe(` |C:ResolveColor${expectedColor} |M:Event ${cat} [Player1] |D:1`);
       });
     });
 
     it('allows explicit custom color overrides in markers', () => {
-      const customColors: DaVinciMarkerColor[] = ['Orange', 'Pink', 'Cocoa', 'Mint', 'Sand'];
+      const customColors: DaVinciMarkerColor[] = ['Pink', 'Cocoa', 'Mint', 'Sand', 'Lavender'];
       const markers: SquadMarker[] = customColors.map((color, idx) => ({
         id: `custom-${idx}`,
         roomId: 'room-conf',
@@ -104,7 +105,7 @@ describe('Exporters Conformance & Security Verification', () => {
 
       const edl = exportToEdl(baseSession, markers);
       customColors.forEach((color) => {
-        expect(edl).toContain(` ${color} Note with ${color}`);
+        expect(edl).toContain(` |C:ResolveColor${color} |M:Note with ${color} [Director] |D:1`);
       });
     });
 

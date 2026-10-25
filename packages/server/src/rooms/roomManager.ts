@@ -15,6 +15,7 @@ import {
   DaVinciMarkerColor,
   SessionSummary,
   resolveMemberFramerate,
+  isPlausibleObsFramerate,
 } from '@streamcollab/shared';
 import { DatabaseService } from '../db/database.js';
 import { generateRoomCode, generateToken, hashToken, tokenMatches } from '../auth/tokens.js';
@@ -63,6 +64,7 @@ export class RoomManager {
   private clients: Map<WebSocket, ConnectedClient> = new Map();
   // roomId -> sockets subscribed to that room
   private roomSockets: Map<string, Set<WebSocket>> = new Map();
+  private detachListeners: ((socket: WebSocket) => void)[] = [];
 
   constructor(db: DatabaseService) {
     this.db = db;
@@ -76,6 +78,16 @@ export class RoomManager {
   /** Crash recovery reconciliation: auto-close unstopped sessions across all rooms */
   reconcileCrashRecovery(): { closedCount: number } {
     return this.db.reconcileCrashRecovery();
+  }
+
+  /** Startup: resume sessions after a recent clean shutdown, close them after a crash */
+  recoverAfterRestart(now?: number): { resumed: boolean; closedCount: number } {
+    return this.db.recoverAfterRestart(now);
+  }
+
+  /** Called with each socket the manager takes out of its room without closing it (room deleted) */
+  onClientDetached(listener: (socket: WebSocket) => void) {
+    this.detachListeners.push(listener);
   }
 
   // Room lifecycle
@@ -134,14 +146,21 @@ export class RoomManager {
   /** Delete the room and all its data; connected clients are told and detached (host-only) */
   deleteRoom(roomId: string) {
     this.broadcastToRoom(roomId, { type: 'ROOM_DELETED', payload: { roomId } });
-    for (const socket of [...(this.roomSockets.get(roomId) ?? [])]) {
+    const detached = [...(this.roomSockets.get(roomId) ?? [])];
+    for (const socket of detached) {
       this.clients.delete(socket);
     }
     this.roomSockets.delete(roomId);
     this.db.deleteRoom(roomId);
+    for (const socket of detached) {
+      for (const listener of this.detachListeners) listener(socket);
+    }
   }
 
-  /** Host only: forget an offline member (its row and member token). Markers keep their author name. */
+  /**
+   * Host only: take an offline member out of this room. Markers keep their author name. The member id
+   * stays bound to its device (identity and token), so the same Dock can join again.
+   */
   removeMember(actor: { roomId: string; isHost: boolean }, memberId: string) {
     if (!actor.isHost) {
       throw new RoomError('FORBIDDEN', 'Only the room host can remove members');
@@ -317,6 +336,11 @@ export class RoomManager {
       lastHeartbeat: Date.now(),
     };
 
+    // A partial update (only the numerator, say) is validated against the merged rate
+    if (!isPlausibleObsFramerate(updated.fpsNumerator, updated.fpsDenominator)) {
+      throw new RoomError('INVALID_MESSAGE', 'fpsNumerator / fpsDenominator must describe 1-1000 fps');
+    }
+
     this.db.upsertMember(roomId, updated);
 
     // A new recording start becomes this member's anchor in the running session
@@ -354,7 +378,9 @@ export class RoomManager {
       framerateNumerator?: number;
       framerateDenominator?: number;
       dropFrame?: boolean;
-    }
+    },
+    // Normally now; an Auto Session starts at the key press that opened it
+    startedAt: number = Date.now()
   ): RecordingSession {
     const session = this.db.transaction(() => {
       // One running session per room: a new start closes the previous one instead of orphaning it
@@ -368,7 +394,7 @@ export class RoomManager {
         id: sessionId,
         roomId,
         name: sessionData.name || `Session ${new Date().toLocaleTimeString()}`,
-        startedAt: Date.now(),
+        startedAt,
         stoppedAt: null,
         baseTimecode: sessionData.baseTimecode || '01:00:00:00',
         framerateNumerator: sessionData.framerateNumerator || 60,
@@ -396,19 +422,22 @@ export class RoomManager {
     return session;
   }
 
+  /**
+   * Stop a running session of this room. Returns null when it isn't in this room; an already
+   * stopped session is returned unchanged (stopping twice is harmless and never moves its end).
+   */
   stopSession(roomId: string, sessionId: string): RecordingSession | null {
     // Never let one room stop another room's session
     const session = this.db.getSession(sessionId);
     if (!session || session.roomId !== roomId) return null;
+    if (session.stoppedAt !== null) return session;
 
     const stopped = this.db.stopSession(sessionId);
     if (stopped) {
-      this.broadcastToRoom(roomId, {
-        type: 'SESSION_STOPPED',
-        payload: stopped,
-      });
+      // Inside startSession this runs only once the whole switch has committed
+      this.db.afterCommit(() => this.broadcastToRoom(roomId, { type: 'SESSION_STOPPED', payload: stopped }));
     }
-    return stopped;
+    return stopped ?? this.db.getSession(sessionId);
   }
 
   getActiveSession(roomId: string): RecordingSession | null {
@@ -430,20 +459,30 @@ export class RoomManager {
     obsRecordMs?: number;
   }): SquadMarker {
     const now = resolveMarkerTimestamp(data.clientTimestamp, Date.now());
+    // A dock may still name a session the host just stopped (SESSION_STOPPED is on its way): the marker
+    // belongs to it if the key was pressed before the stop, otherwise to the running session
     let session = data.sessionId ? this.db.getSession(data.sessionId) : null;
-    if (!session || session.roomId !== data.roomId) {
+    if (!session || session.roomId !== data.roomId || (session.stoppedAt !== null && now > session.stoppedAt)) {
       session = this.db.getActiveSession(data.roomId);
     }
 
     // If no active session, auto-create one or fallback to base epoch session
     if (!session) {
-      session = this.startSession(data.roomId, {
-        name: `Auto Session ${new Date().toLocaleTimeString()}`,
-        baseTimecode: '01:00:00:00',
-        framerateNumerator: 60,
-        framerateDenominator: 1,
-        dropFrame: false,
-      });
+      // Start it at the key press, so markers right after it keep their real spacing (none clamps to 0),
+      // but never before the previous session stopped: the two would overlap on the timeline
+      const previousStop = this.db.getLatestSession(data.roomId)?.stoppedAt ?? null;
+      const startedAt = previousStop === null ? now : Math.max(now, previousStop);
+      session = this.startSession(
+        data.roomId,
+        {
+          name: `Auto Session ${new Date().toLocaleTimeString()}`,
+          baseTimecode: '01:00:00:00',
+          framerateNumerator: 60,
+          framerateDenominator: 1,
+          dropFrame: false,
+        },
+        startedAt
+      );
     }
 
     const tc = new SMPTETimecode({
@@ -544,7 +583,8 @@ export class RoomManager {
 
   /** Delete a member's most recent marker in the active session (the "oops" button) */
   undoLastMarker(roomId: string, memberId: string): SquadMarker {
-    const session = this.db.getActiveSession(roomId) ?? this.db.getLatestSession(roomId);
+    // Only the running session: never reach back into a recording that already ended
+    const session = this.db.getActiveSession(roomId);
     const marker = session ? this.db.getLatestMemberMarker(session.id, memberId) : null;
     if (!marker) {
       throw new RoomError('NOT_FOUND', 'No marker of yours to undo in this session');

@@ -46,6 +46,7 @@ export default defineConfig({
       LOG_LEVEL: 'warn',
       // Every test creates its own room from the same IP
       ROOM_CREATE_LIMIT_PER_MINUTE: '500',
+      MAX_SOCKETS_PER_IP: process.env.E2E_MAX_SOCKETS_PER_IP ?? '64',
     },
   },
 });

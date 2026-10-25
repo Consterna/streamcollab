@@ -1,6 +1,8 @@
 {
   "name": "@streamcollab/client",
   "version": "1.6.1",
+  "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,7 +12,7 @@
   },
   "dependencies": {
     "@streamcollab/shared": "*",
-    "lucide-react": "^1.60.0",
+    "lucide-react": "^1.61.0",
     "obs-websocket-js": "^5.0.6",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
@@ -18,9 +20,10 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
     "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.2.0",
+    "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
     "tailwindcss": "^4.3.3",
-    "vite": "^8.3.4"
+    "vite": "^8.3.5",
+    "ws": "^8.22.0"
   }
 }

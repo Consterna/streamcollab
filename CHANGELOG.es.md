@@ -9,6 +9,51 @@ y este proyecto se adhiere al [Versionado Semántico](https://semver.org/lang/es
 
 ## [Unreleased]
 
+### Seguridad
+- **zod 4.6.7:** las versiones de zod anteriores a la 4.6.6 podían agotar la memoria al validar arrays grandes ([GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5), alta). Los límites de StreamCollab (cuerpos de 64 KB, mensajes WebSocket de 16 KB) ya lo acotaban.
+- **Credenciales por servidor:** un enlace con `?server=` podía hacer que la página enviara a otro servidor los tokens de host y de miembro que tenía guardados. Ahora los tokens y el id de miembro se guardan por servidor; las credenciales guardadas por versiones anteriores solo se usan con otro servidor si lo aceptas en un aviso que lo nombra.
+- Los códigos de sala generados elegían sus caracteres con sesgo de módulo (8 de los 31 caracteres salían algo más a menudo); ahora son uniformes. Los ids de miembro nuevos salen del generador criptográfico del navegador en vez de `Math.random`, así que otro dispositivo no puede adivinarlos y reclamarlos.
+- Los códigos de sala desconocidos cuentan por IP en la API REST y en el WebSocket a la vez (antes solo se limitaban las uniones por WebSocket), y un código de sala personalizado necesita al menos 8 caracteres.
+- Los sockets que salen de su sala, o cuya sala se borra, se cierran al pasar el tiempo de espera de unión; las conexiones WebSocket simultáneas por IP tienen un tope (`MAX_SOCKETS_PER_IP`, 64 por defecto). Detrás de un proxy inverso, pon `TRUST_PROXY=true` para que estos límites se apliquen por cliente y no a todos juntos.
+
+### Corregido
+- **EDL de DaVinci Resolve:** la exportación usa ahora el formato que escribe el propio Resolve con *Timeline Markers to EDL* (`|C:ResolveColor<Color> |M:<nombre> |D:1` tras cada evento), que se importa con *Timelines → Import → Timeline Markers from EDL*. Las versiones anteriores escribían localizadores `* LOC:` al estilo de Avid. Los marcadores `White` pasan a `Cream` de Resolve, y los marcadores que varios streamers pusieron en el mismo fotograma se unen en uno con todos sus nombres y el color del primero (Resolve guarda un marcador por fotograma).
+- **Sesiones:** detener una sesión ya detenida movía su hora de fin y dejaba huérfana la sesión en curso; un marcador pulsado después de que el host detuviera la sesión podía guardarse en ella (uno pulsado justo antes del Stop sigue guardándose ahí); un `BEGIN` fallido (base de datos ocupada) desactivaba en silencio todas las transacciones posteriores; `SESSION_STOPPED` podía anunciarse para un cambio que luego se deshacía.
+- **Reinicios:** tras un reinicio normal (un despliegue), las sesiones en curso continúan en lugar de cerrarse en su último marcador; tras una caída, se cierran en el último latido del servidor. Los miembros ya no aparecen grabando hasta que su Dock se reconecta, así que una sesión iniciada mientras tanto no ancla un archivo de grabación obsoleto.
+- **Base de datos:** la migración v5 repara las sesiones que la migración v4 podía cerrar antes de empezar; una base de datos escrita por un StreamCollab más nuevo se rechaza, y el archivo ya no se queda abierto (bloqueado en Windows) cuando no se puede usar.
+- Exportar una sesión que no existe devolvía el archivo de otra sesión; ahora responde 404. Un parámetro de consulta repetido respondía 500; ahora responde 400.
+- Deshacer (`0`, `Ctrl+Z`, HTTP) solo alcanza la sesión en curso, como estaba documentado.
+- Una Auto Session (la que abre un marcador cuando no hay sesión) empieza ahora en esa pulsación (nunca antes de que terminara la sesión anterior), así que los marcadores justo después conservan su separación real en vez de caer todos en su primer fotograma.
+- Una actualización de estado parcial podía guardar un framerate de OBS imposible.
+- `PORT=`, `HOST=`, `LOG_LEVEL=` o `ROOM_CREATE_LIMIT_PER_MINUTE=` vacíos en el `.env` impedían arrancar el servidor; ahora significan "valor por defecto".
+- **Conexión con OBS:** pulsar Conectar dos veces (o el modo de desarrollo de React) podía iniciar un bucle de reconexión sin fin.
+- **Conexión con el servidor:** la espera entre reconexiones no crecía cuando el servidor aceptaba y luego cerraba el socket; una sala borrada o inexistente se volvía a unir en cada reconexión; la sincronización del reloj podía rechazar todas las muestras para siempre si la red se volvía más lenta.
+- **Almacenamiento bloqueado:** en un perfil de navegador u OBS con el almacenamiento bloqueado, la Dock perdía su token de miembro al momento, así que cada reconexión era rechazada y volvía como un miembro nuevo. Ahora las credenciales se guardan en memoria durante la carga de la página.
+- **Colores de los marcadores:** todos los marcadores hechos desde la Dock se guardaban en azul (la Dock siempre enviaba `Blue`), así que las exportaciones nunca tenían los colores por categoría (kill rojo, wipe fucsia, clutch amarillo, gracioso cian, nota azul). Los marcadores nuevos llevan el color de su categoría; los existentes conservan el color con el que se guardaron (cambiar la categoría de un marcador en el Panel del director lo recolorea).
+- **Reloj de la Dock:** mientras OBS grababa, el reloj SMPTE grande mostraba la posición en el archivo de grabación con el timecode base de la sesión, así que podía diferir en minutos de los marcadores listados debajo. Ahora muestra el timeline de la sesión (calibrado con el servidor) siempre que hay una sesión, y la posición de la grabación solo cuando no la hay.
+- **Dock:** un nombre de más de 40 caracteres dejaba la Dock fuera de todas las salas; el texto de un marcador personalizado de más de 80 caracteres se perdía (y se guardaba dos veces, como etiqueta y como comentario); los atajos se disparaban al mantener la tecla, con `Ctrl`/`Alt`/`Cmd` y detrás de un diálogo abierto.
+- **Panel del director:** un timecode base no válido cerraba el diálogo de inicio y la sesión nunca empezaba; el historial de sesiones de la sala anterior seguía visible tras cambiar de sala; `?room=` hacía que una recarga volviera a la sala de la invitación.
+- Los nombres de archivo exportados eliminan los caracteres que Windows prohíbe; "Copiar" ya no falla en silencio cuando el navegador rechaza el portapapeles; la categoría de la línea de tiempo se traduce; los errores de la API conservan un prefijo traducido; el mensaje `TIMEOUT` ya no sustituye al aviso de la sala.
+- El XML de FCP 7 escribe el timecode base con `;` en las sesiones drop-frame.
+- Los nombres de archivo RFC 5987 codifican `' ( ) *`.
+
+### Accesibilidad
+- Los diálogos mantienen el foco del teclado dentro y lo devuelven al cerrarse (cerrar con Escape y el soporte de movimiento reducido también se añadieron después de la 1.6.1).
+- Contraste de texto subido al menos a 4,5:1 donde axe encontró menos; etiquetas añadidas a los campos de filtro, búsqueda, categoría y ajustes de OBS.
+- La declaración de accesibilidad se reescribe para decir solo lo que se prueba (reglas WCAG 2.1 A/AA de axe-core en las pantallas principales, en los dos idiomas) y lo que aún no (lectores de pantalla, Firefox, Safari).
+- El Panel del director se adapta hasta 320 px CSS (WCAG 1.4.10): la cabecera con una sesión en vivo, los filtros de marcadores y el panel de la sala ensanchaban la página hasta unos 650 px en un móvil. La suite end-to-end ahora lo comprueba a 320 px, y los escaneos de axe cubren también el HUD en vivo con un aviso, el panel con miembros y marcadores, y un marcador en edición.
+- Iniciar o detener una sesión ya no deja el foco del teclado en la página: los botones Iniciar y Detener se sustituyen cuando una sesión empieza o termina, y si el que desaparece tenía el foco, ahora lo recibe el nuevo, también cuando el cambio llega desde otra pestaña (WCAG 2.4.3).
+
+### Tests
+- Tests de componentes en un Chromium real (Vitest Browser Mode), escaneos de accesibilidad con axe-core en la suite end-to-end, umbrales de cobertura sobre todos los archivos fuente y tests de regresión para cada corrección anterior.
+- El test de estrés de la base de datos ahora intercala de verdad sus 20 escritores y hace la copia en caliente en medio de ellos (antes se ejecutaban uno tras otro y la copia, después de todos).
+- Mutation testing del motor de timecode y los exportadores con Stryker, bajo demanda (`stryker.config.mjs`), con un límite de 60 s para que el resultado ya no dependa de la carga de la máquina; tests nuevos para los mutantes que encontró vivos (anclas del parser de timecode, validación del drop frame en los framerates de sesión, capítulos de más de una hora, limpieza del texto del EDL y otros). Los que siguen vivos se enumeran en `packages/shared/test/mutants-v162.test.ts`, con el motivo por el que no se distinguen del código real.
+
+### Cambiado
+- `@fastify/cors` 11, `@fastify/rate-limit` 11.2.1, `@fastify/static` 10.1.7, vite 8.3.5, lucide-react 1.61.
+- Código de conducta, declaración de accesibilidad y sus versiones en español (los archivos en español están junto a los ingleses).
+- El workflow de release puede volver a ejecutarse sobre una release existente (actualiza las notas y los assets).
+
 ## [1.6.1] - 2026-10-22
 
 ### Añadido

@@ -95,11 +95,15 @@ describe('NLE Exporters', () => {
       expect(edl).toContain('FCM: NON-DROP FRAME');
 
       // Verify event 001 and 002
-      expect(edl).toContain('001  AX       V     C        01:00:15:00 01:00:15:01 01:00:15:00 01:00:15:01');
-      expect(edl).toContain('* LOC: 01:00:15:00 Red First Blood [Shroud] - Pistol headshot');
-
-      expect(edl).toContain('002  AX       V     C        01:02:00:00 01:02:00:01 01:02:00:00 01:02:00:01');
-      expect(edl).toContain('* LOC: 01:02:00:00 Fuchsia Ace 1v5 [Tarik] - Insane smoke spray');
+      // DaVinci Resolve's own marker EDL layout: a one-frame event, then the marker fields
+      expect(edl).toContain(
+        '001  001      V     C        01:00:15:00 01:00:15:01 01:00:15:00 01:00:15:01  \r\n' +
+          ' |C:ResolveColorRed |M:First Blood [Shroud] - Pistol headshot |D:1\r\n'
+      );
+      expect(edl).toContain(
+        '002  001      V     C        01:02:00:00 01:02:00:01 01:02:00:00 01:02:00:01  \r\n' +
+          ' |C:ResolveColorFuchsia |M:Ace 1v5 [Tarik] - Insane smoke spray |D:1\r\n'
+      );
     });
   });
 

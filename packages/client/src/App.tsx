@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { SquadMember, Room, RecordingSession, SquadMarker, ClientKind } from '@streamcollab/shared';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { SquadMember, Room, RecordingSession, SquadMarker, ClientKind, LIMITS } from '@streamcollab/shared';
 import { ObsService } from './services/obs';
 import { StreamCollabSocketClient } from './services/socket';
 import {
@@ -10,6 +10,10 @@ import {
   saveMemberId,
   getStoredUserName,
   saveUserName,
+  serverAwaitingTrust,
+  trustCurrentServer,
+  distrustCurrentServer,
+  newMemberId,
 } from './services/credentials';
 import { DockView } from './views/DockView';
 import { HudView } from './views/HudView';
@@ -32,6 +36,9 @@ interface JoinError {
   room?: string;
 }
 
+// Errors after which this client is no longer in the room
+const LEAVES_ROOM = new Set(['ROOM_NOT_FOUND', 'ROOM_DELETED', 'HOST_TOKEN_INVALID', 'MEMBER_TOKEN_INVALID']);
+
 const TRANSLATED_ERRORS: Record<string, MessageKey> = {
   ROOM_DELETED: 'error.ROOM_DELETED',
   ROOM_NOT_FOUND: 'error.ROOM_NOT_FOUND',
@@ -41,10 +48,6 @@ const TRANSLATED_ERRORS: Record<string, MessageKey> = {
   NOT_FOUND: 'error.NOT_FOUND',
   INVALID_MESSAGE: 'error.INVALID_MESSAGE',
 };
-
-function newMemberId() {
-  return 'mem_' + Math.random().toString(36).substring(2, 9);
-}
 
 type View = 'dock' | 'hud' | 'dashboard';
 const VIEWS: View[] = ['dock', 'hud', 'dashboard'];
@@ -68,6 +71,18 @@ function writeViewToUrl(view: View, preview: boolean) {
     url.searchParams.delete('preview');
   }
   url.hash = '';
+  window.history.replaceState(null, '', url);
+}
+
+/** Keep `?room=` on the room in use, so a reload doesn't go back to the room of the invite link */
+function writeRoomToUrl(roomId: string) {
+  const url = new URL(window.location.href);
+  if (url.searchParams.get('room') === (roomId || null)) return;
+  if (roomId) {
+    url.searchParams.set('room', roomId);
+  } else {
+    url.searchParams.delete('room');
+  }
   window.history.replaceState(null, '', url);
 }
 
@@ -111,8 +126,11 @@ export function App() {
 
   const exitHudPreview = useCallback(() => navigateTo(returnView), [navigateTo, returnView]);
   const [roomId, setRoomId] = useState<string>(initialRoom);
+  // Bumped to join the same room code again after the server refused it
+  const [joinAttempt, setJoinAttempt] = useState(0);
   const [userName, setUserName] = useState<string>(() => {
-    const saved = getStoredUserName();
+    // Names longer than the server accepts (possible before v1.6.2) would keep the dock out of every room
+    const saved = getStoredUserName()?.trim().slice(0, LIMITS.memberName);
     if (saved) return saved;
     // Keep the generated name, otherwise the same streamer shows up under a new name on every load
     const generated = `Player_${Math.floor(100 + Math.random() * 900)}`;
@@ -131,6 +149,9 @@ export function App() {
       setRoomId(next);
     } else {
       setRoomDraft(roomId);
+      // The same code while not in that room (refused, or the room was deleted): ask the server once
+      // more, it may exist now. A dock that is in the room keeps its connection.
+      if (next && !inRoom) setJoinAttempt((n) => n + 1);
     }
   };
 
@@ -147,14 +168,37 @@ export function App() {
   // Only docks represent a squad member; HUD overlays and dashboards observe
   const clientKind: ClientKind = currentView === 'hud' ? 'hud' : currentView === 'dashboard' ? 'dashboard' : 'dock';
 
+  // `?server=` names a server this device has credentials for from before v1.6.2: nothing is sent to
+  // it (not even a join) until the user decides whether to trust it with them
+  // (an OBS HUD source has no way to answer and only observes, so it just goes without them)
+  const [serverToTrust, setServerToTrust] = useState<string | null>(() =>
+    initialView === 'hud' ? null : serverAwaitingTrust()
+  );
+
   const [memberId, setMemberId] = useState(() => {
     let id = getStoredMemberId();
     if (!id) {
       id = newMemberId();
-      saveMemberId(id);
+      // Saved once the trust question is answered (accepting may bring back the old id)
+      if (!serverAwaitingTrust()) saveMemberId(id);
     }
     return id;
   });
+
+  const answerServerTrust = (trust: boolean) => {
+    if (trust) {
+      trustCurrentServer();
+    } else {
+      distrustCurrentServer();
+    }
+    let id = getStoredMemberId();
+    if (!id) {
+      id = memberId;
+      saveMemberId(id);
+    }
+    setMemberId(id);
+    setServerToTrust(null);
+  };
 
   const member: SquadMember = useMemo(
     () => ({
@@ -183,12 +227,20 @@ export function App() {
   // Join outcome for one (room, view, member) combination; anything else reads as "not joined yet",
   // so switching rooms needs no reset
   const joinKey = `${roomId}|${clientKind}|${member.id}`;
-  const [joinState, setJoinState] = useState<{ key: string; isHost: boolean; error: JoinError | null }>({
+  const [joinState, setJoinState] = useState<{
+    key: string;
+    isHost: boolean;
+    error: JoinError | null;
+    // The server accepted this client into the room (JOINED) and hasn't refused or deleted it since
+    joined: boolean;
+  }>({
     key: '',
     isHost: false,
     error: null,
+    joined: false,
   });
   const isHost = joinState.key === joinKey && joinState.isHost;
+  const inRoom = joinState.key === joinKey && joinState.joined;
   const joinError = joinState.key === joinKey ? joinState.error : null;
   const dismissJoinError = () => setJoinState((state) => ({ ...state, error: null }));
 
@@ -197,11 +249,23 @@ export function App() {
     setRoomDraft(newRoom);
   };
 
+  useEffect(() => writeRoomToUrl(roomId), [roomId]);
+
   // Initialize socket and listeners
   useEffect(() => {
+    // The HUD only observes, so it doesn't wait for the answer; until the server is trusted it only
+    // gets that server's own credentials, never the older shared ones
+    if (serverToTrust && clientKind !== 'hud') return;
     const subscriptions: Array<() => void> = [];
     const setJoinError = (error: JoinError | null) =>
-      setJoinState((state) => ({ key: joinKey, isHost: state.key === joinKey && state.isHost, error }));
+      setJoinState((state) => ({
+        key: joinKey,
+        isHost: state.key === joinKey && state.isHost,
+        error,
+        // Refusals and deletion take this client out of the room; other errors (a forbidden edit,
+        // a rate limit) don't
+        joined: state.key === joinKey && state.joined && !LEAVES_ROOM.has(error?.code ?? ''),
+      }));
     subscriptions.push(
       socketClient.on('onRoomState', (state) => {
         setRoom(state.room);
@@ -317,7 +381,7 @@ export function App() {
 
     subscriptions.push(
       socketClient.on('onJoined', (info) => {
-        setJoinState({ key: joinKey, isHost: info.isHost, error: null });
+        setJoinState({ key: joinKey, isHost: info.isHost, error: null, joined: true });
       })
     );
 
@@ -331,8 +395,10 @@ export function App() {
           setMemberId(freshId);
           return;
         }
-        // Messages sent before the join completed; the dock stops sending them, and they'd hide the real error
-        if (error.code === 'NOT_JOINED') return;
+        // Messages sent before the join completed; the dock stops sending them, and they'd hide the real error.
+        // TIMEOUT only means this socket sat in no room (no code yet, or an unknown one): the banner
+        // already says why, and the client reconnects by itself.
+        if (error.code === 'NOT_JOINED' || error.code === 'TIMEOUT') return;
         setJoinError({ code: error.code, message: error.message, room: roomId });
         if (error.code === 'HOST_TOKEN_INVALID' && roomId) {
           // Forget the bad token and join again as a viewer
@@ -358,7 +424,7 @@ export function App() {
       subscriptions.forEach((unsubscribe) => unsubscribe());
       socketClient.disconnect();
     };
-  }, [socketClient, roomId, member, clientKind, joinKey]);
+  }, [socketClient, roomId, member, clientKind, joinKey, serverToTrust, joinAttempt]);
 
   // Legacy #/dock, #/hud, #/dashboard links typed into the address bar
   useEffect(() => {
@@ -435,6 +501,8 @@ export function App() {
               if (e.key === 'Enter') e.currentTarget.blur();
             }}
             placeholder={t('nav.namePlaceholder')}
+            maxLength={LIMITS.memberName}
+            aria-label={t('nav.nameTitle')}
             className="w-28 rounded-sm border border-zinc-700 bg-zinc-950 px-2 py-0.5 text-xs text-zinc-200 focus:border-indigo-500 focus:outline-hidden"
             title={t('nav.nameTitle')}
           />
@@ -448,6 +516,8 @@ export function App() {
               if (e.key === 'Enter') e.currentTarget.blur();
             }}
             placeholder={t('nav.roomPlaceholder')}
+            maxLength={LIMITS.roomId}
+            aria-label={t('nav.roomTitle')}
             className="w-24 rounded-sm border border-zinc-700 bg-zinc-950 px-2 py-0.5 text-xs font-mono text-zinc-200 focus:border-indigo-500 focus:outline-hidden"
             title={t('nav.roomTitle')}
           />
@@ -468,6 +538,29 @@ export function App() {
         </div>
       </nav>
 
+      {serverToTrust && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-3 border-b border-sky-500/30 bg-sky-500/10 px-4 py-2 text-xs text-sky-200"
+        >
+          <span>{t('app.trustServer', { server: serverToTrust })}</span>
+          <span className="flex gap-2">
+            <button
+              onClick={() => answerServerTrust(true)}
+              className="rounded-sm bg-sky-700 px-2 py-1 font-semibold text-white hover:bg-sky-600"
+            >
+              {t('app.trustServerYes')}
+            </button>
+            <button
+              onClick={() => answerServerTrust(false)}
+              className="rounded-sm border border-sky-500/40 px-2 py-1 text-sky-200 hover:bg-sky-500/20"
+            >
+              {t('app.trustServerNo')}
+            </button>
+          </span>
+        </div>
+      )}
+
       {(joinError || !roomId) && (
         <div className="flex items-center justify-between gap-3 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-300">
           <span>
@@ -481,7 +574,12 @@ export function App() {
               : t('app.noRoom')}
           </span>
           {joinError && (
-            <button onClick={dismissJoinError} className="text-amber-400 hover:text-amber-200" title={t('app.dismiss')}>
+            <button
+              onClick={dismissJoinError}
+              className="text-amber-400 hover:text-amber-200"
+              title={t('app.dismiss')}
+              aria-label={t('app.dismiss')}
+            >
               ✕
             </button>
           )}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   RecordingSession,
   SquadMarker,
@@ -12,6 +12,7 @@ import {
 } from '@streamcollab/shared';
 import { apiUrl } from '../services/serverUrl';
 import { useT } from '../i18n';
+import { useDialogFocus } from '../hooks/useDialogFocus';
 import type { LucideIcon } from 'lucide-react';
 import { Download, Copy, Check, X, FileText, Film, Table, ListVideo, Layers } from 'lucide-react';
 
@@ -30,6 +31,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, sessi
   const { t } = useT();
   const [selectedFormat, setSelectedFormat] = useState<ExportType>('edl');
   const [copied, setCopied] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(dialogRef, isOpen && Boolean(session));
 
   // '' = master session timeline; otherwise a member id for that streamer's own recording file
   const [povMemberId, setPovMemberId] = useState('');
@@ -41,8 +44,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, sessi
     if (povMemberId) params.set('memberId', povMemberId);
     remoteUrl = apiUrl(`/api/rooms/${encodeURIComponent(roomId)}/export/${selectedFormat}?${params}`);
   }
-  // Include the marker count so new markers trigger a fresh export
-  const remoteKey = remoteUrl ? `${remoteUrl}#${markers.length}` : null;
+  // Any added, edited or deleted marker triggers a fresh export
+  const markersVersion = markers.map((m) => `${m.id}:${m.category}:${m.color}:${m.label}:${m.comment ?? ''}`).join('|');
+  const remoteKey = remoteUrl ? `${remoteUrl}#${markersVersion}` : null;
   const [remote, setRemote] = useState<{ key: string; text: string } | null>(null);
 
   useEffect(() => {
@@ -106,9 +110,14 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, sessi
   if (!isOpen || !session) return null;
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    // navigator.clipboard is missing on plain-http pages (a LAN IP) and can be refused by the browser
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
   };
 
   const handleDownload = () => {
@@ -131,7 +140,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, sessi
     const mime = mimeTypes[selectedFormat];
     const povName = members.find((m) => m.id === povMemberId)?.name;
     const baseName = povName ? `${session.name}_${povName}` : session.name;
-    const filename = `${baseName.replace(/\s+/g, '_')}_markers.${ext}`;
+    // Same rule as the server's downloads: no characters Windows forbids ("Auto Session 23:07:27")
+    const safeName = baseName.replace(/[\r\n"\\/:*?<>|]/g, '').replace(/\s+/g, '_') || 'export';
+    const filename = `${safeName}_markers.${ext}`;
 
     const blob = new Blob([content], { type: `${mime};charset=utf-8` });
     const url = URL.createObjectURL(blob);
@@ -155,6 +166,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, sessi
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4">
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="export-modal-title"
@@ -198,7 +210,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, sessi
               >
                 <Icon className={`h-5 w-5 mb-1 ${isSelected ? 'text-indigo-400' : 'text-zinc-400'}`} />
                 <span className="text-xs font-semibold">{f.label}</span>
-                <span className="text-[10px] text-zinc-500 hidden sm:block truncate max-w-full">{f.desc}</span>
+                <span className="text-[10px] text-zinc-400 hidden sm:block truncate max-w-full">{f.desc}</span>
               </button>
             );
           })}
@@ -211,6 +223,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, sessi
             <select
               value={povMemberId}
               onChange={(e) => setPovMemberId(e.target.value)}
+              aria-label={t('export.timeline')}
               className="rounded-sm border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-200"
             >
               <option value="">{t('export.master')}</option>
@@ -220,7 +233,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, sessi
                 </option>
               ))}
             </select>
-            {povMemberId && <span className="text-zinc-500">{t('export.povHint')}</span>}
+            {povMemberId && <span className="text-zinc-400">{t('export.povHint')}</span>}
           </div>
         )}
 

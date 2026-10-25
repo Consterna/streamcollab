@@ -37,7 +37,7 @@ describe('Database High-Concurrency & Hot Backup Contention', () => {
     if (fs.existsSync(backupPath)) fs.unlinkSync(backupPath);
   });
 
-  it('handles 20 concurrent workers executing 2,000 writes while hot backup runs simultaneously', async () => {
+  it('keeps all 2,000 writes of 20 interleaved writers while a hot backup runs in between', async () => {
     const roomId = 'CONCURRENT-ROOM';
     roomManager.createRoom(roomId, 'Concurrency Stress Room');
 
@@ -74,10 +74,12 @@ describe('Database High-Concurrency & Hot Backup Contention', () => {
 
     let backupCompleted = false;
     let backupResult: { path: string; bytes: number } | null = null;
+    let writtenBeforeBackup = -1;
 
     // Start background backup after a short delay so writers are already active
     const backupPromise = (async () => {
       await new Promise((r) => setTimeout(r, 5));
+      writtenBeforeBackup = db.getSessionMarkers(session.id).length;
       backupResult = backupDatabase(dbPath, backupPath);
       backupCompleted = true;
     })();
@@ -102,6 +104,11 @@ describe('Database High-Concurrency & Hot Backup Contention', () => {
         };
 
         db.createMarker(marker);
+
+        // Yield to the event loop now and then, so the writers interleave with each other and the
+        // backup really runs while they are writing (without this, each worker would run to the end
+        // before the next one starts, and the backup only after all of them)
+        if (j % 10 === 9) await new Promise((resolve) => setImmediate(resolve));
 
         // Also interleave occasional member updates and anchor updates
         if (j % 25 === 0) {
@@ -128,6 +135,9 @@ describe('Database High-Concurrency & Hot Backup Contention', () => {
     const writesPerSec = TOTAL_WRITES / durationSeconds;
 
     expect(backupCompleted).toBe(true);
+    // The backup ran in the middle of the writes, not before or after all of them
+    expect(writtenBeforeBackup).toBeGreaterThan(0);
+    expect(writtenBeforeBackup).toBeLessThan(TOTAL_WRITES);
     expect(backupResult).not.toBeNull();
     expect(backupResult!.bytes).toBeGreaterThan(0);
 

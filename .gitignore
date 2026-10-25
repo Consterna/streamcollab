@@ -6,14 +6,15 @@ node_modules/
 # Production & Build outputs
 dist/
 
-# Playwright E2E artifacts
+# Playwright E2E and Vitest browser-mode artifacts
 e2e/.data/
+.vitest/
+.preview-data/
 test-results/
 playwright-report/
 blob-report/
 
-# Local Claude Code launch configs
-.claude/
+# Local launch configs
 build/
 out/
 .cache/
@@ -51,6 +52,9 @@ pnpm-debug.log*
 
 # Testing & Coverage
 coverage/
+# Mutation testing (stryker.config.mjs)
+reports/mutation/
+.stryker-tmp/
 
 # OS generated files
 .DS_Store

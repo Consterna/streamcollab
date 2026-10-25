@@ -30,10 +30,27 @@ export async function becomeHost(context: BrowserContext, room: TestRoom) {
   });
 }
 
-export async function openView(context: BrowserContext, view: 'dock' | 'hud' | 'dashboard', roomId: string) {
+/**
+ * Open a view of a room. By default it returns once the server has accepted the join (JOINED), so a
+ * test never presses a hotkey while the client is still outside the room ("0 markers captured" is
+ * shown either way). Pass `{ joined: false }` for room codes that are expected to fail.
+ */
+export async function openView(
+  context: BrowserContext,
+  view: 'dock' | 'hud' | 'dashboard',
+  roomId: string,
+  options: { joined?: boolean } = {}
+) {
   const page = await context.newPage();
   page.on('dialog', (dialog) => dialog.accept());
+  const joined =
+    options.joined === false
+      ? null
+      : page
+          .waitForEvent('websocket', (ws) => ws.url().endsWith('/ws'))
+          .then((ws) => ws.waitForEvent('framereceived', (frame) => String(frame.payload).includes('"type":"JOINED"')));
   await page.goto(`/?view=${view}&room=${roomId}`);
+  await joined;
   return page;
 }
 

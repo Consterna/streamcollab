@@ -65,10 +65,14 @@ export const markerColorSchema = z.enum(DAVINCI_MARKER_COLORS);
 export const clientKindSchema = z.enum(CLIENT_KINDS);
 export const obsStatusSchema = z.enum(['recording', 'streaming', 'paused', 'stopped', 'disconnected']);
 
-// The exact OBS canvas rate a dock reports must describe 1..1000 fps (it times that streamer's exports)
+/** The exact OBS canvas rate a dock reports must describe 1..1000 fps (it times that streamer's exports) */
+export function isPlausibleObsFramerate(num: number | undefined, den: number | undefined): boolean {
+  if (num === undefined || den === undefined) return true;
+  return num / den >= 1 && num / den <= 1000;
+}
+
 function refineObsFramerate(value: { fpsNumerator?: number; fpsDenominator?: number }, ctx: z.RefinementCtx) {
-  const { fpsNumerator: num, fpsDenominator: den } = value;
-  if (num !== undefined && den !== undefined && !(num / den >= 1 && num / den <= 1000)) {
+  if (!isPlausibleObsFramerate(value.fpsNumerator, value.fpsDenominator)) {
     ctx.addIssue({
       code: 'custom',
       path: ['fpsNumerator'],
@@ -203,10 +207,18 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('REMOVE_MEMBER'), payload: z.object({ memberId: idSchema }) }),
 ]);
 
+// A custom code chosen at creation is the room's only secret: at least as long as a generated one
+// ("KQ7P-M3XD"). Existing shorter codes still work for joining.
+export const MIN_CUSTOM_ROOM_ID_LENGTH = 8;
+
 // REST bodies
 export const createRoomBodySchema = z
   .object({
-    id: roomIdSchema.optional(),
+    id: roomIdSchema
+      .refine((id) => id.length >= MIN_CUSTOM_ROOM_ID_LENGTH, {
+        message: `A custom room code needs at least ${MIN_CUSTOM_ROOM_ID_LENGTH} characters`,
+      })
+      .optional(),
     name: text(LIMITS.roomName).min(1).optional(),
   })
   .default({});
@@ -218,6 +230,16 @@ export const quickMarkBodySchema = markerInputSchema.extend({
 export const undoMarkerBodySchema = z.object({ memberId: idSchema });
 
 export const stopSessionBodySchema = z.object({ sessionId: z.string().max(64).optional() }).default({});
+
+// Query strings: an empty value means "not given"; a repeated parameter (`?sessionId=a&sessionId=b`)
+// arrives as an array and is rejected
+const optionalQueryParam = <T extends z.ZodType>(schema: T) =>
+  z.preprocess((v) => (v === '' ? undefined : v), schema.optional());
+export const markersQuerySchema = z.object({ sessionId: optionalQueryParam(z.string().max(64)) });
+export const exportQuerySchema = z.object({
+  sessionId: optionalQueryParam(z.string().max(64)),
+  memberId: optionalQueryParam(idSchema),
+});
 
 export type ParsedClientMessage = z.infer<typeof clientMessageSchema>;
 

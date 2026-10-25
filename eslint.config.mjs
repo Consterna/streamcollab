@@ -7,14 +7,23 @@ import globals from 'globals';
 import prettier from 'eslint-config-prettier';
 
 export default defineConfig([
-  globalIgnores(['**/dist/**', '**/node_modules/**', '**/coverage/**', 'test-results/**', 'playwright-report/**']),
+  globalIgnores([
+    '**/dist/**',
+    '**/node_modules/**',
+    '**/coverage/**',
+    'test-results/**',
+    'playwright-report/**',
+    '.vitest/**',
+    '.stryker-tmp/**',
+    'reports/**',
+  ]),
 
   js.configs.recommended,
   tseslint.configs.recommended,
 
   // Node: server, shared library, tests and tooling config
   {
-    files: ['packages/server/**/*.ts', 'packages/shared/**/*.ts', '*.ts', '*.mjs'],
+    files: ['packages/server/**/*.ts', 'packages/shared/**/*.ts', '*.ts', '*.mts', '*.mjs'],
     languageOptions: { globals: globals.node },
   },
 

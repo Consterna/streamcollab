@@ -68,6 +68,8 @@ export class ObsService {
   private keepConnected = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectDelay = OBS_RECONNECT_MIN_MS;
+  private attemptSeq = 0;
+  private attemptInFlight = false;
 
   // Last record status and when it was sampled, to extrapolate the in-file position at keypress time
   private lastRecordStatus: ObsRecordStatus | null = null;
@@ -126,10 +128,20 @@ export class ObsService {
   private async attemptConnect(): Promise<boolean> {
     if (!this.target) return false;
     const { address, password } = this.target;
+    // obs-websocket-js closes the previous socket when connect() is called again, which rejects an
+    // attempt still in progress and fires ConnectionClosed: only the latest attempt may react
+    const attempt = ++this.attemptSeq;
+    this.attemptInFlight = true;
     try {
       await this.obs.connect(address, password || undefined, {
         eventSubscriptions: EVENT_SUB_GENERAL | EVENT_SUB_INPUTS | EVENT_SUB_OUTPUTS,
       });
+      if (attempt !== this.attemptSeq) {
+        // disconnect() was called meanwhile: don't leave this late connection open
+        if (!this.keepConnected) await this.obs.disconnect().catch(() => undefined);
+        return this.isConnected;
+      }
+      this.attemptInFlight = false;
 
       this.isConnected = true;
       this.emit('status', true);
@@ -138,10 +150,12 @@ export class ObsService {
       this.startPolling();
       void this.detectChapterSupport();
 
-      this.reconnectDelay = OBS_RECONNECT_MIN_MS;
-      this.emit('retry', null);
+      // A retry scheduled by an earlier failed attempt would close this good connection
+      this.cancelReconnect();
       return true;
     } catch (err) {
+      if (attempt !== this.attemptSeq) return this.isConnected;
+      this.attemptInFlight = false;
       console.warn('[ObsService] Failed to connect to OBS WebSocket:', err);
       this.isConnected = false;
       this.emit('status', false);
@@ -173,6 +187,9 @@ export class ObsService {
   /** Disconnect on purpose: stops automatic reconnection */
   async disconnect() {
     this.keepConnected = false;
+    // An attempt still in progress is now stale
+    this.attemptSeq++;
+    this.attemptInFlight = false;
     this.cancelReconnect();
     await this.closeSocket();
   }
@@ -213,6 +230,8 @@ export class ObsService {
       this.isConnected = false;
       this.stopPolling();
       this.emit('status', false);
+      // A new attempt replacing this socket handles its own outcome
+      if (this.attemptInFlight) return;
       // OBS closed or crashed: come back automatically once it is running again
       this.scheduleReconnect();
     });

@@ -38,8 +38,11 @@ COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/server/package.json packages/server/
 COPY packages/client/package.json packages/client/
+# npm is only needed for this install: the server, its healthcheck and the backup command run with
+# `node`, and the npm bundled in the base image carries its own dependencies (and their advisories)
 RUN npm ci --omit=dev --ignore-scripts --workspace=packages/server --include-workspace-root=false \
-    && npm cache clean --force
+    && npm cache clean --force \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 COPY --from=build /app/packages/shared/dist packages/shared/dist
 COPY --from=build /app/packages/server/dist packages/server/dist

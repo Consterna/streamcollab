@@ -7,6 +7,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # @types/node follows the Node.js runtime (engines.node and the Docker image), not the latest major
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
     groups:
       # @vitest/coverage-v8 pins vitest exactly (peer dependency), so they must move together
       vitest:

@@ -22,6 +22,10 @@ export const es: Messages = {
   'error.NOT_FOUND': 'Ese elemento ya no existe (puede que lo hayan borrado).',
   'error.INVALID_MESSAGE': 'El servidor rechazó la petición: {detail}',
   'app.dismiss': 'Cerrar',
+  'app.trustServer':
+    'Esta página se conecta a {server}. ¿Usar con ese servidor las credenciales de sala y de streamer que una versión anterior de StreamCollab guardó en este dispositivo? Acepta solo si confías en él.',
+  'app.trustServerYes': 'Usarlas',
+  'app.trustServerNo': 'No con este servidor',
 
   // Marker categories and default labels
   'category.kill': 'Kill',

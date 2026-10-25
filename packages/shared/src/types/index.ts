@@ -143,7 +143,10 @@ export type ClientMessage =
       type: 'CREATE_MARKER';
       payload: {
         roomId: string;
-        marker: Omit<SquadMarker, 'id' | 'timestamp' | 'relativeTimeMs' | 'timecode' | 'frameNumber'>;
+        // No color: the server gives the category's NLE color
+        marker: Omit<SquadMarker, 'id' | 'timestamp' | 'relativeTimeMs' | 'timecode' | 'frameNumber' | 'color'> & {
+          color?: DaVinciMarkerColor;
+        };
         clientTimestamp?: number; // Server-calibrated epoch ms at the moment the key was pressed
       };
     }

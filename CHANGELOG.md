@@ -9,6 +9,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **zod 4.6.7:** zod before 4.6.6 could exhaust memory while validating large arrays ([GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5), high). StreamCollab's request limits (64 KB bodies, 16 KB WebSocket messages) already bounded it.
+- **Credentials per server:** a link with `?server=` could make the page send the host and member tokens it had saved to another server. Tokens and the member id are now kept per server; credentials saved by earlier versions are only reused with another server after you accept it in a banner that names it.
+- Generated room codes drew their characters with a modulo bias (8 of the 31 characters came up slightly more often); they are now uniform. New member ids come from the browser's cryptographic random generator instead of `Math.random`, so they can't be guessed and claimed by another device.
+- Unknown room codes now count per IP across the REST API and the WebSocket (before, only WebSocket joins were limited), and a custom room code needs at least 8 characters.
+- Sockets that leave their room, or whose room is deleted, are closed after the join timeout; simultaneous WebSocket connections per IP are capped (`MAX_SOCKETS_PER_IP`, default 64). Behind a reverse proxy, set `TRUST_PROXY=true` so these limits apply per client, not to everyone together.
+
+### Fixed
+- **DaVinci Resolve EDL:** the export now uses the layout Resolve itself writes with *Timeline Markers to EDL* (`|C:ResolveColor<Color> |M:<name> |D:1` after each event), imported with *Timelines → Import → Timeline Markers from EDL*. Earlier versions wrote Avid-style `* LOC:` locators. `White` markers become Resolve's `Cream`, and markers several streamers dropped on the same frame become one marker with all their names and the color of the first one (Resolve keeps one marker per frame).
+- **Sessions:** stopping a session that had already stopped moved its end time and left the running session orphaned; a marker pressed after the host stopped the session could still be stored in it (one pressed just before the stop still is); a failed `BEGIN` (database busy) silently disabled every later transaction; `SESSION_STOPPED` could be announced for a change that was then rolled back.
+- **Restarts:** after a normal restart (deploy) running sessions now continue instead of being closed at their last marker; after a crash they close at the server's last heartbeat. Members no longer appear as recording until their Dock reconnects, so a session started meanwhile can't anchor a stale recording file.
+- **Database:** migration v5 repairs sessions that the v4 migration could close before they started; a database written by a newer StreamCollab is refused, and the file is no longer left open (locked on Windows) when it can't be used.
+- Exporting a session that doesn't exist answered with another session's file; it now answers 404. A repeated query parameter answered 500; it now answers 400.
+- Undo (`0`, `Ctrl+Z`, HTTP) only reaches the running session, as documented.
+- An Auto Session (opened by a marker when no session runs) now starts at that key press (never before the previous session stopped), so the markers right after it keep their real spacing instead of all landing on its first frame.
+- A partial status update could store an impossible OBS framerate.
+- Empty `PORT=`, `HOST=`, `LOG_LEVEL=` or `ROOM_CREATE_LIMIT_PER_MINUTE=` in `.env` stopped the server from starting; they now mean "default".
+- **OBS connection:** pressing Connect twice (or React's development mode) could start an endless reconnect loop.
+- **Server connection:** the reconnect delay never grew when the server accepted and then closed the socket; a deleted or unknown room was joined again on every reconnect; the clock sync could reject every sample forever after the network got slower.
+- **Blocked storage:** in a browser or OBS profile where storage is blocked, the Dock lost its member token right away, so every reconnect was refused and it came back as a new member each time. Credentials now stay in memory for the page load.
+- **Marker colors:** every marker made from the Dock was stored blue (the Dock always sent `Blue`), so exports never had the per-category colors (Kill red, Wipe fuchsia, Clutch yellow, Funny cyan, Note blue). New markers get their category's color; existing ones keep the color they were stored with (changing a marker's category in the Director Panel recolors it).
+- **Dock clock:** while OBS was recording, the big SMPTE clock showed the recording file's position with the session's base timecode, so it could disagree by minutes with the markers listed under it. It now shows the session timeline (server-calibrated) whenever a session runs, and the recording position only without one.
+- **Dock:** a name over 40 characters kept the Dock out of every room; custom marker text over 80 characters was lost (and saved twice, as label and comment); shortcuts fired on key repeat, with `Ctrl`/`Alt`/`Cmd`, and behind an open dialog.
+- **Director Panel:** an invalid base timecode closed the Start dialog and the session never started; the session history of the previous room stayed visible after switching rooms; `?room=` sent a reload back to the invite's room.
+- Export file names now drop the characters Windows forbids; "Copy" no longer fails silently when the browser refuses the clipboard; the category in the timeline is translated; API errors keep a translated prefix; the `TIMEOUT` message no longer replaces the room banner.
+- FCP 7 XML writes the base timecode with `;` in drop-frame sessions.
+- RFC 5987 file names percent-encode `' ( ) *`.
+
+### Accessibility
+- Dialogs keep keyboard focus inside them and give it back when they close (Escape to close and reduced-motion support were also added after 1.6.1).
+- Text contrast raised to at least 4.5:1 where axe found less; labels added to the filter, search, category and OBS settings fields.
+- The accessibility statement is rewritten to say only what is tested (axe-core WCAG 2.1 A/AA rules on the main screens in both languages) and what isn't yet (screen readers, Firefox, Safari).
+- The Director Panel reflows down to 320 CSS px (WCAG 1.4.10): the header with a live session, the marker filters and the room setup panel used to push the page to about 650 px wide on a phone. The end-to-end suite now checks it at 320 px, and the axe scans also cover the live HUD with a toast, the panel with members and markers, and a marker being edited.
+- Starting or stopping a session no longer drops keyboard focus to the page: the Start and Stop buttons replace each other when a session starts or stops, and if the removed one had the focus, the new one now takes it, also when the change comes from another tab (WCAG 2.4.3).
+
+### Tests
+- Component tests in a real Chromium (Vitest Browser Mode), axe-core accessibility scans in the end-to-end suite, coverage thresholds over every source file, and regression tests for each fix above.
+- The database stress test now really interleaves its 20 writers and takes the hot backup in the middle of them (before, they ran one after another and the backup ran after all of them).
+- Mutation testing of the timecode engine and exporters with Stryker, run on demand (`stryker.config.mjs`), with a 60 s timeout so its result no longer depends on machine load; new tests for the mutants it found alive (timecode parser anchors, drop-frame validation of session framerates, chapters past one hour, EDL text cleanup and more). The mutants still alive are listed in `packages/shared/test/mutants-v162.test.ts` with why they can't be told apart from the real code.
+
+### Changed
+- `@fastify/cors` 11, `@fastify/rate-limit` 11.2.1, `@fastify/static` 10.1.7, vite 8.3.5, lucide-react 1.61.
+- Code of conduct, accessibility statement and their Spanish versions (the Spanish files sit next to the English ones).
+- The release workflow can re-run for an existing release (it updates the notes and assets).
+
 ## [1.6.1] - 2026-10-22
 
 ### Added

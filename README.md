@@ -45,7 +45,7 @@ StreamCollab allows competitive gaming squads, content creator groups, and espor
   - Configurable base timecode offsets (e.g. `01:00:00:00` or `00:00:00:00`).
 
 - **NLE Exporter Suite**:
-  - 🎬 **DaVinci Resolve CMX 3600 EDL**: Strict CRLF line endings, sequential 1-frame edit events (`001`, `002`...), and `* LOC:` locator syntax mapped to native DaVinci marker colors (Red, Fuchsia, Yellow, Cyan, Blue, Green), clamped against negative frame durations.
+  - 🎬 **DaVinci Resolve marker EDL**: the layout Resolve itself writes with *Timeline Markers to EDL* (a 1-frame CMX 3600 event per marker followed by `|C:ResolveColor<Color> |M:<name> |D:1`), CRLF line endings, and Resolve's marker colors (Red, Fuchsia, Yellow, Cyan, Blue, Green by category).
   - 🎞️ **Adobe Premiere Pro FCP 7 XML (`xmeml` v4)**: Valid Final Cut Pro 7 XML with stripped control characters, complete `<format><samplecharacteristics>` video format blocks and track-level `<marker>` tags prefixed with category identifiers.
   - 📊 **Universal CSV**: RFC 4180 compliant CSV compatible with Google Sheets, Microsoft Excel, and Markerbox. Formula injection triggers (`/^\s*[=+\-@|]|[\t\r]/`) are safely neutralized.
   - 📺 **YouTube Video Chapters**: Clean description chapter format (`00:00 Intro\n01:23 First Blood`) that always starts at `00:00` and keeps YouTube's 10-second minimum chapter length.
@@ -197,8 +197,9 @@ Content-Type: application/json
 **Server environment variables** (see `.env.example`):
 - `ALLOWED_ORIGIN`: comma-separated origins allowed to call the REST API cross-origin. Leave empty when the client is served from the same host (default).
 - `ADMIN_TOKEN`: enables `GET /api/rooms` for `Authorization: Bearer <ADMIN_TOKEN>` (16+ characters).
-- `TRUST_PROXY`: `true` behind a reverse proxy so rate limits use the real client IP. Only enable it behind a proxy that **overwrites** `X-Forwarded-For` with the address it sees. Caddy does by default (`docker-compose.yml` already sets `TRUST_PROXY=true` for it). With another proxy, configure it that way (in Nginx, `proxy_set_header X-Forwarded-For $remote_addr;`); otherwise a client can send a fake IP and slip past the rate limits.
+- `TRUST_PROXY`: `true` behind a reverse proxy so rate limits use the real client IP. Only enable it behind a proxy that **overwrites** `X-Forwarded-For` with the address it sees. Caddy does by default (`docker-compose.yml` already sets `TRUST_PROXY=true` for it). With another proxy, configure it that way (in Nginx, `proxy_set_header X-Forwarded-For $remote_addr;`); otherwise a client can send a fake IP and slip past the rate limits. Behind a proxy with `TRUST_PROXY=false`, every client shares the proxy's IP, so the per-IP limits (room creation, unknown room codes, 64 simultaneous WebSocket connections) apply to everyone together.
 - `ROOM_CREATE_LIMIT_PER_MINUTE`: rooms one IP may create per minute (default 10).
+- `MAX_SOCKETS_PER_IP`: simultaneous WebSocket connections (docks, HUDs, Director Panels) from one IP (default 64). Raise it for a LAN event where many streamers share one public IP.
 
 Room codes are accepted in any letter case (`kq7p-m3xd` joins `KQ7P-M3XD`). An IP that tries more than 20 unknown room codes in a minute is refused for the rest of that minute.
 
@@ -242,10 +243,12 @@ The HUD and Director Panel never talk to OBS's WebSocket, so they can always be 
 ### DaVinci Resolve
 1. In StreamCollab Dock or Director Panel, click **Export NLE** -> select **DaVinci Resolve**.
 2. Click **Download File** (`.edl`).
-3. In DaVinci Resolve:
-   - Go to **File** -> **Import** -> **Timeline...** (or right-click timeline -> **Timelines** -> **Import** -> **EDL/XML...**).
-   - Select the downloaded `.edl` file.
-   - DaVinci Resolve will create timeline markers with native colors corresponding to each event type (Red for Kills, Fuchsia for Wipes, Yellow for Clutches, Cyan for Funny, Blue for Notes).
+3. In DaVinci Resolve, put your recording on a timeline whose start timecode matches the session's base timecode (01:00:00:00 by default, also for a per-POV export, where your recording file starts at that timecode).
+4. In the Media Pool, right-click that timeline -> **Timelines** -> **Import** -> **Timeline Markers from EDL...** and select the downloaded `.edl`.
+   - Markers dropped by several streamers on the same frame arrive as one marker with all their names (and the first one's color), because Resolve keeps one marker per frame.
+   - Each marker gets the color of its event type (Red for Kills, Fuchsia for Wipes, Yellow for Clutches, Cyan for Funny, Blue for Notes, Green for custom). If no marker appears, zoom out: they may be outside the visible part of the timeline.
+
+Since v1.6.2 the file uses Resolve's own marker EDL layout (earlier versions wrote Avid-style `* LOC:` locators).
 
 EDL titles are plain ASCII: accented letters are folded (a session named "Sesión" becomes "Sesion").
 
@@ -400,16 +403,19 @@ streamcollab/
 ├── eslint.config.mjs      # ESLint 10 flat config (typescript-eslint, react-hooks)
 ├── .prettierrc.json
 ├── playwright.config.ts
-└── vitest.config.ts
+└── vitest.config.mts
 ```
 
 ### 🧪 Testing & Verification
 
-StreamCollab maintains an automated suite of **216 tests** (201 Vitest unit/integration tests across 23 test suites + 15 Playwright end-to-end tests across real multi-streamer flows):
+At v1.6.2 the automated suite has **330 tests**: 303 unit / integration tests (30 files), 9 component tests in Chromium and 18 Playwright end-to-end tests (3 files, including the axe accessibility scans):
 ```bash
-npm test       # 201 Vitest tests across 23 suites
-npm run e2e    # 15 Playwright E2E tests (real multi-window Chromium flow)
+npm test               # unit / integration tests (Node)
+npm run test:browser   # component tests in Chromium (run `npx playwright install chromium` once)
+npm run test:coverage  # both, with the coverage thresholds of vitest.config.mts
+npm run e2e            # end-to-end (run `npm run build` first)
 ```
+Mutation testing of the timecode engine and exporters (Stryker, on demand) is described in `stryker.config.mjs`.
 - `packages/shared/test/timecode.test.ts`: SMPTE arithmetic, 60 fps NDF, 29.97 DF, 59.94 DF, 24 fps, minute-mark frame skipping.
 - `packages/shared/test/timecode-proptest.test.ts`: Property-based testing (`fast-check`) verifying bijectivity across all 8 standard framerates, drop-frame minute boundaries, sub-ms rational math, and 24h rollover.
 - `packages/shared/test/exporters.test.ts`: DaVinci CMX 3600 EDL formatting, FCP 7 XML, RFC 4180 CSV, YouTube chapters, and Multicam Sync Matrix.
@@ -417,8 +423,11 @@ npm run e2e    # 15 Playwright E2E tests (real multi-window Chromium flow)
 - `packages/shared/test/edge-cases.test.ts`: Zero markers, XML/CSV escaping, YouTube 10s chapter clustering, >24h timecode rollover.
 - `packages/shared/test/perMember.test.ts`: Per-POV timeline rebasing and EDL locators on the creator's own file.
 - `packages/shared/test/regressions.test.ts`: YouTube chapters opening at 00:00, CSV formula neutralization, accent folding in EDL titles, drop-frame only at 29.97 / 59.94, framerate validation.
+- `packages/shared/test/exporters-v162.test.ts`: Resolve marker EDL layout, markers on the same frame merged into one (Resolve keeps one per frame), the 16 Resolve colors, CRLF-only output (property), FCP 7 drop-frame base timecode.
+- `packages/shared/test/mutants-v162.test.ts`: Timecode parser and constructor edge cases, drop-frame validation of session framerates, EDL / XML / CSV / YouTube details found by mutation testing; lists the surviving mutants that are equivalent to the real code.
+- `packages/shared/test/exporters-mutants.test.ts`: Exporter details found by mutation testing: framerate resolution, Sync Matrix offsets, per-POV rebasing, chapter spacing, CSV ordering and FCP 7 sequence length.
 - `packages/server/test/server.test.ts`: Fastify routes, Node 24 native `node:sqlite` WAL mode, SNTP 4-timestamp clock offset and RTT engine.
-- `packages/server/test/db-concurrency.test.ts`: 20 concurrent workers executing 2,000 writes/sec with simultaneous live database hot backup under WAL contention.
+- `packages/server/test/db-concurrency.test.ts`: 2,000 marker writes from 20 interleaved writers with a hot backup taken in the middle of them (none lost), and transactions that never fail with `SQLITE_BUSY`.
 - `packages/server/test/crash-recovery.test.ts`: Startup reconciliation of unstopped sessions left active after an abrupt crash or server kill.
 - `packages/server/test/markers.test.ts`: Marker editing / deletion permissions and broadcasts, undo (WebSocket and HTTP), session history.
 - `packages/server/test/audit.test.ts`: Case-insensitive room codes, member presence and removal, session / room deletion, per-IP limit on unknown room codes.
@@ -428,10 +437,15 @@ npm run e2e    # 15 Playwright E2E tests (real multi-window Chromium flow)
 - `packages/server/test/ws.test.ts`: Real-socket WebSocket rooms (Dock + HUD with the same member id), heartbeat, calibrated marker timestamps, recording anchors, per-POV exports, and in-place migration of v1.0.0 databases.
 - `packages/server/test/ws-chaos.test.ts`: Rate limit burst flooding, reconnect storms with 30 sockets, 16KB/40KB oversized payloads, malformed JSON fuzzing, 15s unjoined socket timeout.
 - `packages/server/test/regressions.test.ts`: Membership in several rooms, one running session per room, room state between sessions, unsupported framerates, schema migration v3 → v4.
+- `packages/server/test/audit-v162.test.ts`: Transactions after a failed BEGIN, session stop races, Auto Session start time, restart recovery (clean shutdown vs crash) and migration v5, HTTP / WebSocket hardening (per-IP socket cap, repeated query parameters), environment parsing, unbiased room codes.
 - `packages/client/test/obs.test.ts`: Native OBS chapter detection, recording-only writes and error reporting, automatic reconnection backoff (with a stubbed obs-websocket).
 - `packages/client/test/obs-integration.test.ts`: OBS WebSocket v5 protocol integration (start/pause/resume/stop lifecycle, dynamic canvas FPS changes, Lua hotkey signal deduplication, chapter fallback).
 - `packages/client/test/socket.test.ts`: The Dock sends nothing to a room until the server confirms the join, and stops when the room is gone or the connection drops.
 - `packages/client/test/sntp-resilience.test.ts`: 4-ping initial calibration burst, jitter spike outlier rejection, duplicate disconnect event prevention, and exponential backoff.
+- `packages/client/test/audit-v162.test.ts`: Credentials kept per server (never handed to an untrusted `?server=`), blocked storage, random member ids, socket and OBS reconnection edge cases, clock filter re-baselining.
+- `packages/client/test/dockClock.test.ts`: The Dock clock follows the session timeline while a session runs.
+- `packages/client/test/accessibility.test.ts`: Reduced-motion CSS and the accessibility strings in both languages.
+- `packages/client/test/components.browser.test.tsx`: Component tests in Chromium: marker rows, export dialog focus and downloads, the start-session dialog.
 - `packages/client/test/i18n-sound.test.ts`: Spanish / English dictionaries in sync (keys and placeholders), interpolation, HUD sound options and cues.
 
 **End-to-end (Playwright):** `npm run build` then `npm run e2e`. Starts the compiled server on port 3210 with a throwaway database and drives real Chromium windows as separate identities (host, streamer dock, HUD, viewer): session start, hotkeys and undo, HUD toasts, the HUD preview's way back, editing / deleting markers, session history and exports, wrong room codes, language and HUD sound, narrow docks (300px/360px), multi-streamer squad synchronization, all 5 export format downloads, and the Dock losing and regaining the server connection. OBS's WebSocket is mocked, so the run never touches an OBS open on the same machine. Run `npx playwright install chromium` once before the first run.
@@ -442,7 +456,7 @@ npm run e2e    # 15 Playwright E2E tests (real multi-window Chromium flow)
 
 ## 🤝 Community & Accessibility
 
-StreamCollab welcomes everyone. Please review our [Code of Conduct](CODE_OF_CONDUCT.md) and our [Accessibility Statement](ACCESSIBILITY.md) (WCAG 2.1 Level AA conformance). To contribute code, translations, or bug reports, see [CONTRIBUTING.md](CONTRIBUTING.md).
+StreamCollab welcomes everyone. Please review our [Code of Conduct](CODE_OF_CONDUCT.md) and our [Accessibility Statement](ACCESSIBILITY.md) (target: WCAG 2.1 Level AA; what is and isn't tested yet). To contribute code, translations, or bug reports, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 

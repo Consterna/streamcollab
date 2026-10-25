@@ -55,15 +55,29 @@ test.describe('Extended squad flow: multi-streamer squad synchronization', () =>
     await expect(dashboard.getByText('Squad Wipe', { exact: true })).toBeVisible();
     await expect(dashboard.getByText('Funny Moment')).toBeVisible();
 
-    // 6. Host stops session
+    // 6. Host stops session. A second Director Panel tab has its Stop button focused: when the stop
+    // comes from the other tab, focus moves to the Start button that replaces it there too.
+    const dashboard2 = await openView(hostContext, 'dashboard', room.id);
+    await dashboard2.getByRole('button', { name: 'Stop Session' }).focus();
     await dashboard.getByRole('button', { name: 'Stop Session' }).click();
+    await expect(dashboard2.getByRole('button', { name: 'Start New Session' })).toBeFocused();
     await expect(dashboard.getByRole('button', { name: 'Start New Session' })).toBeVisible();
+    // Focus follows the button swap instead of falling to the page body
+    await expect(dashboard.getByRole('button', { name: 'Start New Session' })).toBeFocused();
 
     // Docks observe session transition to ended
     await expect(dock1.getByText(/Championship Match \(Ended\)/)).toBeVisible();
     await expect(dock2.getByText(/Championship Match \(Ended\)/)).toBeVisible();
     await markersCaptured(dock1, 4);
     await markersCaptured(dock2, 4);
+
+    // A user who moved focus away (a click on plain content) keeps it there when the buttons swap
+    await dashboard2.locator('h1').click();
+    await expect.poll(() => dashboard2.evaluate(() => document.activeElement === document.body)).toBe(true);
+    await dashboard.getByRole('button', { name: 'Start New Session' }).click();
+    await dashboard.getByRole('button', { name: 'Start Recording' }).click();
+    await expect(dashboard2.getByRole('button', { name: 'Stop Session' })).toBeVisible();
+    await expect.poll(() => dashboard2.evaluate(() => document.activeElement === document.body)).toBe(true);
   });
 });
 
@@ -129,8 +143,12 @@ test.describe('Export downloads validation', () => {
     expect(edlContent).toContain('\r\n');
     expect(edlContent).toMatch(/^TITLE:\s+Export Suite Session/m);
     expect(edlContent).toMatch(/^FCM:\s+(NON-DROP FRAME|DROP FRAME)/m);
-    expect(edlContent).toMatch(/\* FROM CLIP NAME:/m);
-    expect(edlContent).toMatch(/\* LOC:\s+\d\d:\d\d:\d\d:\d\d\s+(Red|Fuchsia|Yellow|Blue)/m);
+    // DaVinci Resolve marker EDL: one-frame event, then ` |C:ResolveColor<Color> |M:<name> |D:1`
+    expect(edlContent).toMatch(/^\d{3} {2}001 {6}V {5}C {8}\d\d:\d\d:\d\d:\d\d /m);
+    expect(edlContent).toMatch(/^ \|C:ResolveColor(Red|Fuchsia|Yellow|Blue) \|M:.+ \|D:1\r$/m);
+    // Each category keeps its own color (Kill red, Wipe fuchsia, Clutch yellow, Note blue), in marking order
+    const colors = [...edlContent.matchAll(/^ \|C:ResolveColor(\w+) /gm)].map((m) => m[1]);
+    expect(colors).toEqual(['Red', 'Fuchsia', 'Yellow', 'Blue']);
 
     // 2. Final Cut Pro XML
     const xmlContent = await downloadFormat('Premiere Pro', 'xml');

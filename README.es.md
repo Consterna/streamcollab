@@ -45,7 +45,7 @@ StreamCollab permite que squads de juego competitivo, grupos de creadores y dire
   - Timecode base configurable (p. ej. `01:00:00:00` o `00:00:00:00`).
 
 - **Exportadores para editores (NLE)**:
-  - 🎬 **EDL CMX 3600 para DaVinci Resolve**: saltos de línea CRLF estrictos, eventos de edición de 1 fotograma numerados (`001`, `002`...) y localizadores `* LOC:` con los colores nativos de marcador de DaVinci (Red, Fuchsia, Yellow, Cyan, Blue, Green), acotados contra duraciones negativas de fotogramas.
+  - 🎬 **EDL de marcadores para DaVinci Resolve**: el formato que escribe el propio Resolve con *Timeline Markers to EDL* (un evento CMX 3600 de 1 fotograma por marcador seguido de `|C:ResolveColor<Color> |M:<nombre> |D:1`), saltos de línea CRLF y los colores de marcador de Resolve (Red, Fuchsia, Yellow, Cyan, Blue, Green según la categoría).
   - 🎞️ **XML FCP 7 (`xmeml` v4) para Adobe Premiere Pro**: XML de Final Cut Pro 7 válido con eliminación de caracteres de control, con bloques `<format><samplecharacteristics>` completos y etiquetas `<marker>` en la pista con el identificador de la categoría delante.
   - 📊 **CSV universal**: CSV conforme a RFC 4180, compatible con Google Sheets, Microsoft Excel y Markerbox. Patrones de inyección de fórmulas (`/^\s*[=+\-@|]|[\t\r]/`) neutralizados de forma segura.
   - 📺 **Capítulos de YouTube**: formato limpio para la descripción (`00:00 Intro\n01:23 First Blood`) que siempre empieza en `00:00` y respeta la duración mínima de 10 segundos por capítulo de YouTube.
@@ -199,8 +199,9 @@ Content-Type: application/json
 **Variables de entorno del servidor** (ver `.env.example`):
 - `ALLOWED_ORIGIN`: orígenes, separados por comas, que pueden llamar a la API REST desde otro origen. Déjala vacía si el cliente se sirve desde el mismo servidor (por defecto).
 - `ADMIN_TOKEN`: habilita `GET /api/rooms` con `Authorization: Bearer <ADMIN_TOKEN>` (16 caracteres o más).
-- `TRUST_PROXY`: `true` detrás de un proxy inverso, para que los límites de peticiones usen la IP real del cliente. Actívala solo detrás de un proxy que **sobrescriba** `X-Forwarded-For` con la dirección que ve. Caddy lo hace por defecto (`docker-compose.yml` ya pone `TRUST_PROXY=true` para él). Con otro proxy, configúralo así (en Nginx, `proxy_set_header X-Forwarded-For $remote_addr;`); si no, un cliente puede enviar una IP falsa y saltarse los límites.
+- `TRUST_PROXY`: `true` detrás de un proxy inverso, para que los límites de peticiones usen la IP real del cliente. Actívala solo detrás de un proxy que **sobrescriba** `X-Forwarded-For` con la dirección que ve. Caddy lo hace por defecto (`docker-compose.yml` ya pone `TRUST_PROXY=true` para él). Con otro proxy, configúralo así (en Nginx, `proxy_set_header X-Forwarded-For $remote_addr;`); si no, un cliente puede enviar una IP falsa y saltarse los límites. Detrás de un proxy con `TRUST_PROXY=false`, todos los clientes comparten la IP del proxy, así que los límites por IP (creación de salas, códigos de sala desconocidos, 64 conexiones WebSocket simultáneas) se aplican a todos juntos.
 - `ROOM_CREATE_LIMIT_PER_MINUTE`: salas que una IP puede crear por minuto (10 por defecto).
+- `MAX_SOCKETS_PER_IP`: conexiones WebSocket simultáneas (docks, HUD, Paneles del director) desde una misma IP (64 por defecto). Súbelo para un evento LAN en el que muchos streamers comparten una IP pública.
 
 Los códigos de sala se aceptan en mayúsculas o minúsculas (`kq7p-m3xd` entra en `KQ7P-M3XD`). Una IP que prueba más de 20 códigos de sala inexistentes en un minuto queda bloqueada el resto de ese minuto.
 
@@ -244,10 +245,12 @@ El HUD y el Panel del director nunca hablan con el WebSocket de OBS, así que si
 ### DaVinci Resolve
 1. En la Dock o en el Panel del director, pulsa **Exportar NLE** → elige **DaVinci Resolve**.
 2. Pulsa **Descargar archivo** (`.edl`).
-3. En DaVinci Resolve:
-   - Ve a **File** → **Import** → **Timeline...** (o clic derecho en la línea de tiempo → **Timelines** → **Import** → **EDL/XML...**).
-   - Elige el archivo `.edl` descargado.
-   - DaVinci Resolve crea marcadores en la línea de tiempo con el color nativo de cada tipo de evento (rojo para kills, fucsia para wipes, amarillo para clutches, cian para momentos graciosos, azul para notas).
+3. En DaVinci Resolve, pon tu grabación en una línea de tiempo cuyo timecode inicial coincida con el timecode base de la sesión (01:00:00:00 por defecto, también en un export por POV, donde tu archivo de grabación empieza en ese timecode).
+4. En el Media Pool, clic derecho en esa línea de tiempo → **Timelines** → **Import** → **Timeline Markers from EDL...** y elige el `.edl` descargado.
+   - Los marcadores que varios streamers pusieron en el mismo fotograma llegan como uno solo con todos sus nombres (y el color del primero), porque Resolve guarda un marcador por fotograma.
+   - Cada marcador lleva el color de su tipo de evento (rojo para kills, fucsia para wipes, amarillo para clutches, cian para momentos graciosos, azul para notas, verde para los personalizados). Si no aparece ningún marcador, aleja el zoom: pueden estar fuera de la parte visible de la línea de tiempo.
+
+Desde la v1.6.2 el archivo usa el formato de EDL de marcadores del propio Resolve (las versiones anteriores escribían localizadores `* LOC:` al estilo de Avid).
 
 Los títulos del EDL son ASCII puro: las letras acentuadas se simplifican (una sesión llamada "Sesión" pasa a "Sesion").
 
@@ -402,16 +405,19 @@ streamcollab/
 ├── eslint.config.mjs      # Configuración plana de ESLint 10 (typescript-eslint, react-hooks)
 ├── .prettierrc.json
 ├── playwright.config.ts
-└── vitest.config.ts
+└── vitest.config.mts
 ```
 
 ### 🧪 Tests y verificación
 
-StreamCollab mantiene una suite de pruebas automatizada de **216 tests** (201 tests unitarios y de integración con Vitest en 23 suites + 15 tests end-to-end con Playwright simulando flujos reales multi-streamer):
+En la v1.6.2 la suite automática tiene **330 tests**: 303 tests unitarios y de integración (30 archivos), 9 tests de componentes en Chromium y 18 tests end-to-end con Playwright (3 archivos, incluidos los escaneos de accesibilidad con axe):
 ```bash
-npm test       # 201 tests en Vitest en 23 suites
-npm run e2e    # 15 tests E2E con Playwright (flujo real multi-ventana en Chromium)
+npm test               # tests unitarios y de integración (Node)
+npm run test:browser   # tests de componentes en Chromium (ejecuta `npx playwright install chromium` una vez)
+npm run test:coverage  # ambos, con los umbrales de cobertura de vitest.config.mts
+npm run e2e            # end-to-end (ejecuta `npm run build` antes)
 ```
+El mutation testing del motor de timecode y los exportadores (Stryker, bajo demanda) se describe en `stryker.config.mjs`.
 - `packages/shared/test/timecode.test.ts`: aritmética SMPTE, 60 fps NDF, 29.97 DF, 59.94 DF, 24 fps, salto de fotogramas en cada minuto.
 - `packages/shared/test/timecode-proptest.test.ts`: tests basados en propiedades (`fast-check`) verificando biyectividad en los 8 framerates estándar, límites de minutos drop-frame, precisión submilisegundo y desbordamiento 24h.
 - `packages/shared/test/exporters.test.ts`: formato del EDL CMX 3600 de DaVinci, XML FCP 7, CSV RFC 4180, capítulos de YouTube y matriz de sincronización multicámara.
@@ -419,8 +425,11 @@ npm run e2e    # 15 tests E2E con Playwright (flujo real multi-ventana en Chromi
 - `packages/shared/test/edge-cases.test.ts`: cero marcadores, escapado XML/CSV, agrupación de capítulos de YouTube a 10 s, timecodes de más de 24 h.
 - `packages/shared/test/perMember.test.ts`: reajuste de líneas de tiempo por POV y localizadores EDL sobre el archivo del propio creador.
 - `packages/shared/test/regressions.test.ts`: capítulos de YouTube que empiezan en 00:00, neutralización de fórmulas en el CSV, acentos en los títulos EDL, drop frame solo a 29.97 / 59.94, validación de framerates.
+- `packages/shared/test/exporters-v162.test.ts`: formato del EDL de marcadores de Resolve, marcadores en el mismo frame unidos en uno (Resolve guarda uno por frame), los 16 colores de Resolve, salida solo con CRLF (propiedad), timecode base drop frame en FCP 7.
+- `packages/shared/test/mutants-v162.test.ts`: casos límite del parser y del constructor de timecode, validación del drop frame en los framerates de sesión, detalles de EDL / XML / CSV / YouTube encontrados con mutation testing; enumera los mutantes supervivientes equivalentes al código real.
+- `packages/shared/test/exporters-mutants.test.ts`: detalles de los exportadores encontrados con mutation testing: resolución del framerate, offsets de la Sync Matrix, reajuste por POV, separación de capítulos, orden del CSV y duración de la secuencia FCP 7.
 - `packages/server/test/server.test.ts`: rutas de Fastify, `node:sqlite` nativo de Node 24 en modo WAL, motor SNTP de 4 marcas (desfase de reloj y RTT).
-- `packages/server/test/db-concurrency.test.ts`: 20 workers concurrentes ejecutando 2.000 escrituras/s con copia de seguridad en caliente simultánea en contención WAL.
+- `packages/server/test/db-concurrency.test.ts`: 2.000 escrituras de marcadores de 20 escritores intercalados con una copia en caliente hecha en medio de ellas (sin perder ninguna) y transacciones que nunca fallan con `SQLITE_BUSY`.
 - `packages/server/test/crash-recovery.test.ts`: conciliación en el arranque de sesiones no detenidas tras caída inesperada o reinicio del servidor.
 - `packages/server/test/markers.test.ts`: permisos y difusión al editar / borrar marcadores, deshacer (WebSocket y HTTP), historial de sesiones.
 - `packages/server/test/audit.test.ts`: códigos de sala sin distinguir mayúsculas, presencia y retirada de miembros, borrado de sesiones / salas, límite por IP de códigos inexistentes.
@@ -430,10 +439,15 @@ npm run e2e    # 15 tests E2E con Playwright (flujo real multi-ventana en Chromi
 - `packages/server/test/ws.test.ts`: salas WebSocket con sockets reales (Dock + HUD con el mismo member id), heartbeat, marcas de tiempo calibradas, anclas de grabación, exportaciones POV y migración in situ de bases de datos v1.0.0.
 - `packages/server/test/ws-chaos.test.ts`: saturación por ráfagas, tormentas de reconexión con 30 sockets, cargas de 16KB/40KB, fuzzing de JSON malformado y timeout de socket no unido (15s).
 - `packages/server/test/regressions.test.ts`: pertenencia a varias salas, una sola sesión en marcha por sala, estado de la sala entre sesiones, framerates no soportados, migración del esquema v3 → v4.
+- `packages/server/test/audit-v162.test.ts`: transacciones tras un BEGIN fallido, carreras al detener sesiones, hora de inicio de la Auto Session, recuperación tras reinicio (apagado ordenado frente a caída) y migración v5, refuerzo de HTTP / WebSocket (límite de sockets por IP, parámetros repetidos), lectura del entorno, códigos de sala sin sesgo.
 - `packages/client/test/obs.test.ts`: detección de capítulos nativos de OBS, escritura solo durante la grabación e informe de errores, reconexión automática con espera creciente (con un obs-websocket simulado).
 - `packages/client/test/obs-integration.test.ts`: integración del protocolo OBS WebSocket v5 (ciclo start/pause/resume/stop, cambios dinámicos de FPS, deduplicación de hotkeys Lua, fallback de capítulos).
 - `packages/client/test/socket.test.ts`: la Dock no envía nada a una sala hasta que el servidor confirma la entrada, y deja de enviar si la sala ya no existe o se cae la conexión.
 - `packages/client/test/sntp-resilience.test.ts`: ráfaga inicial de 4 pings, descarte de picos de jitter, deduplicación de eventos de desconexión y backoff exponencial.
+- `packages/client/test/audit-v162.test.ts`: credenciales guardadas por servidor (nunca se entregan a un `?server=` no confiable), almacenamiento bloqueado, ids de miembro aleatorios, casos límite de reconexión del socket y de OBS, reajuste del filtro del reloj.
+- `packages/client/test/dockClock.test.ts`: el reloj de la Dock sigue el timeline de la sesión mientras hay una sesión.
+- `packages/client/test/accessibility.test.ts`: CSS de movimiento reducido y los textos de accesibilidad en los dos idiomas.
+- `packages/client/test/components.browser.test.tsx`: tests de componentes en Chromium: filas de marcadores, foco y descargas del diálogo de exportación, el diálogo de inicio de sesión.
 - `packages/client/test/i18n-sound.test.ts`: diccionarios de español e inglés sincronizados (claves y marcadores de posición), interpolación, opciones y sonidos del HUD.
 
 **End-to-end (Playwright):** `npm run build` y después `npm run e2e`. Arranca el servidor compilado en el puerto 3210 con una base de datos desechable y maneja ventanas reales de Chromium como identidades distintas (host, Dock de un streamer, HUD, espectador): inicio de sesión, atajos y deshacer, avisos del HUD, la vuelta atrás desde la vista previa del HUD, edición / borrado de marcadores, historial de sesiones y exportaciones, códigos de sala erróneos, idioma y sonido del HUD, docks estrechos (300px/360px), sincronización de escuadra multi-streamer, descargas de los 5 formatos de exportación, y la Dock perdiendo y recuperando la conexión con el servidor. El WebSocket de OBS está simulado, así que la prueba nunca toca un OBS abierto en la misma máquina. Ejecuta `npx playwright install chromium` una vez antes de la primera prueba.
@@ -444,7 +458,7 @@ npm run e2e    # 15 tests E2E con Playwright (flujo real multi-ventana en Chromi
 
 ## 🤝 Comunidad y accesibilidad
 
-StreamCollab da la bienvenida a todas las personas. Por favor, consulta nuestro [Código de conducta](docs/CODE_OF_CONDUCT.es.md) y nuestra [Declaración de accesibilidad](docs/ACCESSIBILITY.es.md) (conformidad WCAG 2.1 Nivel AA). Para contribuir código, traducciones o informes de errores, consulta [CONTRIBUTING.md](CONTRIBUTING.md).
+StreamCollab da la bienvenida a todas las personas. Por favor, consulta nuestro [Código de conducta](CODE_OF_CONDUCT.es.md) y nuestra [Declaración de accesibilidad](ACCESSIBILITY.es.md) (objetivo: WCAG 2.1 nivel AA; qué está probado y qué no). Para contribuir código, traducciones o informes de errores, consulta [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 

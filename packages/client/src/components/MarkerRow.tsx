@@ -91,7 +91,7 @@ export const MarkerRow: React.FC<MarkerRowProps> = ({ marker, canEdit, onSave, o
         ) : (
           <>
             <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm bg-zinc-800 text-zinc-300">
-              {marker.category}
+              {t(`category.${marker.category}`)}
             </span>
             <div className="min-w-0">
               <span className="text-xs font-bold text-white">{marker.label}</span>
@@ -123,7 +123,7 @@ export const MarkerRow: React.FC<MarkerRowProps> = ({ marker, canEdit, onSave, o
           )}
           <div className="text-right">
             <span className="text-xs font-medium text-zinc-300">{marker.memberName}</span>
-            <p className="text-[10px] font-mono text-zinc-500">{new Date(marker.timestamp).toLocaleTimeString()}</p>
+            <p className="text-[10px] font-mono text-zinc-400">{new Date(marker.timestamp).toLocaleTimeString()}</p>
           </div>
         </div>
       )}
