@@ -247,7 +247,7 @@ El HUD y el Panel del director nunca hablan con el WebSocket de OBS, así que si
 2. Pulsa **Descargar archivo** (`.edl`).
 3. En DaVinci Resolve, pon tu grabación en una línea de tiempo cuyo timecode inicial coincida con el timecode base de la sesión (01:00:00:00 por defecto, también en un export por POV, donde tu archivo de grabación empieza en ese timecode).
 4. En el Media Pool, clic derecho en esa línea de tiempo → **Timelines** → **Import** → **Timeline Markers from EDL...** y elige el `.edl` descargado.
-   - Los marcadores que varios streamers pusieron en el mismo fotograma llegan como uno solo con todos sus nombres, porque Resolve guarda un marcador por fotograma.
+   - Los marcadores que varios streamers pusieron en el mismo fotograma llegan como uno solo con todos sus nombres (y el color del primero), porque Resolve guarda un marcador por fotograma.
    - Cada marcador lleva el color de su tipo de evento (rojo para kills, fucsia para wipes, amarillo para clutches, cian para momentos graciosos, azul para notas, verde para los personalizados). Si no aparece ningún marcador, aleja el zoom: pueden estar fuera de la parte visible de la línea de tiempo.
 
 Desde la v1.6.2 el archivo usa el formato de EDL de marcadores del propio Resolve (las versiones anteriores escribían localizadores `* LOC:` al estilo de Avid).
@@ -410,7 +410,7 @@ streamcollab/
 
 ### 🧪 Tests y verificación
 
-En la v1.6.2 la suite automática tiene **305 tests**: 278 tests unitarios y de integración (29 archivos), 9 tests de componentes en Chromium y 18 tests end-to-end con Playwright (3 archivos, incluidos los escaneos de accesibilidad con axe):
+En la v1.6.2 la suite automática tiene **308 tests**: 281 tests unitarios y de integración (29 archivos), 9 tests de componentes en Chromium y 18 tests end-to-end con Playwright (3 archivos, incluidos los escaneos de accesibilidad con axe):
 ```bash
 npm test               # tests unitarios y de integración (Node)
 npm run test:browser   # tests de componentes en Chromium (ejecuta `npx playwright install chromium` una vez)

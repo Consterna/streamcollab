@@ -245,7 +245,7 @@ The HUD and Director Panel never talk to OBS's WebSocket, so they can always be 
 2. Click **Download File** (`.edl`).
 3. In DaVinci Resolve, put your recording on a timeline whose start timecode matches the session's base timecode (01:00:00:00 by default, also for a per-POV export, where your recording file starts at that timecode).
 4. In the Media Pool, right-click that timeline -> **Timelines** -> **Import** -> **Timeline Markers from EDL...** and select the downloaded `.edl`.
-   - Markers dropped by several streamers on the same frame arrive as one marker with all their names, because Resolve keeps one marker per frame.
+   - Markers dropped by several streamers on the same frame arrive as one marker with all their names (and the first one's color), because Resolve keeps one marker per frame.
    - Each marker gets the color of its event type (Red for Kills, Fuchsia for Wipes, Yellow for Clutches, Cyan for Funny, Blue for Notes, Green for custom). If no marker appears, zoom out: they may be outside the visible part of the timeline.
 
 Since v1.6.2 the file uses Resolve's own marker EDL layout (earlier versions wrote Avid-style `* LOC:` locators).
@@ -408,7 +408,7 @@ streamcollab/
 
 ### 🧪 Testing & Verification
 
-At v1.6.2 the automated suite has **305 tests**: 278 unit / integration tests (29 files), 9 component tests in Chromium and 18 Playwright end-to-end tests (3 files, including the axe accessibility scans):
+At v1.6.2 the automated suite has **308 tests**: 281 unit / integration tests (29 files), 9 component tests in Chromium and 18 Playwright end-to-end tests (3 files, including the axe accessibility scans):
 ```bash
 npm test               # unit / integration tests (Node)
 npm run test:browser   # component tests in Chromium (run `npx playwright install chromium` once)

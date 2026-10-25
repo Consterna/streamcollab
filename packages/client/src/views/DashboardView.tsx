@@ -163,14 +163,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const startDialogRef = useRef<HTMLFormElement>(null);
   useDialogFocus(startDialogRef, showStartModal);
 
-  // Start and Stop replace each other once the server confirms. The button that appears takes the
-  // focus the removed one had, instead of letting it fall to the page body (WCAG 2.4.3).
+  // Start and Stop replace each other whenever a session starts or stops (here, from another tab or
+  // by an Auto Session). If the removed button had the focus, the one that appears takes it instead of
+  // letting it fall to the page body (WCAG 2.4.3).
   const sessionButtonRef = useRef<HTMLButtonElement>(null);
-  const sessionButtonFocusPending = useRef(false);
+  const focusedSessionButton = useRef<HTMLElement | null>(null);
   useEffect(() => {
-    if (!sessionButtonFocusPending.current) return;
-    sessionButtonFocusPending.current = false;
-    if (!document.activeElement || document.activeElement === document.body) sessionButtonRef.current?.focus();
+    const track = (e: FocusEvent) => {
+      focusedSessionButton.current = e.target === sessionButtonRef.current ? sessionButtonRef.current : null;
+    };
+    document.addEventListener('focusin', track);
+    return () => document.removeEventListener('focusin', track);
+  }, []);
+  useEffect(() => {
+    const previous = focusedSessionButton.current;
+    if (!previous || previous.isConnected) return;
+    if (document.activeElement && document.activeElement !== document.body) return;
+    sessionButtonRef.current?.focus();
   }, [activeSession?.id]);
   const [sessionName, setSessionName] = useState(() => t('dash.defaultSessionName'));
   const [baseTimecode, setBaseTimecode] = useState('01:00:00:00');
@@ -212,7 +221,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       framerateDenominator: rate.den,
       dropFrame: dropFrameAvailable && isDropFrame,
     });
-    sessionButtonFocusPending.current = true;
     setShowStartModal(false);
   };
 
@@ -220,7 +228,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     if (!activeSession) return;
     if (window.confirm(t('dash.stopConfirm', { name: activeSession.name }))) {
       socketClient.stopSession(roomId, activeSession.id);
-      sessionButtonFocusPending.current = true;
     }
   };
 

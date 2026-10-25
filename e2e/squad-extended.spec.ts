@@ -55,8 +55,12 @@ test.describe('Extended squad flow: multi-streamer squad synchronization', () =>
     await expect(dashboard.getByText('Squad Wipe', { exact: true })).toBeVisible();
     await expect(dashboard.getByText('Funny Moment')).toBeVisible();
 
-    // 6. Host stops session
+    // 6. Host stops session. A second Director Panel tab has its Stop button focused: when the stop
+    // comes from the other tab, focus moves to the Start button that replaces it there too.
+    const dashboard2 = await openView(hostContext, 'dashboard', room.id);
+    await dashboard2.getByRole('button', { name: 'Stop Session' }).focus();
     await dashboard.getByRole('button', { name: 'Stop Session' }).click();
+    await expect(dashboard2.getByRole('button', { name: 'Start New Session' })).toBeFocused();
     await expect(dashboard.getByRole('button', { name: 'Start New Session' })).toBeVisible();
     // Focus follows the button swap instead of falling to the page body
     await expect(dashboard.getByRole('button', { name: 'Start New Session' })).toBeFocused();

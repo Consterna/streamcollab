@@ -17,13 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sockets that leave their room, or whose room is deleted, are closed after the join timeout; simultaneous WebSocket connections per IP are capped (`MAX_SOCKETS_PER_IP`, default 64). Behind a reverse proxy, set `TRUST_PROXY=true` so these limits apply per client, not to everyone together.
 
 ### Fixed
-- **DaVinci Resolve EDL:** the export now uses the layout Resolve itself writes with *Timeline Markers to EDL* (`|C:ResolveColor<Color> |M:<name> |D:1` after each event), imported with *Timelines → Import → Timeline Markers from EDL*. Earlier versions wrote Avid-style `* LOC:` locators. `White` markers become Resolve's `Cream`, and markers several streamers dropped on the same frame become one marker with all their names (Resolve keeps one marker per frame).
+- **DaVinci Resolve EDL:** the export now uses the layout Resolve itself writes with *Timeline Markers to EDL* (`|C:ResolveColor<Color> |M:<name> |D:1` after each event), imported with *Timelines → Import → Timeline Markers from EDL*. Earlier versions wrote Avid-style `* LOC:` locators. `White` markers become Resolve's `Cream`, and markers several streamers dropped on the same frame become one marker with all their names and the color of the first one (Resolve keeps one marker per frame).
 - **Sessions:** stopping a session that had already stopped moved its end time and left the running session orphaned; a marker pressed after the host stopped the session could still be stored in it (one pressed just before the stop still is); a failed `BEGIN` (database busy) silently disabled every later transaction; `SESSION_STOPPED` could be announced for a change that was then rolled back.
 - **Restarts:** after a normal restart (deploy) running sessions now continue instead of being closed at their last marker; after a crash they close at the server's last heartbeat. Members no longer appear as recording until their Dock reconnects, so a session started meanwhile can't anchor a stale recording file.
 - **Database:** migration v5 repairs sessions that the v4 migration could close before they started; a database written by a newer StreamCollab is refused, and the file is no longer left open (locked on Windows) when it can't be used.
 - Exporting a session that doesn't exist answered with another session's file; it now answers 404. A repeated query parameter answered 500; it now answers 400.
 - Undo (`0`, `Ctrl+Z`, HTTP) only reaches the running session, as documented.
-- An Auto Session (opened by a marker when no session runs) now starts at that key press, so the markers right after it keep their real spacing instead of all landing on its first frame.
+- An Auto Session (opened by a marker when no session runs) now starts at that key press (never before the previous session stopped), so the markers right after it keep their real spacing instead of all landing on its first frame.
 - A partial status update could store an impossible OBS framerate.
 - Empty `PORT=`, `HOST=`, `LOG_LEVEL=` or `ROOM_CREATE_LIMIT_PER_MINUTE=` in `.env` stopped the server from starting; they now mean "default".
 - **OBS connection:** pressing Connect twice (or React's development mode) could start an endless reconnect loop.
@@ -42,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Text contrast raised to at least 4.5:1 where axe found less; labels added to the filter, search, category and OBS settings fields.
 - The accessibility statement is rewritten to say only what is tested (axe-core WCAG 2.1 A/AA rules on the main screens in both languages) and what isn't yet (screen readers, Firefox, Safari).
 - The Director Panel reflows down to 320 CSS px (WCAG 1.4.10): the header with a live session, the marker filters and the room setup panel used to push the page to about 650 px wide on a phone. The end-to-end suite now checks it at 320 px, and the axe scans also cover the live HUD with a toast, the panel with members and markers, and a marker being edited.
-- Starting or stopping a session no longer drops keyboard focus to the page: the Start and Stop buttons replace each other when the server confirms, and the new one now takes the focus (WCAG 2.4.3).
+- Starting or stopping a session no longer drops keyboard focus to the page: the Start and Stop buttons replace each other when a session starts or stops, and if the removed one had the focus, the new one now takes it, also when the change comes from another tab (WCAG 2.4.3).
 
 ### Tests
 - Component tests in a real Chromium (Vitest Browser Mode), axe-core accessibility scans in the end-to-end suite, coverage thresholds over every source file, and regression tests for each fix above.

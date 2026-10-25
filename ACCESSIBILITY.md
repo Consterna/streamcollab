@@ -18,7 +18,7 @@ StreamCollab aims for the **Web Content Accessibility Guidelines (WCAG) 2.1 Leve
 - **Dialogs** (Export, Start Session) are tested in Chromium ([`packages/client/test/components.browser.test.tsx`](packages/client/test/components.browser.test.tsx)): focus moves into the dialog when it opens, `Tab` / `Shift+Tab` stay inside it, `Escape` closes it and focus returns to the button that opened it.
 - **Narrow docks:** the end-to-end suite checks that every Dock control stays on screen at 300, 360 and 420 px wide.
 - **Reflow (WCAG 1.4.10):** the end-to-end suite checks that the Director Panel, with a session running, needs no horizontal scrolling at 320 px wide.
-- **Focus after Start / Stop Session:** the button that replaces the one you pressed receives the focus, so it never falls back to the page.
+- **Focus after Start / Stop Session:** when the Start or Stop button that had the focus is replaced, the new one receives it instead of the page, also when the session was started or stopped from another tab (end-to-end tests).
 
 ## What StreamCollab does
 
