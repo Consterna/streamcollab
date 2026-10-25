@@ -17,15 +17,18 @@ const DECLINED_SERVERS_KEY = 'streamcollab_declined_servers';
 // Copy kept for this page load: without it, a profile with storage blocked lost its member token
 // right away and every reconnect was refused (MEMBER_TOKEN_INVALID), creating a new identity each time
 const pageMemory = new Map<string, string>();
+// Keys whose last write did not reach storage: for those, the page copy is the current value. For the
+// others storage stays the source of truth, so a token another tab cleared is not brought back.
+const unsavedKeys = new Set<string>();
 
 function read(key: string): string | undefined {
+  if (unsavedKeys.has(key)) return pageMemory.get(key);
   try {
-    const stored = localStorage.getItem(key);
-    if (stored) return stored;
+    return localStorage.getItem(key) || undefined;
   } catch {
     // storage unavailable: fall back to this page load's copy
+    return pageMemory.get(key);
   }
-  return pageMemory.get(key);
 }
 
 function write(key: string, value: string | null) {
@@ -40,8 +43,10 @@ function write(key: string, value: string | null) {
     } else {
       localStorage.setItem(key, value);
     }
+    unsavedKeys.delete(key);
   } catch {
     // storage unavailable: the value only lives for this page load (pageMemory)
+    unsavedKeys.add(key);
   }
 }
 

@@ -164,6 +164,29 @@ describe('credentials are kept per server (v1.6.2)', () => {
     expect(c.getHostToken('ROOM-9')).toBeUndefined();
   });
 
+  it('does not bring back a token another tab cleared (storage stays the source of truth)', async () => {
+    const c = await load('');
+    c.saveHostToken('ROOM-5', 'host-token-5');
+    expect(c.getHostToken('ROOM-5')).toBe('host-token-5');
+    // Another tab (or "clear site data") removes it from the shared storage
+    for (const key of [...Array(storage.length).keys()].map((i) => storage.key(i)!)) storage.removeItem(key);
+    expect(c.getHostToken('ROOM-5')).toBeUndefined();
+  });
+
+  it('reads the value it could not save, not an older stored one (storage full)', async () => {
+    const full = new MemoryStorage();
+    vi.resetModules();
+    vi.stubGlobal('window', { location: { search: '', origin: 'https://app.example' } });
+    vi.stubGlobal('localStorage', full);
+    const c = await import('../src/services/credentials');
+    c.saveMemberToken('mem_full', 'old-token');
+    full.setItem = () => {
+      throw new Error('QuotaExceededError');
+    };
+    c.saveMemberToken('mem_full', 'new-token');
+    expect(c.getMemberToken('mem_full')).toBe('new-token');
+  });
+
   it('creates unpredictable member ids the server accepts', async () => {
     const c = await load('');
     const ids = new Set(Array.from({ length: 2000 }, () => c.newMemberId()));
