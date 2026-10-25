@@ -79,7 +79,7 @@ Hay imágenes ya compiladas para `linux/amd64` y `linux/arm64` en `ghcr.io/const
 ### Opción A: un PC o tu red local (Docker)
 Con [Docker](https://docs.docker.com/get-started/get-docker/) instalado:
 ```bash
-docker run -d -p 3000:3000 -v streamcollab-data:/data --name streamcollab ghcr.io/consterna/streamcollab:1.6.1
+docker run -d -p 3000:3000 -v streamcollab-data:/data --name streamcollab ghcr.io/consterna/streamcollab:1.6.2
 ```
 1. Abre `http://localhost:3000/dashboard` y crea una sala (**Nueva sala** → **Crear**). A partir de ahí eres su host.
 2. Copia los enlaces de la Dock y del HUD desde el Panel del director y pégalos en OBS.
@@ -99,7 +99,7 @@ Esta opción usa HTTP sin cifrar y está pensada para la red de casa. Para jugar
    cp .env.example .env    # pon DOMAIN=collab.example.com (y ADMIN_TOKEN si quieres la lista de salas)
    docker compose pull && docker compose up -d
    ```
-   Así se usa `ghcr.io/consterna/streamcollab:1.6.1`; define `STREAMCOLLAB_TAG` en `.env` para elegir otra versión publicada. Si prefieres compilar la imagen desde el código que has clonado, ejecuta `docker compose up -d --build`.
+   Así se usa `ghcr.io/consterna/streamcollab:1.6.2`; define `STREAMCOLLAB_TAG` en `.env` para elegir otra versión publicada. Si prefieres compilar la imagen desde el código que has clonado, ejecuta `docker compose up -d --build`.
 3. Abre `https://collab.example.com/dashboard`, crea una sala y comparte los enlaces de la Dock y del HUD.
 
 Copias de seguridad, actualizaciones y logs: [En una VPS](#-en-una-vps).

@@ -1,6 +1,6 @@
 {
   "name": "streamcollab",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "description": "Collaborative squad markers for OBS Studio with SMPTE timecode NLE exports (DaVinci Resolve, Premiere Pro, YouTube chapters)",
   "license": "MIT",
   "homepage": "https://github.com/Consterna/streamcollab#readme",

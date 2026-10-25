@@ -54,6 +54,6 @@ body:
     id: version
     attributes:
       label: StreamCollab version / Versión de StreamCollab
-      placeholder: '1.6.1'
+      placeholder: '1.6.2'
     validations:
       required: false

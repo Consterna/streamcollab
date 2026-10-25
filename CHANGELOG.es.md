@@ -9,12 +9,15 @@ y este proyecto se adhiere al [Versionado Semántico](https://semver.org/lang/es
 
 ## [Unreleased]
 
+## [1.6.2] - 2026-10-25
+
 ### Seguridad
 - **zod 4.6.7:** las versiones de zod anteriores a la 4.6.6 podían agotar la memoria al validar arrays grandes ([GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5), alta). Los límites de StreamCollab (cuerpos de 64 KB, mensajes WebSocket de 16 KB) ya lo acotaban.
 - **Credenciales por servidor:** un enlace con `?server=` podía hacer que la página enviara a otro servidor los tokens de host y de miembro que tenía guardados. Ahora los tokens y el id de miembro se guardan por servidor; las credenciales guardadas por versiones anteriores solo se usan con otro servidor si lo aceptas en un aviso que lo nombra.
 - Los códigos de sala generados elegían sus caracteres con sesgo de módulo (8 de los 31 caracteres salían algo más a menudo); ahora son uniformes. Los ids de miembro nuevos salen del generador criptográfico del navegador en vez de `Math.random`, así que otro dispositivo no puede adivinarlos y reclamarlos.
 - Los códigos de sala desconocidos cuentan por IP en la API REST y en el WebSocket a la vez (antes solo se limitaban las uniones por WebSocket), y un código de sala personalizado necesita al menos 8 caracteres.
 - Los sockets que salen de su sala, o cuya sala se borra, se cierran al pasar el tiempo de espera de unión; las conexiones WebSocket simultáneas por IP tienen un tope (`MAX_SOCKETS_PER_IP`, 64 por defecto). Detrás de un proxy inverso, pon `TRUST_PROXY=true` para que estos límites se apliquen por cliente y no a todos juntos.
+- La imagen Docker ya no incluye npm / npx: en ejecución solo necesita Node, y las dependencias que trae el propio npm eran todos los hallazgos HIGH que Trivy marcaba entre los paquetes de Node de la imagen.
 
 ### Corregido
 - **EDL de DaVinci Resolve:** la exportación usa ahora el formato que escribe el propio Resolve con *Timeline Markers to EDL* (`|C:ResolveColor<Color> |M:<nombre> |D:1` tras cada evento), que se importa con *Timelines → Import → Timeline Markers from EDL*. Las versiones anteriores escribían localizadores `* LOC:` al estilo de Avid. Los marcadores `White` pasan a `Cream` de Resolve, y los marcadores que varios streamers pusieron en el mismo fotograma se unen en uno con todos sus nombres y el color del primero (Resolve guarda un marcador por fotograma).
@@ -36,6 +39,7 @@ y este proyecto se adhiere al [Versionado Semántico](https://semver.org/lang/es
 - Los nombres de archivo exportados eliminan los caracteres que Windows prohíbe; "Copiar" ya no falla en silencio cuando el navegador rechaza el portapapeles; la categoría de la línea de tiempo se traduce; los errores de la API conservan un prefijo traducido; el mensaje `TIMEOUT` ya no sustituye al aviso de la sala.
 - El XML de FCP 7 escribe el timecode base con `;` en las sesiones drop-frame.
 - Los nombres de archivo RFC 5987 codifican `' ( ) *`.
+- Un frame WebSocket por encima del límite de tamaño (o una conexión cortada) escribía una entrada de nivel error en el log del servidor por cada socket, así que un cliente podía inundar el log; los errores de protocolo del cliente se registran ahora como avisos.
 
 ### Accesibilidad
 - Los diálogos mantienen el foco del teclado dentro y lo devuelven al cerrarse (cerrar con Escape y el soporte de movimiento reducido también se añadieron después de la 1.6.1).
@@ -53,6 +57,8 @@ y este proyecto se adhiere al [Versionado Semántico](https://semver.org/lang/es
 - `@fastify/cors` 11, `@fastify/rate-limit` 11.2.1, `@fastify/static` 10.1.7, vite 8.3.5, lucide-react 1.61.
 - Código de conducta, declaración de accesibilidad y sus versiones en español (los archivos en español están junto a los ingleses).
 - El workflow de release puede volver a ejecutarse sobre una release existente (actualiza las notas y los assets).
+- `ws` está declarado en los paquetes que lo importan (solo funcionaba como dependencia de otros paquetes), y los paquetes del workspace se marcan como `private` con su licencia MIT.
+- SECURITY.md da un correo para los reportes (el reporte privado de vulnerabilidades de GitHub no está activado) y enumera los límites conocidos por diseño: las credenciales guardadas en el almacenamiento del navegador y el parámetro `?server=`.
 
 ## [1.6.1] - 2026-10-22
 
@@ -302,7 +308,8 @@ y este proyecto se adhiere al [Versionado Semántico](https://semver.org/lang/es
 - Acceso a los exportadores tras detener la sesión, para poder generar la línea de tiempo después de la emisión.
 - Navegación por rutas tanto con query string (`?view=dock`) como con hash (`#/dock`).
 
-[Unreleased]: https://github.com/Consterna/streamcollab/compare/v1.6.1...HEAD
+[Unreleased]: https://github.com/Consterna/streamcollab/compare/v1.6.2...HEAD
+[1.6.2]: https://github.com/Consterna/streamcollab/compare/v1.6.1...v1.6.2
 [1.6.1]: https://github.com/Consterna/streamcollab/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/Consterna/streamcollab/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/Consterna/streamcollab/compare/v1.5.0...v1.5.1

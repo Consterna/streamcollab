@@ -9,12 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.2] - 2026-10-25
+
 ### Security
 - **zod 4.6.7:** zod before 4.6.6 could exhaust memory while validating large arrays ([GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5), high). StreamCollab's request limits (64 KB bodies, 16 KB WebSocket messages) already bounded it.
 - **Credentials per server:** a link with `?server=` could make the page send the host and member tokens it had saved to another server. Tokens and the member id are now kept per server; credentials saved by earlier versions are only reused with another server after you accept it in a banner that names it.
 - Generated room codes drew their characters with a modulo bias (8 of the 31 characters came up slightly more often); they are now uniform. New member ids come from the browser's cryptographic random generator instead of `Math.random`, so they can't be guessed and claimed by another device.
 - Unknown room codes now count per IP across the REST API and the WebSocket (before, only WebSocket joins were limited), and a custom room code needs at least 8 characters.
 - Sockets that leave their room, or whose room is deleted, are closed after the join timeout; simultaneous WebSocket connections per IP are capped (`MAX_SOCKETS_PER_IP`, default 64). Behind a reverse proxy, set `TRUST_PROXY=true` so these limits apply per client, not to everyone together.
+- The Docker image no longer ships npm / npx: at runtime it only needs Node, and npm's own bundled dependencies were every HIGH finding Trivy reported among the image's Node packages.
 
 ### Fixed
 - **DaVinci Resolve EDL:** the export now uses the layout Resolve itself writes with *Timeline Markers to EDL* (`|C:ResolveColor<Color> |M:<name> |D:1` after each event), imported with *Timelines → Import → Timeline Markers from EDL*. Earlier versions wrote Avid-style `* LOC:` locators. `White` markers become Resolve's `Cream`, and markers several streamers dropped on the same frame become one marker with all their names and the color of the first one (Resolve keeps one marker per frame).
@@ -36,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Export file names now drop the characters Windows forbids; "Copy" no longer fails silently when the browser refuses the clipboard; the category in the timeline is translated; API errors keep a translated prefix; the `TIMEOUT` message no longer replaces the room banner.
 - FCP 7 XML writes the base timecode with `;` in drop-frame sessions.
 - RFC 5987 file names percent-encode `' ( ) *`.
+- A WebSocket frame over the size limit (or a dropped connection) wrote an error-level entry to the server log for every socket, so one client could flood the log; client protocol errors are now logged as warnings.
 
 ### Accessibility
 - Dialogs keep keyboard focus inside them and give it back when they close (Escape to close and reduced-motion support were also added after 1.6.1).
@@ -53,6 +57,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `@fastify/cors` 11, `@fastify/rate-limit` 11.2.1, `@fastify/static` 10.1.7, vite 8.3.5, lucide-react 1.61.
 - Code of conduct, accessibility statement and their Spanish versions (the Spanish files sit next to the English ones).
 - The release workflow can re-run for an existing release (it updates the notes and assets).
+- `ws` is declared by the packages that import it (it only worked as a dependency of other packages), and the workspace packages are marked `private` with their MIT license.
+- SECURITY.md gives an email address for reports (GitHub private vulnerability reporting is not enabled) and lists the known limits by design: credentials kept in browser storage and the `?server=` parameter.
 
 ## [1.6.1] - 2026-10-22
 
@@ -302,7 +308,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed exporter access after session stop to allow post-broadcast timeline generation.
 - Fixed route navigation handling for both query string (`?view=dock`) and hash routing (`#/dock`).
 
-[Unreleased]: https://github.com/Consterna/streamcollab/compare/v1.6.1...HEAD
+[Unreleased]: https://github.com/Consterna/streamcollab/compare/v1.6.2...HEAD
+[1.6.2]: https://github.com/Consterna/streamcollab/compare/v1.6.1...v1.6.2
 [1.6.1]: https://github.com/Consterna/streamcollab/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/Consterna/streamcollab/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/Consterna/streamcollab/compare/v1.5.0...v1.5.1

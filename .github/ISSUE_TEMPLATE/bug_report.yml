@@ -17,7 +17,7 @@ body:
     attributes:
       label: StreamCollab version / Versión de StreamCollab
       description: Release or Docker image tag, or the commit if you run from source / Versión o etiqueta de la imagen Docker, o el commit si lo ejecutas desde el código
-      placeholder: '1.6.1'
+      placeholder: '1.6.2'
     validations:
       required: true
 

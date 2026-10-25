@@ -35,7 +35,7 @@ export default defineConfig({
       // Every source file counts, including the ones no test loads yet
       include: ['packages/*/src/**/*.{ts,tsx}'],
       exclude: ['packages/client/src/main.tsx', '**/*.d.ts'],
-      // Measured with both projects (npm run test:coverage) for v1.6.2: 66.4 / 57.1 / 55.8 / 68.4 %.
+      // Measured with both projects (npm run test:coverage) for v1.6.2: 67.4 / 58.5 / 57.3 / 69.4 %.
       // The run fails if coverage drops below; raise these as tests are added.
       thresholds: { statements: 66, branches: 57, functions: 55, lines: 68 },
     },
